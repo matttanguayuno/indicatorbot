@@ -414,7 +414,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
 
   // Use 900x400 viewBox — same as hero chart — so font sizes render identically
   const w = 900, h = 400;
-  const padL = 48, padR = 60, padT = 12, padB = 28;
+  const padL = 38, padR = 60, padT = 12, padB = 22;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
@@ -485,7 +485,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
       {yTicks.map((t) => (
         <g key={t}>
           <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-          <text x={padL - 5} y={yScale(t) + 5} textAnchor="end" fill="#6b7280" fontSize={18}>{t}</text>
+          <text x={padL - 5} y={yScale(t) + 4} textAnchor="end" fill="#6b7280" fontSize={12}>{t}</text>
         </g>
       ))}
 
@@ -495,7 +495,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
         const d = new Date(timestamps[i]);
         const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
         return (
-          <text key={i} x={xScale(i)} y={h - 2} textAnchor="middle" fill="#6b7280" fontSize={16}>
+          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={10}>
             {label}
           </text>
         );
@@ -530,7 +530,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
             x={xScale(maxLen - 1) + 6}
             y={lp.y + 5}
             fill={lp.color}
-            fontSize={16}
+            fontSize={11}
             fontWeight="600"
           >
             {lp.symbol}
