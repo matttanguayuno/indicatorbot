@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface Candle {
   time: string;
@@ -27,7 +27,13 @@ export function PriceChart({
   if (candles.length < 2) return null;
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Visible candles based on zoom level
+  const zStart = Math.floor(zoom[0] * (candles.length - 1));
+  const zEnd = Math.ceil(zoom[1] * (candles.length - 1));
+  const visCandles = candles.slice(zStart, Math.max(zStart + 2, zEnd + 1));
 
   const padLeft = 52;
   const padRight = 8;
@@ -38,22 +44,22 @@ export function PriceChart({
   const chartW = width - padLeft - padRight;
   const priceH = height - padTop - padBottom - volHeight;
 
-  const closes = candles.map((c) => c.close);
-  const highs = candles.map((c) => c.high);
-  const lows = candles.map((c) => c.low);
-  const volumes = candles.map((c) => c.volume);
+  const closes = visCandles.map((c) => c.close);
+  const highs = visCandles.map((c) => c.high);
+  const lows = visCandles.map((c) => c.low);
+  const volumes = visCandles.map((c) => c.volume);
 
   const priceMin = Math.min(...lows);
   const priceMax = Math.max(...highs);
   const priceRange = priceMax - priceMin || 1;
   const volMax = Math.max(...volumes) || 1;
 
-  const isPositive = closes[closes.length - 1] >= candles[0].open;
+  const isPositive = closes[closes.length - 1] >= visCandles[0].open;
   const lineColor = isPositive ? '#4ade80' : '#f87171';
   const fillColor = isPositive ? '#4ade8020' : '#f8717120';
 
   function x(i: number) {
-    return padLeft + (i / (candles.length - 1)) * chartW;
+    return padLeft + (i / (visCandles.length - 1)) * chartW;
   }
   function yPrice(p: number) {
     return padTop + (1 - (p - priceMin) / priceRange) * priceH;
@@ -68,7 +74,7 @@ export function PriceChart({
   const areaPath = [
     `M ${x(0)},${yPrice(closes[0])}`,
     ...closes.slice(1).map((c, i) => `L ${x(i + 1)},${yPrice(c)}`),
-    `L ${x(candles.length - 1)},${padTop + priceH}`,
+    `L ${x(visCandles.length - 1)},${padTop + priceH}`,
     `L ${x(0)},${padTop + priceH}`,
     'Z',
   ].join(' ');
@@ -80,16 +86,16 @@ export function PriceChart({
   });
 
   const timeLabels: { label: string; x: number }[] = [];
-  const step = Math.max(1, Math.floor(candles.length / 5));
-  for (let i = 0; i < candles.length; i += step) {
-    const d = new Date(candles[i].time);
+  const step = Math.max(1, Math.floor(visCandles.length / 5));
+  for (let i = 0; i < visCandles.length; i += step) {
+    const d = new Date(visCandles[i].time);
     const h = d.getHours();
     const m = d.getMinutes();
     const label = `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
     timeLabels.push({ label, x: x(i) });
   }
 
-  const barW = Math.max(1, chartW / candles.length - 1);
+  const barW = Math.max(1, chartW / visCandles.length - 1);
 
   function fmtPrice(v: number) {
     if (v >= 1000) return v.toFixed(0);
@@ -103,13 +109,40 @@ export function PriceChart({
       const rect = svgRef.current.getBoundingClientRect();
       const screenX = e.clientX - rect.left;
       const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
-      const idx = Math.round(fraction * (candles.length - 1));
-      setHoverIndex(Math.max(0, Math.min(candles.length - 1, idx)));
+      const idx = Math.round(fraction * (visCandles.length - 1));
+      setHoverIndex(Math.max(0, Math.min(visCandles.length - 1, idx)));
     },
-    [width, padLeft, chartW, candles.length],
+    [width, padLeft, chartW, visCandles.length],
   );
 
   const handlePointerLeave = useCallback(() => setHoverIndex(null), []);
+
+  // Mouse wheel zoom
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const frac = Math.max(0, Math.min(1,
+        (sx / rect.width * width - padLeft) / (width - padLeft - 8)
+      ));
+      setZoom(([s, en]) => {
+        const r = en - s;
+        const factor = e.deltaY > 0 ? 1.2 : 0.85;
+        const nr = Math.min(1, Math.max(0.02, r * factor));
+        const center = s + frac * r;
+        let ns = center - frac * nr;
+        let ne = center + (1 - frac) * nr;
+        if (ns < 0) { ne = Math.min(1, ne - ns); ns = 0; }
+        if (ne > 1) { ns = Math.max(0, ns - (ne - 1)); ne = 1; }
+        return [ns, ne];
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [width]);
 
   // Hover tooltip position
   const hIdx = hoverIndex ?? 0;
@@ -125,7 +158,7 @@ export function PriceChart({
 
   // Hover time label
   const hoverTime = hoverIndex != null ? (() => {
-    const d = new Date(candles[hIdx].time);
+    const d = new Date(visCandles[hIdx].time);
     const h = d.getHours();
     const m = d.getMinutes();
     return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
@@ -139,6 +172,7 @@ export function PriceChart({
       preserveAspectRatio="xMidYMid meet"
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
+      onDoubleClick={() => setZoom([0, 1])}
       style={{ touchAction: 'none', width: '100%', height: '100%' }}
     >
       {/* Grid lines */}
@@ -168,7 +202,7 @@ export function PriceChart({
       />
 
       {/* Volume bars */}
-      {candles.map((c, i) => (
+      {visCandles.map((c, i) => (
         <rect
           key={i}
           x={x(i) - barW / 2}

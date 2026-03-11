@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ScoreBadge,
@@ -183,8 +183,13 @@ export function DashboardClient() {
         </div>
       )}
 
-      {/* Hero card — top-scoring stock on desktop */}
-      {snapshots.length > 0 && <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} />}
+      {/* Hero section — top-scoring stock + score evolution */}
+      {snapshots.length > 0 && (
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4">
+          <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} />
+          <ScoreEvolutionPanel snapshots={snapshots} />
+        </div>
+      )}
 
       {/* Remaining cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
@@ -380,5 +385,152 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
         )}
       </div>
     </Link>
+  );
+}
+
+const SCORE_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#a855f7', '#ec4899', '#06b6d4', '#f43e5c'];
+
+function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  // Build multi-line data: each stock with its scoreHistory
+  const lines = snapshots
+    .filter((s) => s.scoreHistory.length >= 2)
+    .slice(0, 8)
+    .map((s, i) => ({
+      symbol: s.symbol,
+      scores: s.scoreHistory,
+      color: SCORE_COLORS[i % SCORE_COLORS.length],
+    }));
+
+  if (lines.length === 0) return null;
+
+  const maxLen = Math.max(...lines.map((l) => l.scores.length));
+  const w = 400, h = 300;
+  const padL = 36, padR = 10, padT = 12, padB = 20;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+
+  const xScale = (i: number) => padL + (maxLen === 1 ? chartW / 2 : (i / (maxLen - 1)) * chartW);
+  const yScale = (v: number) => padT + chartH - (v / 100) * chartH;
+
+  function handlePointer(e: React.PointerEvent) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const fraction = (screenX / rect.width - padL / w) / (chartW / w);
+    const idx = Math.round(fraction * (maxLen - 1));
+    if (idx >= 0 && idx < maxLen) setHoverIdx(idx);
+    else setHoverIdx(null);
+  }
+
+  const yTicks = [0, 25, 50, 75, 100];
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
+      <div className="px-4 pt-3 pb-1">
+        <h3 className="text-sm font-semibold text-gray-300">Score Evolution</h3>
+      </div>
+      <div className="flex-1 px-2 pb-2">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${w} ${h}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{ width: '100%', height: '100%' }}
+          className="select-none"
+          onPointerMove={handlePointer}
+          onPointerLeave={() => setHoverIdx(null)}
+        >
+          {/* Grid + Y labels */}
+          {yTicks.map((t) => (
+            <g key={t}>
+              <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
+              <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={8}>{t}</text>
+            </g>
+          ))}
+
+          {/* Lines for each stock */}
+          {lines.map((line) => {
+            const pts = line.scores.map((s, i) => `${xScale(i)},${yScale(s)}`).join(' ');
+            return (
+              <polyline
+                key={line.symbol}
+                points={pts}
+                fill="none"
+                stroke={line.color}
+                strokeWidth={1.5}
+                strokeLinejoin="round"
+                opacity={0.85}
+              />
+            );
+          })}
+
+          {/* Hover crosshair */}
+          {hoverIdx != null && (
+            <line
+              x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
+              y1={padT} y2={h - padB}
+              stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
+            />
+          )}
+
+          {/* Hover dots */}
+          {hoverIdx != null && lines.map((line) => {
+            if (hoverIdx >= line.scores.length) return null;
+            return (
+              <circle
+                key={line.symbol}
+                cx={xScale(hoverIdx)}
+                cy={yScale(line.scores[hoverIdx])}
+                r={3.5}
+                fill={line.color}
+                stroke="#111827"
+                strokeWidth={1}
+              />
+            );
+          })}
+
+          {/* Hover tooltip */}
+          {hoverIdx != null && (() => {
+            const items = lines.filter((l) => hoverIdx < l.scores.length);
+            if (items.length === 0) return null;
+            const tipW = 90;
+            const tipH = 12 + items.length * 14;
+            let tx = xScale(hoverIdx) + 8;
+            if (tx + tipW > w - padR) tx = xScale(hoverIdx) - tipW - 8;
+            return (
+              <g>
+                <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
+                {items.map((item, i) => (
+                  <g key={item.symbol}>
+                    <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
+                    <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={8} fontWeight="500">
+                      {item.symbol}
+                    </text>
+                    <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={8}>
+                      {item.scores[hoverIdx]}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            );
+          })()}
+
+          {/* Hit area */}
+          <rect x={0} y={0} width={w} height={h} fill="transparent" />
+        </svg>
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-3">
+        {lines.map((line) => (
+          <div key={line.symbol} className="flex items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: line.color }} />
+            <span className="text-xs text-gray-400">{line.symbol}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface MiniChartProps {
   data: number[];
@@ -20,17 +20,23 @@ export function MiniChart({
   if (data.length < 2) return null;
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const hasXAxis = timestamps && timestamps.length === data.length;
+  // Visible data slice based on zoom level
+  const zStart = Math.floor(zoom[0] * (data.length - 1));
+  const zEnd = Math.ceil(zoom[1] * (data.length - 1));
+  const visData = data.slice(zStart, Math.max(zStart + 2, zEnd + 1));
+  const visTimes = timestamps?.slice(zStart, Math.max(zStart + 2, zEnd + 1));
+
+  const hasXAxis = visTimes && visTimes.length === visData.length;
   const padLeft = 50;
   const padRight = 6;
   const padTop = 10;
   const padBottom = hasXAxis ? 22 : 6;
 
-  // Scale text sizes relative to viewBox width so fonts look consistent
-  // regardless of how wide the chart renders on screen
-  const ts = 400 / width;
+  // Gentler font scaling so hero card labels stay readable
+  const ts = Math.pow(400 / width, 0.7);
   const fontY = Math.max(4, 9 * ts);
   const fontX = Math.max(3, 8 * ts);
   const fontTip = Math.max(4, 10 * ts);
@@ -38,27 +44,27 @@ export function MiniChart({
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  const min = Math.min(...visData);
+  const max = Math.max(...visData);
   const range = max - min || 1;
 
-  const isPositive = data[data.length - 1] >= data[0];
+  const isPositive = visData[visData.length - 1] >= visData[0];
   const lineColor = isPositive ? '#4ade80' : '#f87171';
   const fillColor = isPositive ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)';
 
   function x(i: number) {
-    return padLeft + (i / (data.length - 1)) * chartW;
+    return padLeft + (i / (visData.length - 1)) * chartW;
   }
   function y(v: number) {
     return padTop + (1 - (v - min) / range) * chartH;
   }
 
-  const linePoints = data.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+  const linePoints = visData.map((v, i) => `${x(i)},${y(v)}`).join(' ');
 
   const areaPath = [
-    `M ${x(0)},${y(data[0])}`,
-    ...data.slice(1).map((v, i) => `L ${x(i + 1)},${y(v)}`),
-    `L ${x(data.length - 1)},${padTop + chartH}`,
+    `M ${x(0)},${y(visData[0])}`,
+    ...visData.slice(1).map((v, i) => `L ${x(i + 1)},${y(v)}`),
+    `L ${x(visData.length - 1)},${padTop + chartH}`,
     `L ${x(0)},${padTop + chartH}`,
     'Z',
   ].join(' ');
@@ -79,23 +85,50 @@ export function MiniChart({
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (!svgRef.current) return;
       const rect = svgRef.current.getBoundingClientRect();
-      // Map screen X to the chart area fraction
       const screenX = e.clientX - rect.left;
       const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
-      const idx = Math.round(fraction * (data.length - 1));
-      setHoverIndex(Math.max(0, Math.min(data.length - 1, idx)));
+      const idx = Math.round(fraction * (visData.length - 1));
+      setHoverIndex(Math.max(0, Math.min(visData.length - 1, idx)));
     },
-    [width, padLeft, chartW, data.length],
+    [width, padLeft, chartW, visData.length],
   );
 
   const handlePointerLeave = useCallback(() => setHoverIndex(null), []);
 
+  // Mouse wheel zoom
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const frac = Math.max(0, Math.min(1,
+        (sx / rect.width * width - padLeft) / (width - padLeft - 6)
+      ));
+      setZoom(([s, en]) => {
+        const r = en - s;
+        const factor = e.deltaY > 0 ? 1.2 : 0.85;
+        const nr = Math.min(1, Math.max(0.02, r * factor));
+        const center = s + frac * r;
+        let ns = center - frac * nr;
+        let ne = center + (1 - frac) * nr;
+        if (ns < 0) { ne = Math.min(1, ne - ns); ns = 0; }
+        if (ne > 1) { ns = Math.max(0, ns - (ne - 1)); ne = 1; }
+        return [ns, ne];
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [width]);
+
   // Tooltip position clamping
-  const tipW = 58 * ts;
-  const tipH = 18 * ts;
+  const showTime = hasXAxis && visTimes;
+  const tipW = (showTime ? 78 : 58) * ts;
+  const tipH = (showTime ? 30 : 18) * ts;
   const hIdx = hoverIndex ?? 0;
   const hx = x(hIdx);
-  const hy = y(data[hIdx]);
+  const hy = y(visData[hIdx]);
   let tipX = hx - tipW / 2;
   if (tipX < padLeft) tipX = padLeft;
   if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
@@ -109,6 +142,7 @@ export function MiniChart({
       className={className}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
+      onDoubleClick={() => setZoom([0, 1])}
       style={{ touchAction: 'none', width: '100%', height: '100%' }}
       preserveAspectRatio="xMidYMid meet"
     >
@@ -138,14 +172,14 @@ export function MiniChart({
 
       {/* X-axis time labels */}
       {hasXAxis && (() => {
-        const n = data.length;
+        const n = visData.length;
         const targetLabels = width > 500 ? 5 : 3;
         const step = Math.max(1, Math.floor(n / targetLabels));
         const indices: number[] = [];
         for (let i = 0; i < n; i += step) indices.push(i);
         if (indices[indices.length - 1] !== n - 1) indices.push(n - 1);
         return indices.map((i) => {
-          const d = new Date(timestamps[i]);
+          const d = new Date(visTimes![i]);
           const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
           return (
             <text
@@ -177,8 +211,8 @@ export function MiniChart({
 
       {/* Current price dot */}
       <circle
-        cx={x(data.length - 1)}
-        cy={y(data[data.length - 1])}
+        cx={x(visData.length - 1)}
+        cy={y(visData[visData.length - 1])}
         r="2.5"
         fill={lineColor}
       />
@@ -228,14 +262,25 @@ export function MiniChart({
           />
           <text
             x={tipX + tipW / 2}
-            y={tipY + tipH / 2 + 3.5}
+            y={tipY + (showTime ? tipH * 0.38 : tipH / 2 + 3.5)}
             textAnchor="middle"
             fill="#e5e7eb"
             fontSize={fontTip}
             fontWeight="600"
           >
-            ${fmt(data[hIdx])}
+            ${fmt(visData[hIdx])}
           </text>
+          {showTime && visTimes && (
+            <text
+              x={tipX + tipW / 2}
+              y={tipY + tipH * 0.75}
+              textAnchor="middle"
+              fill="#9ca3af"
+              fontSize={fontTip * 0.8}
+            >
+              {(() => { const d = new Date(visTimes[hIdx]); return `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`; })()}
+            </text>
+          )}
         </g>
       )}
 

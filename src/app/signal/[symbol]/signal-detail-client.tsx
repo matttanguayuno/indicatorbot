@@ -443,17 +443,23 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<[number, number]>([0, 1]);
 
   // Show oldest first (history comes newest-first)
-  const data = [...history].reverse();
+  const fullData = [...history].reverse();
+
+  // Visible data slice based on zoom level
+  const zStart = Math.floor(zoom[0] * (fullData.length - 1));
+  const zEnd = Math.ceil(zoom[1] * (fullData.length - 1));
+  const data = fullData.slice(zStart, Math.max(zStart + 2, zEnd + 1));
   const scores = data.map(h => h.signalScore);
   const w = 600, h = 180;
   const padL = 40, padR = 10, padT = 16, padB = 28;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
-  // Scale text to match other charts visually (reference: 400px viewBox)
-  const ts = 400 / w;
+  // Gentler font scaling so labels stay readable
+  const ts = Math.pow(400 / w, 0.7);
   const fontY = Math.max(4, 9 * ts);
   const fontX = Math.max(3, 8 * ts);
   const fontTipLg = Math.max(4, 10 * ts);
@@ -483,6 +489,33 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
     else setHoverIdx(null);
   }
 
+  // Mouse wheel zoom
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const frac = Math.max(0, Math.min(1,
+        (sx / rect.width * w - padL) / (w - padL - padR)
+      ));
+      setZoom(([s, en]) => {
+        const r = en - s;
+        const factor = e.deltaY > 0 ? 1.2 : 0.85;
+        const nr = Math.min(1, Math.max(0.02, r * factor));
+        const center = s + frac * r;
+        let ns = center - frac * nr;
+        let ne = center + (1 - frac) * nr;
+        if (ns < 0) { ne = Math.min(1, ne - ns); ns = 0; }
+        if (ne > 1) { ns = Math.max(0, ns - (ne - 1)); ne = 1; }
+        return [ns, ne];
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   // Y-axis ticks
   const yTicks = [0, 25, 50, 75, 100];
 
@@ -495,6 +528,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
       className="select-none"
       onPointerMove={handlePointer}
       onPointerLeave={() => setHoverIdx(null)}
+      onDoubleClick={() => setZoom([0, 1])}
     >
       {/* Grid lines + Y labels */}
       {yTicks.map(t => (
