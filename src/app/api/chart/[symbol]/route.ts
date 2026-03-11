@@ -32,6 +32,35 @@ const VALID_RANGES = ['1H', '1D', '1W', '1M', 'Q', '1Y', 'YTD', 'Max'] as const;
 type Interval = (typeof VALID_INTERVALS)[number];
 type Range = (typeof VALID_RANGES)[number];
 
+/** Ordered list of intervals from finest to coarsest */
+const INTERVAL_ORDER: Interval[] = ['1min', '5min', '15min', '30min', '1h', '4h'];
+
+/**
+ * Minimum interval required for each range so APIs return useful data.
+ * Finnhub free-tier only has limited intraday history, and Twelve Data
+ * caps at 5000 candles per request.
+ */
+function minIntervalForRange(range: Range): Interval {
+  switch (range) {
+    case '1H':  return '1min';
+    case '1D':  return '1min';
+    case '1W':  return '5min';
+    case '1M':  return '30min';
+    case 'Q':   return '4h';
+    case '1Y':  return '4h';
+    case 'YTD': return '4h';
+    case 'Max': return '4h';
+    default:    return '1min';
+  }
+}
+
+/** Coarsen the requested interval if it's too fine for the range */
+function coarsenInterval(interval: Interval, range: Range): Interval {
+  const minIdx = INTERVAL_ORDER.indexOf(minIntervalForRange(range));
+  const reqIdx = INTERVAL_ORDER.indexOf(interval);
+  return reqIdx < minIdx ? INTERVAL_ORDER[minIdx] : interval;
+}
+
 /** Map our interval names to Finnhub resolution strings */
 function toFinnhubResolution(interval: Interval): string {
   switch (interval) {
@@ -174,12 +203,15 @@ export async function GET(
   const rawInterval = req.nextUrl.searchParams.get('interval') ?? '1min';
   const rawRange = req.nextUrl.searchParams.get('range') ?? '1D';
 
-  const interval: Interval = (VALID_INTERVALS as readonly string[]).includes(rawInterval)
+  const rawParsedInterval: Interval = (VALID_INTERVALS as readonly string[]).includes(rawInterval)
     ? (rawInterval as Interval)
     : '1min';
   const range: Range = (VALID_RANGES as readonly string[]).includes(rawRange)
     ? (rawRange as Range)
     : '1D';
+
+  // Auto-coarsen interval when range is too long for fine granularity
+  const interval = coarsenInterval(rawParsedInterval, range);
 
   const cacheKey = `${upper}:${interval}:${range}`;
 
