@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ALERT_CONFIG, POLLING_CONFIG } from '@/lib/config';
+import { isQuotaExhausted, getQuotaResumeTime } from '@/lib/twelvedata';
 
 async function getOrCreateSettings() {
   let settings = await prisma.appSettings.findFirst();
@@ -23,7 +24,12 @@ async function getOrCreateSettings() {
 
 export async function GET() {
   const settings = await getOrCreateSettings();
-  return NextResponse.json(settings);
+  const tdExhausted = isQuotaExhausted();
+  return NextResponse.json({
+    ...settings,
+    twelveDataExhausted: tdExhausted,
+    twelveDataResumesAt: tdExhausted ? new Date(getQuotaResumeTime()).toISOString() : null,
+  });
 }
 
 const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;

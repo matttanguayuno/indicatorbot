@@ -9,6 +9,8 @@ interface Settings {
   alertCooldownMin: number;
   pollingIntervalSec: number;
   dataSource: string;
+  twelveDataExhausted?: boolean;
+  twelveDataResumesAt?: string | null;
 }
 
 interface TickerData {
@@ -37,6 +39,21 @@ export function SettingsClient() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Re-check quota status every 30s when using Twelve Data
+  useEffect(() => {
+    if (!settings || settings.dataSource !== 'twelvedata') return;
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          setSettings((prev) => prev ? { ...prev, twelveDataExhausted: data.twelveDataExhausted, twelveDataResumesAt: data.twelveDataResumesAt } : prev);
+        }
+      } catch { /* ignore */ }
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [settings?.dataSource]);
 
   async function saveSettings() {
     if (!settings) return;
@@ -141,6 +158,17 @@ export function SettingsClient() {
             <p className="text-xs text-gray-500 -mt-2">
               Uses 1-min candles for 5m/15m/1h momentum, RVOL, and VWAP. Free tier: 8 symbols/min.
             </p>
+          )}
+          {settings.dataSource === 'twelvedata' && settings.twelveDataExhausted && (
+            <div className="bg-yellow-900/40 border border-yellow-700 rounded p-2.5 -mt-1">
+              <p className="text-xs text-yellow-300 font-semibold">⚠ Twelve Data credits exhausted — auto-fallback to Finnhub active</p>
+              <p className="text-xs text-yellow-400/80 mt-0.5">
+                Polling is using Finnhub as a temporary fallback. Charts will use Finnhub candle data until Twelve Data resumes.
+                {settings.twelveDataResumesAt && (
+                  <> Estimated resume: {new Date(settings.twelveDataResumesAt).toLocaleTimeString()}.</>
+                )}
+              </p>
+            </div>
           )}
           {settings.dataSource === 'polygon' && (
             <p className="text-xs text-yellow-500/70 -mt-2">

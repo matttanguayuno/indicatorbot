@@ -26,6 +26,11 @@ export function isQuotaExhausted(): boolean {
   return Date.now() < quotaExhaustedUntil;
 }
 
+/** Return the unix-ms timestamp when quota backoff expires, or 0 if not in backoff. */
+export function getQuotaResumeTime(): number {
+  return quotaExhaustedUntil;
+}
+
 function getApiKey(): string {
   const key = process.env.TWELVEDATA_API_KEY;
   if (!key) {
