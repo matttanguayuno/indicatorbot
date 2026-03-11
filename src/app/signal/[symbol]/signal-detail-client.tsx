@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
 import { RadarChart } from '@/components/radar-chart';
@@ -102,6 +102,20 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [chartInterval, setChartInterval] = useState<string>('1min');
   const [chartRange, setChartRange] = useState<string>('1D');
   const [loading, setLoading] = useState(true);
+  const [chartWidth, setChartWidth] = useState(900);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Measure chart container so viewBox matches rendered size (prevents font scaling)
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.round(entry.contentRect.width);
+      if (w > 0) setChartWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -256,16 +270,16 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div className="w-full max-w-[900px]" style={{ aspectRatio: '900 / 350' }}>
-            <PriceChart key={`${chartInterval}:${chartRange}`} candles={chartCandles} width={900} height={350} />
+          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 350' }}>
+            <PriceChart key={`${chartInterval}:${chartRange}:${chartWidth}`} candles={chartCandles} width={chartWidth} height={Math.round(chartWidth * 350 / 900)} />
           </div>
         ) : history.length >= 2 ? (
-          <div className="w-full max-w-[900px]" style={{ aspectRatio: '900 / 350' }}>
+          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 350' }}>
             <MiniChart
               data={[...history].reverse().map(h => h.currentPrice)}
               timestamps={[...history].reverse().map(h => h.timestamp)}
-              width={900}
-              height={350}
+              width={chartWidth}
+              height={Math.round(chartWidth * 350 / 900)}
             />
           </div>
         ) : (
