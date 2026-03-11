@@ -32,6 +32,7 @@ interface Snapshot {
   timestamp: string;
   scoreHistory: number[];
   priceHistory: number[];
+  priceTimestamps: string[];
 }
 
 export function DashboardClient() {
@@ -282,7 +283,7 @@ export function DashboardClient() {
 function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { closes: number[]; times: string[] } }) {
   const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
   const chartData = candleData.closes.length >= 2 ? candleData.closes : s.priceHistory;
-  const chartTimes = candleData.times.length >= 2 ? candleData.times : undefined;
+  const chartTimes = candleData.times.length >= 2 ? candleData.times : (s.priceTimestamps?.length >= 2 ? s.priceTimestamps : undefined);
 
   return (
     <Link
@@ -392,7 +393,9 @@ const SCORE_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#a855f7', '#e
 
 function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const modalRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   // Build multi-line data: each stock with its scoreHistory
   const lines = snapshots
@@ -407,8 +410,11 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   if (lines.length === 0) return null;
 
   const maxLen = Math.max(...lines.map((l) => l.scores.length));
-  const w = 600, h = 300;
-  const padL = 36, padR = 60, padT = 12, padB = 20;
+  const timestamps = snapshots[0]?.priceTimestamps ?? [];
+
+  // Use 900x400 viewBox — same as hero chart — so font sizes render identically
+  const w = 900, h = 400;
+  const padL = 36, padR = 60, padT = 12, padB = 24;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
@@ -431,15 +437,25 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     yTicks.push(t);
   }
 
-  function handlePointer(e: React.PointerEvent) {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const screenX = e.clientX - rect.left;
-    const fraction = (screenX / rect.width - padL / w) / (chartW / w);
-    const idx = Math.round(fraction * (maxLen - 1));
-    if (idx >= 0 && idx < maxLen) setHoverIdx(idx);
-    else setHoverIdx(null);
+  // X-axis label indices — evenly spaced
+  const xLabelIndices: number[] = [];
+  const xStep = Math.max(1, Math.floor(maxLen / 5));
+  for (let i = 0; i < maxLen; i += xStep) xLabelIndices.push(i);
+  if (xLabelIndices.length > 0 && xLabelIndices[xLabelIndices.length - 1] !== maxLen - 1) {
+    xLabelIndices.push(maxLen - 1);
+  }
+
+  function makePointerHandler(ref: React.RefObject<SVGSVGElement | null>) {
+    return (e: React.PointerEvent) => {
+      const svg = ref.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const screenX = e.clientX - rect.left;
+      const fraction = (screenX / rect.width - padL / w) / (chartW / w);
+      const idx = Math.round(fraction * (maxLen - 1));
+      if (idx >= 0 && idx < maxLen) setHoverIdx(idx);
+      else setHoverIdx(null);
+    };
   }
 
   // Resolve vertical collisions for end-of-line labels
@@ -448,128 +464,179 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     return { symbol: line.symbol, color: line.color, y: yScale(lastScore), score: lastScore };
   });
   labelPositions.sort((a, b) => a.y - b.y);
-  const labelH = 11;
+  const labelH = 13;
   for (let i = 1; i < labelPositions.length; i++) {
     if (labelPositions[i].y - labelPositions[i - 1].y < labelH) {
       labelPositions[i].y = labelPositions[i - 1].y + labelH;
     }
   }
 
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
-      <div className="px-4 pt-3 pb-1">
-        <h3 className="text-base font-semibold text-gray-300">Score Evolution</h3>
-      </div>
-      <div className="flex-1 min-h-0 px-2 pb-3">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${w} ${h}`}
-          preserveAspectRatio="none"
-          style={{ width: '100%', height: '100%' }}
-          className="select-none"
-          onPointerMove={handlePointer}
-          onPointerLeave={() => setHoverIdx(null)}
-        >
-          {/* Grid + Y labels */}
-          {yTicks.map((t) => (
-            <g key={t}>
-              <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-              <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={11}>{t}</text>
-            </g>
-          ))}
+  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>) => (
+    <svg
+      ref={ref}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ width: '100%', height: '100%' }}
+      className="select-none"
+      onPointerMove={makePointerHandler(ref)}
+      onPointerLeave={() => setHoverIdx(null)}
+    >
+      {/* Grid + Y labels */}
+      {yTicks.map((t) => (
+        <g key={t}>
+          <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
+          <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={11}>{t}</text>
+        </g>
+      ))}
 
-          {/* Lines for each stock */}
-          {lines.map((line) => {
-            const pts = line.scores.map((s, i) => `${xScale(i)},${yScale(s)}`).join(' ');
-            return (
-              <polyline
-                key={line.symbol}
-                points={pts}
-                fill="none"
-                stroke={line.color}
-                strokeWidth={1.5}
-                strokeLinejoin="round"
-                opacity={0.85}
-              />
-            );
-          })}
+      {/* X-axis time labels */}
+      {xLabelIndices.map((i) => {
+        if (i >= timestamps.length) return null;
+        const d = new Date(timestamps[i]);
+        const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+        return (
+          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={10}>
+            {label}
+          </text>
+        );
+      })}
 
-          {/* End-of-line inline labels (replaces bottom legend) */}
-          {labelPositions.map((lp) => (
-            <g key={lp.symbol}>
-              <circle
-                cx={xScale(maxLen - 1)}
-                cy={yScale(lines.find((l) => l.symbol === lp.symbol)!.scores[lines.find((l) => l.symbol === lp.symbol)!.scores.length - 1])}
-                r={3}
-                fill={lp.color}
-              />
-              <text
-                x={xScale(maxLen - 1) + 6}
-                y={lp.y + 3}
-                fill={lp.color}
-                fontSize={10}
-                fontWeight="600"
-              >
-                {lp.symbol}
-              </text>
-            </g>
-          ))}
+      {/* Lines for each stock */}
+      {lines.map((line) => {
+        const pts = line.scores.map((s, i) => `${xScale(i)},${yScale(s)}`).join(' ');
+        return (
+          <polyline
+            key={line.symbol}
+            points={pts}
+            fill="none"
+            stroke={line.color}
+            strokeWidth={1.5}
+            strokeLinejoin="round"
+            opacity={0.85}
+          />
+        );
+      })}
 
-          {/* Hover crosshair */}
-          {hoverIdx != null && (
-            <line
-              x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
-              y1={padT} y2={h - padB}
-              stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
-            />
-          )}
+      {/* End-of-line inline labels */}
+      {labelPositions.map((lp) => (
+        <g key={lp.symbol}>
+          <circle
+            cx={xScale(maxLen - 1)}
+            cy={yScale(lines.find((l) => l.symbol === lp.symbol)!.scores[lines.find((l) => l.symbol === lp.symbol)!.scores.length - 1])}
+            r={3}
+            fill={lp.color}
+          />
+          <text
+            x={xScale(maxLen - 1) + 6}
+            y={lp.y + 3}
+            fill={lp.color}
+            fontSize={10}
+            fontWeight="600"
+          >
+            {lp.symbol}
+          </text>
+        </g>
+      ))}
 
-          {/* Hover dots */}
-          {hoverIdx != null && lines.map((line) => {
-            if (hoverIdx >= line.scores.length) return null;
-            return (
-              <circle
-                key={line.symbol}
-                cx={xScale(hoverIdx)}
-                cy={yScale(line.scores[hoverIdx])}
-                r={3.5}
-                fill={line.color}
-                stroke="#111827"
-                strokeWidth={1}
-              />
-            );
-          })}
+      {/* Hover crosshair */}
+      {hoverIdx != null && (
+        <line
+          x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
+          y1={padT} y2={h - padB}
+          stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
+        />
+      )}
 
-          {/* Hover tooltip */}
-          {hoverIdx != null && (() => {
-            const items = lines.filter((l) => hoverIdx < l.scores.length);
-            if (items.length === 0) return null;
-            const tipW = 90;
-            const tipH = 12 + items.length * 14;
-            let tx = xScale(hoverIdx) + 8;
-            if (tx + tipW > w - padR) tx = xScale(hoverIdx) - tipW - 8;
-            return (
-              <g>
-                <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
-                {items.map((item, i) => (
-                  <g key={item.symbol}>
-                    <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
-                    <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={10} fontWeight="500">
-                      {item.symbol}
-                    </text>
-                    <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={10}>
-                      {item.scores[hoverIdx]}
-                    </text>
-                  </g>
-                ))}
+      {/* Hover dots */}
+      {hoverIdx != null && lines.map((line) => {
+        if (hoverIdx >= line.scores.length) return null;
+        return (
+          <circle
+            key={line.symbol}
+            cx={xScale(hoverIdx)}
+            cy={yScale(line.scores[hoverIdx])}
+            r={3.5}
+            fill={line.color}
+            stroke="#111827"
+            strokeWidth={1}
+          />
+        );
+      })}
+
+      {/* Hover tooltip */}
+      {hoverIdx != null && (() => {
+        const items = lines.filter((l) => hoverIdx < l.scores.length);
+        if (items.length === 0) return null;
+        const tipW = 90;
+        const tipH = 12 + items.length * 14;
+        let tx = xScale(hoverIdx) + 8;
+        if (tx + tipW > w - padR) tx = xScale(hoverIdx) - tipW - 8;
+        return (
+          <g>
+            <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
+            {items.map((item, i) => (
+              <g key={item.symbol}>
+                <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
+                <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={10} fontWeight="500">
+                  {item.symbol}
+                </text>
+                <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={10}>
+                  {item.scores[hoverIdx]}
+                </text>
               </g>
-            );
-          })()}
+            ))}
+          </g>
+        );
+      })()}
 
-          {/* Hit area */}
-          <rect x={0} y={0} width={w} height={h} fill="transparent" />
-        </svg>
+      {/* Hit area */}
+      <rect x={0} y={0} width={w} height={h} fill="transparent" />
+    </svg>
+  );
+
+  return (
+    <>
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+          <h3 className="text-base font-semibold text-gray-300">Score Evolution</h3>
+          <button
+            onClick={() => setExpanded(true)}
+            className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
+            title="Expand chart"
+          >
+            ⛶
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 px-2 pb-3">
+          {chartSvg(svgRef)}
+        </div>
       </div>
-    </div>
+
+      {/* Fullscreen popup */}
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+          onClick={() => { setExpanded(false); setHoverIdx(null); }}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-7xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 pt-4 pb-2">
+              <h3 className="text-lg font-semibold text-gray-200">Score Evolution</h3>
+              <button
+                onClick={() => { setExpanded(false); setHoverIdx(null); }}
+                className="text-gray-400 hover:text-gray-200 text-xl transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-4 pb-6" style={{ height: '60vh' }}>
+              {chartSvg(modalRef)}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
