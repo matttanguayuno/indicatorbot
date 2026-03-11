@@ -69,8 +69,10 @@ export function MiniChart({
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (!svgRef.current) return;
       const rect = svgRef.current.getBoundingClientRect();
-      const mouseX = ((e.clientX - rect.left) / rect.width) * width;
-      const idx = Math.round(((mouseX - padLeft) / chartW) * (data.length - 1));
+      // Map screen X to the chart area fraction
+      const screenX = e.clientX - rect.left;
+      const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
+      const idx = Math.round(fraction * (data.length - 1));
       setHoverIndex(Math.max(0, Math.min(data.length - 1, idx)));
     },
     [width, padLeft, chartW, data.length],
@@ -93,13 +95,12 @@ export function MiniChart({
   return (
     <svg
       ref={svgRef}
-      width={width}
-      height={height}
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
-      style={{ touchAction: 'none' }}
+      style={{ touchAction: 'none', width: '100%', height: '100%' }}
+      preserveAspectRatio="xMidYMid meet"
     >
       {/* Y-axis grid lines + labels */}
       {yTicks.map((t, i) => (
@@ -204,10 +205,10 @@ export function MiniChart({
 
       {/* Invisible hit-area so pointer events register across full chart */}
       <rect
-        x={padLeft}
-        y={padTop}
-        width={chartW}
-        height={chartH}
+        x={0}
+        y={0}
+        width={width}
+        height={height}
         fill="transparent"
       />
     </svg>

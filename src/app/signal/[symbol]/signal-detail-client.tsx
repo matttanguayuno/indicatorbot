@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
 import { RadarChart } from '@/components/radar-chart';
@@ -158,8 +158,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold">{symbol}</h1>
-            <span className="text-gray-400 text-lg">${latest.currentPrice.toFixed(2)}</span>
+            <h1 className="text-3xl font-bold">{symbol}</h1>
+            <span className="text-gray-400 text-xl">${latest.currentPrice.toFixed(2)}</span>
           </div>
           {history.length >= 2 && (
             <Sparkline data={history.map(h => h.signalScore).reverse()} width={80} height={32} />
@@ -171,17 +171,17 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       {/* Badges */}
       <div className="flex gap-2 flex-wrap">
         {latest.isBreakout && (
-          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-900/60 text-green-300 border border-green-700">
+          <span className="px-2.5 py-0.5 rounded text-sm font-semibold bg-green-900/60 text-green-300 border border-green-700">
             {hasCandleData ? 'BREAKOUT' : 'GAP UP'}
           </span>
         )}
         {latest.nearHigh && !latest.isBreakout && (
-          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-900/60 text-yellow-300 border border-yellow-700">
+          <span className="px-2.5 py-0.5 rounded text-sm font-semibold bg-yellow-900/60 text-yellow-300 border border-yellow-700">
             Near High
           </span>
         )}
         {latest.rvol != null && latest.rvol >= 1.5 && (
-          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-900/60 text-cyan-300 border border-cyan-700">
+          <span className="px-2.5 py-0.5 rounded text-sm font-semibold bg-cyan-900/60 text-cyan-300 border border-cyan-700">
             RVOL {latest.rvol.toFixed(1)}x
           </span>
         )}
@@ -189,13 +189,13 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
       {/* Explanation */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-sm font-semibold text-gray-400 mb-1">Signal Summary</h2>
+        <h2 className="text-base font-semibold text-gray-400 mb-1">Signal Summary</h2>
         <p className="text-sm">{latest.explanation}</p>
       </div>
 
       {/* Intraday Price Chart */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-sm font-semibold text-gray-400 mb-2">Intraday Chart</h2>
+        <h2 className="text-base font-semibold text-gray-400 mb-2">Intraday Chart</h2>
         {chartLoading ? (
           <div className="h-[200px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…
@@ -217,7 +217,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         <div className="lg:col-span-2 space-y-4">
           {/* Price Action */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-            <h2 className="text-sm font-semibold text-gray-400 mb-2">Price Action</h2>
+            <h2 className="text-base font-semibold text-gray-400 mb-2">Price Action</h2>
             {hasCandleData ? (
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
@@ -254,7 +254,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           {/* Volume & VWAP (only when candle data available) */}
           {hasCandleData && (
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-              <h2 className="text-sm font-semibold text-gray-400 mb-2">Volume & VWAP</h2>
+              <h2 className="text-base font-semibold text-gray-400 mb-2">Volume & VWAP</h2>
               <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
                 <MetricRow label="RVOL" value={latest.rvol?.toFixed(1)} suffix="x" />
                 <MetricRow label="Vol Spike" value={latest.volumeSpikeRatio?.toFixed(1)} suffix="x" />
@@ -266,7 +266,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
           {/* Range & Gap */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-            <h2 className="text-sm font-semibold text-gray-400 mb-2">Range & Gap</h2>
+            <h2 className="text-base font-semibold text-gray-400 mb-2">Range & Gap</h2>
             <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
               <MetricRow label="Range Position" value={rangePct != null ? rangePct.toFixed(0) : null} suffix="%" />
               <MetricRow label="Gap-Up" value={gapUpPct != null ? gapUpPct.toFixed(2) : null} suffix="%" />
@@ -291,7 +291,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
           {/* Fundamentals */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-            <h2 className="text-sm font-semibold text-gray-400 mb-2">Fundamentals</h2>
+            <h2 className="text-base font-semibold text-gray-400 mb-2">Fundamentals</h2>
             <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
               <MetricRow label="Float" value={latest.float ? formatNum(latest.float) : null} />
               <MetricRow label="Recent News" value={String(latest.recentNewsCount)} />
@@ -302,7 +302,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
           {/* Data availability */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-            <h2 className="text-sm font-semibold text-gray-400 mb-2">Data Sources</h2>
+            <h2 className="text-base font-semibold text-gray-400 mb-2">Data Sources</h2>
             <div className="grid grid-cols-2 gap-y-1 text-sm">
               {Object.entries(meta).map(([key, status]) => (
                 <div key={key} className="flex items-center gap-2">
@@ -320,7 +320,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             <>
               {/* Radar Chart */}
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-                <h2 className="text-sm font-semibold text-gray-400 mb-2">Score Radar</h2>
+                <h2 className="text-base font-semibold text-gray-400 mb-2">Score Radar</h2>
                 <div className="flex justify-center">
                   <RadarChart
                     categories={SCORE_CATEGORIES.map(c => ({
@@ -329,27 +329,27 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
                       max: c.max,
                       actual: breakdown[c.key] ?? 0,
                     }))}
-                    size={220}
+                    size={260}
                   />
                 </div>
               </div>
 
               {/* Score Breakdown Bars */}
               <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-                <h2 className="text-sm font-semibold text-gray-400 mb-3">Score Breakdown</h2>
+                <h2 className="text-base font-semibold text-gray-400 mb-3">Score Breakdown</h2>
                 <div className="space-y-2">
                   {SCORE_CATEGORIES.map(c => {
                     const val = breakdown[c.key] ?? 0;
                     const pct = c.max > 0 ? (val / c.max) * 100 : 0;
                     return (
                       <div key={c.key}>
-                        <div className="flex justify-between text-xs mb-0.5">
+                        <div className="flex justify-between text-sm mb-0.5">
                           <span className="text-gray-400">{c.label}</span>
                           <span className="font-mono text-gray-300">
                             {val.toFixed(1)}/{c.max}
                           </span>
                         </div>
-                        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${
                               pct >= 70 ? 'bg-green-500' : pct >= 30 ? 'bg-blue-500' : 'bg-gray-500'
@@ -362,7 +362,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
                   })}
                 </div>
                 {breakdown.missingPenalty > 0 && (
-                  <div className="mt-3 text-xs text-gray-500">
+                  <div className="mt-3 text-sm text-gray-500">
                     Missing data penalty: −{breakdown.missingPenalty.toFixed(1)} pts
                   </div>
                 )}
@@ -381,7 +381,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       {/* News */}
       {news.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-          <h2 className="text-sm font-semibold text-gray-400 mb-2">Recent News</h2>
+          <h2 className="text-base font-semibold text-gray-400 mb-2">Recent News</h2>
           <div className="space-y-2">
             {news.map((n) => (
               <div key={n.id} className="text-sm">
@@ -407,10 +407,18 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         </div>
       )}
 
+      {/* Score Evolution Chart */}
+      {history.length > 1 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+          <h2 className="text-base font-semibold text-gray-400 mb-2">Score Evolution</h2>
+          <ScoreHistoryChart history={history} />
+        </div>
+      )}
+
       {/* Recent history */}
       {history.length > 1 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-          <h2 className="text-sm font-semibold text-gray-400 mb-2">Recent Snapshots</h2>
+          <h2 className="text-base font-semibold text-gray-400 mb-2">Recent Snapshots</h2>
           <div className="space-y-1">
             {history.map((h) => (
               <div key={h.id} className="flex items-center justify-between text-sm">
@@ -429,6 +437,145 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         Auto-refreshes every 60s · Last updated: <TimeAgo date={latest.timestamp} />
       </div>
     </div>
+  );
+}
+
+function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  // Show oldest first (history comes newest-first)
+  const data = [...history].reverse();
+  const scores = data.map(h => h.signalScore);
+  const w = 600, h = 180;
+  const padL = 40, padR = 10, padT = 16, padB = 28;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+
+  const minS = 0, maxS = 100;
+  const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
+  const xScale = (i: number) => padL + (scores.length === 1 ? chartW / 2 : (i / (scores.length - 1)) * chartW);
+
+  const points = scores.map((s, i) => `${xScale(i)},${yScale(s)}`).join(' ');
+
+  function scoreColor(s: number) {
+    if (s >= 75) return '#22c55e';
+    if (s >= 50) return '#eab308';
+    if (s >= 25) return '#f97316';
+    return '#ef4444';
+  }
+
+  function handlePointer(e: React.PointerEvent) {
+    const svg = svgRef.current;
+    if (!svg || scores.length < 2) return;
+    const rect = svg.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const fraction = (screenX / rect.width - padL / w) / (chartW / w);
+    const idx = Math.round(fraction * (scores.length - 1));
+    if (idx >= 0 && idx < scores.length) setHoverIdx(idx);
+    else setHoverIdx(null);
+  }
+
+  // Y-axis ticks
+  const yTicks = [0, 25, 50, 75, 100];
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ width: '100%', height: '100%' }}
+      className="select-none"
+      onPointerMove={handlePointer}
+      onPointerLeave={() => setHoverIdx(null)}
+    >
+      {/* Grid lines + Y labels */}
+      {yTicks.map(t => (
+        <g key={t}>
+          <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
+          <text x={padL - 6} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={9}>{t}</text>
+        </g>
+      ))}
+
+      {/* X-axis time labels */}
+      {data.map((entry, i) => {
+        // Show max ~6 labels evenly
+        const step = Math.max(1, Math.floor(data.length / 6));
+        if (i % step !== 0 && i !== data.length - 1) return null;
+        const d = new Date(entry.timestamp);
+        const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+        return (
+          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={8}>
+            {label}
+          </text>
+        );
+      })}
+
+      {/* Area fill */}
+      <polygon
+        points={`${xScale(0)},${yScale(0)} ${points} ${xScale(scores.length - 1)},${yScale(0)}`}
+        fill="url(#scoreGrad)"
+        opacity={0.15}
+      />
+      <defs>
+        <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+
+      {/* Line */}
+      <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinejoin="round" />
+
+      {/* Dots — colored by score */}
+      {scores.map((s, i) => (
+        <circle
+          key={i}
+          cx={xScale(i)}
+          cy={yScale(s)}
+          r={hoverIdx === i ? 5 : 3}
+          fill={scoreColor(s)}
+          stroke={hoverIdx === i ? '#fff' : 'none'}
+          strokeWidth={hoverIdx === i ? 1.5 : 0}
+        />
+      ))}
+
+      {/* Hover crosshair + tooltip */}
+      {hoverIdx != null && (
+        <>
+          <line
+            x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
+            y1={padT} y2={h - padB}
+            stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
+          />
+          <line
+            x1={padL} x2={w - padR}
+            y1={yScale(scores[hoverIdx])} y2={yScale(scores[hoverIdx])}
+            stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
+          />
+          {/* Tooltip */}
+          {(() => {
+            const tx = Math.min(Math.max(xScale(hoverIdx), padL + 40), w - padR - 40);
+            const d = new Date(data[hoverIdx].timestamp);
+            const timeLabel = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+            return (
+              <g>
+                <rect x={tx - 36} y={padT - 14} width={72} height={30} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
+                <text x={tx} y={padT - 2} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold">
+                  Score: {scores[hoverIdx]}
+                </text>
+                <text x={tx} y={padT + 10} textAnchor="middle" fill="#9ca3af" fontSize={8}>
+                  {timeLabel} · ${data[hoverIdx].currentPrice.toFixed(2)}
+                </text>
+              </g>
+            );
+          })()}
+        </>
+      )}
+
+      {/* Hit area */}
+      <rect x={0} y={0} width={w} height={h} fill="transparent" />
+    </svg>
   );
 }
 

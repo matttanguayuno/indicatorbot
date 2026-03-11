@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useCallback, useRef } from 'react';
+
 interface Candle {
   time: string;
   open: number;
@@ -24,6 +26,9 @@ export function PriceChart({
 }: PriceChartProps) {
   if (candles.length < 2) return null;
 
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const padLeft = 52;
   const padRight = 8;
   const padTop = 10;
@@ -47,24 +52,19 @@ export function PriceChart({
   const lineColor = isPositive ? '#4ade80' : '#f87171';
   const fillColor = isPositive ? '#4ade8020' : '#f8717120';
 
-  // Map candle index to x position
   function x(i: number) {
     return padLeft + (i / (candles.length - 1)) * chartW;
   }
-  // Map price to y position
   function yPrice(p: number) {
     return padTop + (1 - (p - priceMin) / priceRange) * priceH;
   }
-  // Map volume to y position (bottom area)
   function yVol(v: number) {
     const volTop = height - padBottom;
     return volTop - (v / volMax) * volHeight;
   }
 
-  // Price line points
   const linePoints = closes.map((c, i) => `${x(i)},${yPrice(c)}`).join(' ');
 
-  // Area fill path: line + close to bottom
   const areaPath = [
     `M ${x(0)},${yPrice(closes[0])}`,
     ...closes.slice(1).map((c, i) => `L ${x(i + 1)},${yPrice(c)}`),
@@ -73,14 +73,12 @@ export function PriceChart({
     'Z',
   ].join(' ');
 
-  // Y-axis ticks (5 levels)
   const yTicks = Array.from({ length: 5 }, (_, i) => {
     const frac = i / 4;
     const price = priceMin + frac * priceRange;
     return { price, y: yPrice(price) };
   });
 
-  // X-axis time labels — pick ~5 evenly spaced
   const timeLabels: { label: string; x: number }[] = [];
   const step = Math.max(1, Math.floor(candles.length / 5));
   for (let i = 0; i < candles.length; i += step) {
@@ -91,16 +89,57 @@ export function PriceChart({
     timeLabels.push({ label, x: x(i) });
   }
 
-  // Volume bar width
   const barW = Math.max(1, chartW / candles.length - 1);
+
+  function fmtPrice(v: number) {
+    if (v >= 1000) return v.toFixed(0);
+    if (v >= 100) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      if (!svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const screenX = e.clientX - rect.left;
+      const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
+      const idx = Math.round(fraction * (candles.length - 1));
+      setHoverIndex(Math.max(0, Math.min(candles.length - 1, idx)));
+    },
+    [width, padLeft, chartW, candles.length],
+  );
+
+  const handlePointerLeave = useCallback(() => setHoverIndex(null), []);
+
+  // Hover tooltip position
+  const hIdx = hoverIndex ?? 0;
+  const hx = x(hIdx);
+  const hy = yPrice(closes[hIdx]);
+  const tipW = 70;
+  const tipH = 28;
+  let tipX = hx - tipW / 2;
+  if (tipX < padLeft) tipX = padLeft;
+  if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
+  let tipY = hy - tipH - 8;
+  if (tipY < 2) tipY = hy + 8;
+
+  // Hover time label
+  const hoverTime = hoverIndex != null ? (() => {
+    const d = new Date(candles[hIdx].time);
+    const h = d.getHours();
+    const m = d.getMinutes();
+    return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
+  })() : '';
 
   return (
     <svg
-      width="100%"
-      height="100%"
+      ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       preserveAspectRatio="xMidYMid meet"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      style={{ touchAction: 'none', width: '100%', height: '100%' }}
     >
       {/* Grid lines */}
       {yTicks.map((t, i) => (
@@ -186,6 +225,25 @@ export function PriceChart({
       >
         ${closes[closes.length - 1].toFixed(2)}
       </text>
+
+      {/* Hover crosshair + tooltip */}
+      {hoverIndex != null && (
+        <g>
+          <line x1={hx} y1={padTop} x2={hx} y2={height - padBottom} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
+          <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
+          <circle cx={hx} cy={hy} r="3.5" fill={lineColor} stroke="#111827" strokeWidth="1.5" />
+          <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="3" fill="#111827" stroke="#4b5563" strokeWidth="0.5" />
+          <text x={tipX + tipW / 2} y={tipY + 11} textAnchor="middle" fill="#e5e7eb" fontSize="8" fontWeight="600">
+            ${fmtPrice(closes[hIdx])}
+          </text>
+          <text x={tipX + tipW / 2} y={tipY + 22} textAnchor="middle" fill="#9ca3af" fontSize="7">
+            {hoverTime}
+          </text>
+        </g>
+      )}
+
+      {/* Full-area hit target */}
+      <rect x={0} y={0} width={width} height={height} fill="transparent" />
     </svg>
   );
 }

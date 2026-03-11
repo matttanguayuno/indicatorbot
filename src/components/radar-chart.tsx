@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 interface RadarCategory {
   label: string;
   value: number;  // 0–1 (proportion of max)
@@ -15,6 +17,8 @@ interface RadarChartProps {
 
 export function RadarChart({ categories, size = 240, className = '' }: RadarChartProps) {
   if (categories.length < 3) return null;
+
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const cx = size / 2;
   const cy = size / 2;
@@ -55,12 +59,31 @@ export function RadarChart({ categories, size = 240, className = '' }: RadarChar
     return { ...p, label: cat.label, actual: cat.actual, max: cat.max };
   });
 
+  // Hit areas for hover — wedge-shaped sectors per category
+  const hitAreas = categories.map((_, i) => {
+    const a1 = i * angleStep - angleStep / 2 - Math.PI / 2;
+    const a2 = i * angleStep + angleStep / 2 - Math.PI / 2;
+    const r = radius + 20;
+    const path = [
+      `M ${cx},${cy}`,
+      `L ${cx + r * Math.cos(a1)},${cy + r * Math.sin(a1)}`,
+      `A ${r} ${r} 0 0 1 ${cx + r * Math.cos(a2)},${cy + r * Math.sin(a2)}`,
+      'Z',
+    ].join(' ');
+    return path;
+  });
+
+  // Tooltip for hovered category
+  const hCat = hoverIdx != null ? categories[hoverIdx] : null;
+  const hPoint = hoverIdx != null ? polarToCart(hoverIdx * angleStep, radius * Math.min(categories[hoverIdx].value, 1)) : null;
+
   return (
     <svg
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       className={className}
+      onPointerLeave={() => setHoverIdx(null)}
     >
       {/* Grid rings */}
       {rings.map((pts, i) => (
@@ -97,13 +120,16 @@ export function RadarChart({ categories, size = 240, className = '' }: RadarChar
       {/* Data points */}
       {categories.map((cat, i) => {
         const p = polarToCart(i * angleStep, radius * Math.min(cat.value, 1));
+        const isHovered = hoverIdx === i;
         return (
           <circle
             key={i}
             cx={p.x}
             cy={p.y}
-            r="3"
+            r={isHovered ? 5 : 3}
             fill={cat.value >= 0.7 ? '#4ade80' : cat.value >= 0.3 ? '#60a5fa' : '#6b7280'}
+            stroke={isHovered ? '#e5e7eb' : 'none'}
+            strokeWidth={isHovered ? 1.5 : 0}
           />
         );
       })}
@@ -118,10 +144,45 @@ export function RadarChart({ categories, size = 240, className = '' }: RadarChar
           dominantBaseline="central"
           className="fill-gray-400"
           fontSize="9"
+          fontWeight={hoverIdx === i ? 'bold' : 'normal'}
+          fill={hoverIdx === i ? '#e5e7eb' : '#9ca3af'}
         >
           {l.label}
         </text>
       ))}
+
+      {/* Invisible hover sectors */}
+      {hitAreas.map((path, i) => (
+        <path
+          key={i}
+          d={path}
+          fill="transparent"
+          onPointerEnter={() => setHoverIdx(i)}
+        />
+      ))}
+
+      {/* Hover tooltip */}
+      {hCat && hPoint && (
+        <g>
+          {/* Tooltip box */}
+          <rect
+            x={cx - 32}
+            y={cy - 14}
+            width={64}
+            height={28}
+            rx="4"
+            fill="#111827"
+            stroke="#4b5563"
+            strokeWidth="0.5"
+          />
+          <text x={cx} y={cy - 1} textAnchor="middle" fill="#e5e7eb" fontSize="10" fontWeight="600">
+            {hCat.actual.toFixed(1)}/{hCat.max}
+          </text>
+          <text x={cx} y={cy + 10} textAnchor="middle" fill="#9ca3af" fontSize="8">
+            {Math.round(hCat.value * 100)}%
+          </text>
+        </g>
+      )}
     </svg>
   );
 }

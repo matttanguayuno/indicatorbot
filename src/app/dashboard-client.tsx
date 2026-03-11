@@ -154,16 +154,16 @@ export function DashboardClient() {
   return (
     <div className="pt-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Live Opportunities</h1>
+        <h1 className="text-2xl font-bold">Live Opportunities</h1>
         <div className="flex items-center gap-2">
           {!marketOpen && (
-            <span className="text-[10px] text-yellow-500">market closed</span>
+            <span className="text-xs text-yellow-500">market closed</span>
           )}
           {polling && (
-            <span className="text-[10px] text-blue-400 animate-pulse">polling…</span>
+            <span className="text-xs text-blue-400 animate-pulse">polling…</span>
           )}
           {lastRefresh && (
-            <span className="text-[10px] text-gray-600">
+            <span className="text-xs text-gray-600">
               <TimeAgo date={lastRefresh.toISOString()} />
             </span>
           )}
@@ -205,7 +205,7 @@ export function DashboardClient() {
             {/* Mini intraday chart */}
             {((chartDataMap[s.symbol] ?? []).length >= 2 || s.priceHistory.length >= 2) && (
               <div className="mb-2">
-                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={400} height={140} className="w-full" />
+                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={400} height={160} className="w-full" />
               </div>
             )}
 
@@ -214,30 +214,30 @@ export function DashboardClient() {
               {s.pctChange5m != null && s.pctChangeIntraday != null ? (
                 <>
                   <div>
-                    <div className="text-gray-500 text-[10px]">5m</div>
+                    <div className="text-gray-500 text-xs">5m</div>
                     <PctChange value={s.pctChange5m} />
                   </div>
                   <div>
-                    <div className="text-gray-500 text-[10px]">1h</div>
+                    <div className="text-gray-500 text-xs">1h</div>
                     <PctChange value={s.pctChange1h} />
                   </div>
                   <div>
-                    <div className="text-gray-500 text-[10px]">1d</div>
+                    <div className="text-gray-500 text-xs">1d</div>
                     <PctChange value={s.pctChange1d} />
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <div className="text-gray-500 text-[10px]">Intraday</div>
+                    <div className="text-gray-500 text-xs">Intraday</div>
                     <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
                   </div>
                   <div>
-                    <div className="text-gray-500 text-[10px]">1d Change</div>
+                    <div className="text-gray-500 text-xs">1d Change</div>
                     <PctChange value={s.pctChange1d} />
                   </div>
                   <div>
-                    <div className="text-gray-500 text-[10px]">Range</div>
+                    <div className="text-gray-500 text-xs">Range</div>
                     <RangePosition value={s.intradayRangePct ?? s.pctChange15m} />
                   </div>
                 </>
@@ -245,7 +245,7 @@ export function DashboardClient() {
             </div>
 
             {/* Info row */}
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-3">
                 <div>
                   <span className="text-gray-500 mr-1">Float</span>
@@ -272,10 +272,10 @@ export function DashboardClient() {
 }
 
 function RangePosition({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-gray-600 text-xs">—</span>;
+  if (value == null) return <span className="text-gray-600 text-sm">—</span>;
   const pct = Math.round(value * 100);
   const color = pct >= 80 ? 'text-green-400' : pct >= 50 ? 'text-yellow-400' : 'text-red-400';
-  return <span className={`text-xs font-medium ${color}`}>{pct}%</span>;
+  return <span className={`text-sm font-medium ${color}`}>{pct}%</span>;
 }
 
 function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number[] }) {
@@ -297,17 +297,17 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {s.isBreakout && (
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-900/60 text-green-300 border border-green-700">
+              <span className="px-2 py-0.5 rounded text-sm font-semibold bg-green-900/60 text-green-300 border border-green-700">
                 {hasCandleData ? 'BREAKOUT' : 'GAP UP'}
               </span>
             )}
             {s.nearHigh && !s.isBreakout && (
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-900/60 text-yellow-300 border border-yellow-700">
+              <span className="px-2 py-0.5 rounded text-sm font-semibold bg-yellow-900/60 text-yellow-300 border border-yellow-700">
                 Near High
               </span>
             )}
             {s.rvol != null && s.rvol >= 1.5 && (
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-900/60 text-cyan-300 border border-cyan-700">
+              <span className="px-2 py-0.5 rounded text-sm font-semibold bg-cyan-900/60 text-cyan-300 border border-cyan-700">
                 RVOL {s.rvol.toFixed(1)}x
               </span>
             )}
@@ -322,9 +322,9 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
         {/* Intraday price chart — larger for hero */}
         <div className="lg:col-span-2">
           {chartData.length >= 2 ? (
-            <MiniChart data={chartData} width={600} height={200} className="w-full" />
+            <MiniChart data={chartData} width={600} height={240} className="w-full" />
           ) : (
-            <div className="h-[200px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+            <div className="h-[240px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
               Loading chart…
             </div>
           )}
@@ -336,36 +336,36 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
             {hasCandleData ? (
               <>
                 <div>
-                  <div className="text-gray-500 text-[10px]">5m</div>
+                  <div className="text-gray-500 text-xs">5m</div>
                   <PctChange value={s.pctChange5m} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-[10px]">15m</div>
+                  <div className="text-gray-500 text-xs">15m</div>
                   <PctChange value={s.pctChange15m} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-[10px]">1h</div>
+                  <div className="text-gray-500 text-xs">1h</div>
                   <PctChange value={s.pctChange1h} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-[10px]">1d</div>
+                  <div className="text-gray-500 text-xs">1d</div>
                   <PctChange value={s.pctChange1d} />
                 </div>
               </>
             ) : (
               <>
                 <div>
-                  <div className="text-gray-500 text-[10px]">Intraday</div>
+                  <div className="text-gray-500 text-xs">Intraday</div>
                   <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-[10px]">1d Change</div>
+                  <div className="text-gray-500 text-xs">1d Change</div>
                   <PctChange value={s.pctChange1d} />
                 </div>
               </>
             )}
           </div>
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3 text-sm">
             <div>
               <span className="text-gray-500 mr-1">Float</span>
               <FloatDisplay value={s.float} />
