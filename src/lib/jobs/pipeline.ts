@@ -1,21 +1,22 @@
 /**
  * Core polling pipeline: fetches data, computes signals, stores snapshots, generates alerts.
- *
- * Supports two data sources:
- *  - "finnhub" (quote-only): OHLC from /quote, profile from /stock/profile2, news
- *  - "twelvedata": 1-min candles from Twelve Data + Finnhub quote/profile/news
+ * All market data sourced from Twelve Data (candles, quotes, profiles).
+ * News uses previously stored DB records (Twelve Data has no news API).
  */
 
 import prisma from '@/lib/db';
 import {
-  getQuote,
-  getCompanyProfile,
-  getCompanyNews,
-  mapQuote,
-  mapProfile,
-  mapNews,
-} from '@/lib/finnhub';
-import { getTimeSeries, mapTwelveDataCandles } from '@/lib/twelvedata';
+  getTimeSeries,
+  mapTwelveDataCandles,
+  deriveQuoteFromCandles,
+  getQuote as getTDQuote,
+  mapTwelveDataQuote,
+  getProfile,
+  getStatistics,
+  mapTwelveDataProfile,
+} from '@/lib/twelvedata';
+import type { TwelveDataTimeSeries } from '@/lib/twelvedata';
+import type { NormalizedCandle, NormalizedQuote, NormalizedProfile } from '@/lib/types';
 import {
   calcMomentum,
   calcVolumeSpikeRatio,
@@ -27,10 +28,8 @@ import {
 } from '@/lib/signals';
 import { calculateScore, type SignalInputs } from '@/lib/scoring';
 import { generateExplanation } from '@/lib/explanations';
-import { POLLING_CONFIG, SCORING_WEIGHTS, ALERT_CONFIG, getScoringRules } from '@/lib/config';
+import { ALERT_CONFIG, getScoringRules } from '@/lib/config';
 import type { ScoringRules } from '@/lib/config';
-import { format, subDays } from 'date-fns';
-import type { NormalizedCandle } from '@/lib/finnhub/types';
 
 interface ProcessResult {
   symbol: string;
@@ -49,19 +48,43 @@ async function processTicker(
   scoreThreshold: number,
   cooldownMin: number,
   candles: NormalizedCandle[] | null,
+  series: TwelveDataTimeSeries | null,
   rules: ScoringRules,
 ): Promise<ProcessResult> {
   try {
-    // 1) Fetch quote (OHLC + change) — always from Finnhub
-    const rawQuote = await getQuote(symbol);
-    if (!rawQuote || rawQuote.c === 0) {
-      return { symbol, success: false, error: 'No quote data' };
-    }
-    const quote = mapQuote(symbol, rawQuote);
+    // 1) Derive quote from candles (0 API credits) or fall back to /quote (1 credit)
+    let quote: NormalizedQuote;
+    const hasCandleData = candles != null && candles.length > 0;
 
-    // 2) Fetch company profile (for float)
-    const rawProfile = await getCompanyProfile(symbol);
-    const profile = rawProfile ? mapProfile(rawProfile) : null;
+    if (hasCandleData && series) {
+      quote = deriveQuoteFromCandles(symbol, candles!, series);
+    } else {
+      const rawQuote = await getTDQuote(symbol);
+      if (!rawQuote) {
+        return { symbol, success: false, error: 'No quote data' };
+      }
+      quote = mapTwelveDataQuote(rawQuote);
+    }
+
+    if (quote.currentPrice === 0) {
+      return { symbol, success: false, error: 'Quote price is 0' };
+    }
+
+    // 2) Fetch company profile (cached 24h to save credits)
+    let profile: NormalizedProfile | null = null;
+    const cachedProfile = profileCache.get(symbol);
+    if (cachedProfile && Date.now() - cachedProfile.fetchedAt < PROFILE_CACHE_TTL_MS) {
+      profile = cachedProfile.profile;
+    } else {
+      const [rawProfile, rawStats] = await Promise.all([
+        getProfile(symbol),
+        getStatistics(symbol),
+      ]);
+      if (rawProfile) {
+        profile = mapTwelveDataProfile(rawProfile, rawStats);
+        profileCache.set(symbol, { profile, fetchedAt: Date.now() });
+      }
+    }
 
     if (profile) {
       await prisma.ticker.update({
@@ -70,38 +93,20 @@ async function processTicker(
       });
     }
 
-    // 3) Fetch recent news
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const twoDaysAgo = format(subDays(new Date(), 2), 'yyyy-MM-dd');
-    const rawNews = await getCompanyNews(symbol, twoDaysAgo, today);
-    const newsItems = rawNews ? mapNews(symbol, rawNews) : [];
-
-    for (const item of newsItems.slice(0, 20)) {
-      await prisma.newsItem.upsert({
-        where: {
-          symbol_headline_publishedAt: {
-            symbol: item.symbol,
-            headline: item.headline,
-            publishedAt: item.publishedAt,
-          },
-        },
-        update: {},
-        create: {
-          tickerId,
-          symbol: item.symbol,
-          headline: item.headline,
-          source: item.source,
-          url: item.url,
-          summary: item.summary,
-          publishedAt: item.publishedAt,
-        },
-      });
-    }
+    // 3) Recent news from database (Twelve Data has no news API)
+    const newsWindowMs = rules.weights.newsCatalyst.recentWindowMinutes * 60 * 1000;
+    const newsItems = await prisma.newsItem.findMany({
+      where: {
+        symbol,
+        publishedAt: { gte: new Date(Date.now() - newsWindowMs) },
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 20,
+    });
 
     // 4) Compute indicators
     const currentPrice = quote.currentPrice;
     const floatShares = profile?.sharesOutstanding ?? null;
-    const hasCandleData = candles != null && candles.length > 0;
 
     // --- Quote-derived indicators (always available) ---
     const pctChangeIntraday = quote.open > 0
@@ -168,10 +173,7 @@ async function processTicker(
     }
 
     // News scoring
-    const newsWindowMs = rules.weights.newsCatalyst.recentWindowMinutes * 60 * 1000;
-    const recentNewsCount = newsItems.filter(
-      (n) => Date.now() - n.publishedAt.getTime() < newsWindowMs
-    ).length;
+    const recentNewsCount = newsItems.length;
     const newsScore = calcNewsScore(recentNewsCount, rules.weights.newsCatalyst.maxArticles);
 
     // 5) Score
@@ -301,7 +303,12 @@ async function maybeCreateAlert(
 // By caching candles for 5 minutes we cut credit usage ~5×.
 const CANDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 let cachedCandleMap = new Map<string, NormalizedCandle[]>();
+let cachedSeriesMap = new Map<string, TwelveDataTimeSeries>();
 let lastCandleFetchTime = 0;
+
+// ── Profile cache: /profile + /statistics cost 2 credits per symbol ──
+const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const profileCache = new Map<string, { profile: NormalizedProfile; fetchedAt: number }>();
 
 /**
  * Main polling entry point: processes all active tickers.
@@ -334,6 +341,7 @@ export async function runPollingCycle(): Promise<{
 
   // Pre-fetch candles from Twelve Data (throttled to save API credits)
   const candleMap = new Map<string, NormalizedCandle[]>();
+  const seriesMap = new Map<string, TwelveDataTimeSeries>();
   let candleError: string | null = null;
   const now = Date.now();
   const candleAge = now - lastCandleFetchTime;
@@ -347,6 +355,9 @@ export async function runPollingCycle(): Promise<{
       // Reuse cached candles
       for (const [sym, candles] of cachedCandleMap) {
         candleMap.set(sym, candles);
+      }
+      for (const [sym, s] of cachedSeriesMap) {
+        seriesMap.set(sym, s);
       }
       console.log(`[Pipeline] Using cached candles (${candleMap.size} symbols, age: ${Math.round(candleAge / 1000)}s)`);
     } else {
@@ -362,6 +373,7 @@ export async function runPollingCycle(): Promise<{
             const mapped = mapTwelveDataCandles(series);
             console.log(`[Pipeline] ${sym}: ${mapped.length} candles mapped`);
             candleMap.set(sym, mapped);
+            seriesMap.set(sym, series);
           }
           // Wait between batches to respect rate limits
           if (i + 8 < symbols.length) {
@@ -374,6 +386,7 @@ export async function runPollingCycle(): Promise<{
         } else {
           // Update cache
           cachedCandleMap = new Map(candleMap);
+          cachedSeriesMap = new Map(seriesMap);
           lastCandleFetchTime = now;
         }
       } catch (err) {
@@ -383,6 +396,9 @@ export async function runPollingCycle(): Promise<{
         if (cachedCandleMap.size > 0) {
           for (const [sym, candles] of cachedCandleMap) {
             candleMap.set(sym, candles);
+          }
+          for (const [sym, s] of cachedSeriesMap) {
+            seriesMap.set(sym, s);
           }
           candleError += ' (using cached candles)';
         }
@@ -396,7 +412,8 @@ export async function runPollingCycle(): Promise<{
   // Process sequentially to respect API rate limits
   for (const ticker of tickers) {
     const candles = candleMap.get(ticker.symbol) ?? null;
-    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, rules);
+    const series = seriesMap.get(ticker.symbol) ?? null;
+    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, series, rules);
     results.push(result);
   }
 

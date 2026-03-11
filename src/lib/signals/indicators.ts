@@ -3,7 +3,7 @@
  * Each function is pure — takes normalized data in, returns a computed value out.
  */
 
-import { NormalizedCandle } from '@/lib/finnhub/types';
+import { NormalizedCandle } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
 // Momentum — percent change from N minutes ago to latest candle close

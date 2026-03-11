@@ -1,9 +1,17 @@
 /**
- * Twelve Data API client for intraday candle data.
+ * Twelve Data API client — sole data source for quotes, candles, profiles, and search.
  * Free tier: 8 API credits/min, 800/day. Each symbol in a batch = 1 credit.
+ * Symbol search is free (0 credits).
  */
 
-import type { TwelveDataTimeSeries, TwelveDataBatchResponse } from './types';
+import type {
+  TwelveDataTimeSeries,
+  TwelveDataBatchResponse,
+  TwelveDataQuote,
+  TwelveDataProfile,
+  TwelveDataStatistics,
+  TwelveDataSymbolSearchResult,
+} from './types';
 
 const BASE_URL = 'https://api.twelvedata.com';
 const MAX_RETRIES = 2;
@@ -109,4 +117,79 @@ export async function getTimeSeries(
   }
 
   return new Map();
+}
+
+/**
+ * Generic fetch helper with retry for Twelve Data endpoints.
+ */
+async function twelveDataFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T | null> {
+  const apiKey = getApiKey();
+  const url = new URL(`${BASE_URL}${endpoint}`);
+  url.searchParams.set('apikey', apiKey);
+  for (const [k, v] of Object.entries(params)) {
+    url.searchParams.set(k, v);
+  }
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url.toString());
+      if (res.status === 429) {
+        console.warn(`[TwelveData] Rate limited on ${endpoint}, attempt ${attempt}`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt * 3));
+        continue;
+      }
+      if (!res.ok) {
+        console.error(`[TwelveData] HTTP ${res.status} on ${endpoint}: ${res.statusText}`);
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+          continue;
+        }
+        return null;
+      }
+      const data = await res.json();
+      if (data.code && data.status === 'error') {
+        console.error(`[TwelveData] API error on ${endpoint}: ${data.message}`);
+        return null;
+      }
+      return data as T;
+    } catch (err) {
+      console.error(`[TwelveData] Network error on ${endpoint}, attempt ${attempt}:`, err);
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch real-time quote for a symbol. 1 credit per call.
+ */
+export async function getQuote(symbol: string): Promise<TwelveDataQuote | null> {
+  return twelveDataFetch<TwelveDataQuote>('/quote', { symbol });
+}
+
+/**
+ * Fetch company profile. 1 credit per call.
+ */
+export async function getProfile(symbol: string): Promise<TwelveDataProfile | null> {
+  return twelveDataFetch<TwelveDataProfile>('/profile', { symbol });
+}
+
+/**
+ * Fetch stock statistics (shares outstanding, float, short interest). 1 credit per call.
+ */
+export async function getStatistics(symbol: string): Promise<TwelveDataStatistics | null> {
+  return twelveDataFetch<TwelveDataStatistics>('/statistics', { symbol });
+}
+
+/**
+ * Search for symbols. Free — 0 credits.
+ */
+export async function searchSymbols(query: string): Promise<TwelveDataSymbolSearchResult | null> {
+  return twelveDataFetch<TwelveDataSymbolSearchResult>('/symbol_search', {
+    symbol: query,
+    show_plan: 'false',
+  });
 }
