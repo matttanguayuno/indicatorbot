@@ -256,11 +256,11 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div className="w-full" style={{ aspectRatio: '900 / 350' }}>
+          <div className="w-full max-w-[900px]" style={{ aspectRatio: '900 / 350' }}>
             <PriceChart key={`${chartInterval}:${chartRange}`} candles={chartCandles} width={900} height={350} />
           </div>
         ) : history.length >= 2 ? (
-          <div className="w-full" style={{ aspectRatio: '900 / 350' }}>
+          <div className="w-full max-w-[900px]" style={{ aspectRatio: '900 / 350' }}>
             <MiniChart
               data={[...history].reverse().map(h => h.currentPrice)}
               timestamps={[...history].reverse().map(h => h.timestamp)}

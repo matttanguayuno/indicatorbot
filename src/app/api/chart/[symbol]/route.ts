@@ -126,8 +126,39 @@ async function fetchTwelveDataCandles(symbol: string, interval: Interval, range:
   }));
 }
 
+/** Downsample raw snapshot data into OHLC candles of the requested interval. */
+function downsampleSnapshots(
+  raw: { time: string; price: number }[],
+  interval: Interval,
+): ChartCandle[] {
+  if (raw.length === 0) return [];
+  const bucketMs = intervalMinutes(interval) * 60_000;
+  const candles: ChartCandle[] = [];
+  let bucketStart = Math.floor(new Date(raw[0].time).getTime() / bucketMs) * bucketMs;
+  let o = raw[0].price, h = o, l = o, c = o;
+  let bucketTime = raw[0].time;
+
+  for (const pt of raw) {
+    const t = new Date(pt.time).getTime();
+    const currentBucket = Math.floor(t / bucketMs) * bucketMs;
+    if (currentBucket !== bucketStart) {
+      candles.push({ time: bucketTime, open: o, high: h, low: l, close: c, volume: 0 });
+      bucketStart = currentBucket;
+      o = pt.price; h = o; l = o; c = o;
+      bucketTime = pt.time;
+    } else {
+      h = Math.max(h, pt.price);
+      l = Math.min(l, pt.price);
+      c = pt.price;
+    }
+  }
+  // push final bucket
+  candles.push({ time: bucketTime, open: o, high: h, low: l, close: c, volume: 0 });
+  return candles;
+}
+
 /** Build a simple chart from stored SignalSnapshot prices (fallback when API is unavailable). */
-async function fetchSnapshotHistory(symbol: string, range: Range): Promise<ChartCandle[]> {
+async function fetchSnapshotHistory(symbol: string, interval: Interval, range: Range): Promise<ChartCandle[]> {
   const now = new Date();
   let since: Date;
 
@@ -150,16 +181,12 @@ async function fetchSnapshotHistory(symbol: string, range: Range): Promise<Chart
     take: 5000,
   });
 
-  console.log(`[Chart] Snapshot fallback: ${snapshots.length} points for ${symbol} since ${since.toISOString()}`);
+  console.log(`[Chart] Snapshot fallback: ${snapshots.length} raw points for ${symbol} since ${since.toISOString()}`);
 
-  return snapshots.map((s) => ({
-    time: s.timestamp.toISOString(),
-    open: s.currentPrice,
-    high: s.currentPrice,
-    low: s.currentPrice,
-    close: s.currentPrice,
-    volume: 0,
-  }));
+  const raw = snapshots.map((s) => ({ time: s.timestamp.toISOString(), price: s.currentPrice }));
+  const candles = downsampleSnapshots(raw, interval);
+  console.log(`[Chart] Snapshot downsampled to ${candles.length} candles (interval=${interval})`);
+  return candles;
 }
 
 export async function GET(
@@ -203,7 +230,7 @@ export async function GET(
 
   // If TD fails, fall back to snapshot-based price history from our DB
   if (candles.length === 0) {
-    candles = await fetchSnapshotHistory(upper, range);
+    candles = await fetchSnapshotHistory(upper, interval, range);
     source = 'snapshot-history';
   }
 
