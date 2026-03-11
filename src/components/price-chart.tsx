@@ -85,14 +85,26 @@ export function PriceChart({
     return { price, y: yPrice(price) };
   });
 
-  const timeLabels: { label: string; x: number }[] = [];
-  const step = Math.max(1, Math.floor(visCandles.length / 5));
-  for (let i = 0; i < visCandles.length; i += step) {
-    const d = new Date(visCandles[i].time);
+  // Determine whether data spans multiple days to decide label format
+  const firstTime = new Date(visCandles[0].time).getTime();
+  const lastTime = new Date(visCandles[visCandles.length - 1].time).getTime();
+  const spanMs = Math.abs(lastTime - firstTime);
+  const spanDays = spanMs / 86_400_000;
+  const multiDay = spanDays > 1.5;
+
+  function fmtTimeLabel(d: Date): string {
+    if (multiDay) {
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
     const h = d.getHours();
     const m = d.getMinutes();
-    const label = `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
-    timeLabels.push({ label, x: x(i) });
+    return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
+  }
+
+  const timeLabels: { label: string; x: number }[] = [];
+  const step = Math.max(1, Math.floor(visCandles.length / 6));
+  for (let i = 0; i < visCandles.length; i += step) {
+    timeLabels.push({ label: fmtTimeLabel(new Date(visCandles[i].time)), x: x(i) });
   }
 
   const barW = Math.max(1, chartW / visCandles.length - 1);
@@ -161,6 +173,9 @@ export function PriceChart({
   // Hover time label
   const hoverTime = hoverIndex != null ? (() => {
     const d = new Date(visCandles[hIdx].time);
+    if (multiDay) {
+      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours() % 12 || 12}:${d.getMinutes().toString().padStart(2, '0')}${d.getHours() >= 12 ? 'p' : 'a'}`;
+    }
     const h = d.getHours();
     const m = d.getMinutes();
     return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
@@ -223,9 +238,9 @@ export function PriceChart({
           y={t.y + 3}
           textAnchor="end"
           fill="#9ca3af"
-          fontSize={12}
+          fontSize={9}
         >
-          ${t.price.toFixed(2)}
+          ${fmtPrice(t.price)}
         </text>
       ))}
 
@@ -237,7 +252,7 @@ export function PriceChart({
           y={height - padBottom + 12}
           textAnchor="middle"
           fill="#6b7280"
-          fontSize={11}
+          fontSize={8}
         >
           {t.label}
         </text>
@@ -256,10 +271,10 @@ export function PriceChart({
         x={x(visCandles.length - 1) + 5}
         y={yPrice(closes[closes.length - 1]) + 3}
         fill={lineColor}
-        fontSize={11}
+        fontSize={9}
         fontWeight="bold"
       >
-        ${closes[closes.length - 1].toFixed(2)}
+        ${fmtPrice(closes[closes.length - 1])}
       </text>
 
       {/* Hover crosshair + tooltip */}
@@ -269,10 +284,10 @@ export function PriceChart({
           <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
           <circle cx={hx} cy={hy} r="3.5" fill={lineColor} stroke="#111827" strokeWidth="1.5" />
           <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="3" fill="#111827" stroke="#4b5563" strokeWidth="0.5" />
-          <text x={tipX + tipW / 2} y={tipY + 11} textAnchor="middle" fill="#e5e7eb" fontSize={12} fontWeight="600">
+          <text x={tipX + tipW / 2} y={tipY + 11} textAnchor="middle" fill="#e5e7eb" fontSize={10} fontWeight="600">
             ${fmtPrice(closes[hIdx])}
           </text>
-          <text x={tipX + tipW / 2} y={tipY + 22} textAnchor="middle" fill="#9ca3af" fontSize={10}>
+          <text x={tipX + tipW / 2} y={tipY + 22} textAnchor="middle" fill="#9ca3af" fontSize={8}>
             {hoverTime}
           </text>
         </g>

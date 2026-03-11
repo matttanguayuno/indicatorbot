@@ -171,9 +171,8 @@ export async function GET(
   const { symbol } = await params;
   const upper = symbol.toUpperCase();
 
-  const url = new URL(req.url);
-  const rawInterval = url.searchParams.get('interval') ?? '1min';
-  const rawRange = url.searchParams.get('range') ?? '1D';
+  const rawInterval = req.nextUrl.searchParams.get('interval') ?? '1min';
+  const rawRange = req.nextUrl.searchParams.get('range') ?? '1D';
 
   const interval: Interval = (VALID_INTERVALS as readonly string[]).includes(rawInterval)
     ? (rawInterval as Interval)
