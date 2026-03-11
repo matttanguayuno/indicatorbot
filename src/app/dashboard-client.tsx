@@ -9,6 +9,7 @@ import {
   NewsIndicator,
   TimeAgo,
 } from '@/components/signal-badges';
+import { Sparkline } from '@/components/sparkline';
 
 interface Snapshot {
   id: number;
@@ -28,6 +29,7 @@ interface Snapshot {
   isBreakout: boolean;
   nearHigh: boolean;
   timestamp: string;
+  scoreHistory: number[];
 }
 
 export function DashboardClient() {
@@ -50,7 +52,7 @@ export function DashboardClient() {
 
   async function fetchSnapshots() {
     try {
-      const res = await fetch('/api/snapshots');
+      const res = await fetch('/api/snapshots?history=20');
       if (res.ok) {
         const data = await res.json();
         setSnapshots(data);
@@ -149,7 +151,7 @@ export function DashboardClient() {
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {snapshots.map((s) => (
           <Link
             key={s.id}
@@ -163,7 +165,12 @@ export function DashboardClient() {
                   ${s.currentPrice.toFixed(2)}
                 </span>
               </div>
-              <ScoreBadge score={s.signalScore} />
+              <div className="flex items-center gap-2">
+                {s.scoreHistory.length >= 2 && (
+                  <Sparkline data={s.scoreHistory} width={64} height={24} />
+                )}
+                <ScoreBadge score={s.signalScore} />
+              </div>
             </div>
 
             {/* Key metrics row — adapts to data source */}

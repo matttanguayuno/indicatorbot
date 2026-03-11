@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { BottomNav } from "@/components/bottom-nav";
+import { AppNav } from "@/components/app-nav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,10 +34,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-950 text-gray-100 min-h-screen`}
       >
-        <main className="pb-20 max-w-lg mx-auto px-4">
-          {children}
-        </main>
-        <BottomNav />
+        <div className="flex min-h-screen">
+          <AppNav />
+          <main className="flex-1 pb-20 lg:pb-4 px-4 max-w-6xl mx-auto w-full">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );

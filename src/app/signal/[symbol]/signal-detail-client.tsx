@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
+import { RadarChart } from '@/components/radar-chart';
+import { Sparkline } from '@/components/sparkline';
 
 interface SnapshotDetail {
   id: number;
@@ -32,6 +34,23 @@ interface SnapshotDetail {
   timestamp: string;
 }
 
+interface ScoreBreakdown {
+  momentumScore: number;
+  rvolBoost: number;
+  volumeSpikeBoost: number;
+  intradayRangeBoost: number;
+  breakoutBoost: number;
+  vwapBoost: number;
+  floatBoost: number;
+  newsBoost: number;
+  shortInterestBoost: number;
+  optionsFlowBoost: number;
+  missingPenalty: number;
+  rawTotal: number;
+  maxAchievable: number;
+  finalScore: number;
+}
+
 interface HistoryEntry {
   id: number;
   signalScore: number;
@@ -48,8 +67,22 @@ interface NewsEntry {
   publishedAt: string;
 }
 
+const SCORE_CATEGORIES = [
+  { key: 'momentumScore', label: 'Momentum', max: 30 },
+  { key: 'rvolBoost', label: 'RVOL', max: 10 },
+  { key: 'volumeSpikeBoost', label: 'Vol Spike', max: 5 },
+  { key: 'intradayRangeBoost', label: 'Range', max: 10 },
+  { key: 'breakoutBoost', label: 'Breakout', max: 10 },
+  { key: 'vwapBoost', label: 'VWAP', max: 5 },
+  { key: 'floatBoost', label: 'Float', max: 10 },
+  { key: 'newsBoost', label: 'News', max: 10 },
+  { key: 'shortInterestBoost', label: 'Short Int', max: 5 },
+  { key: 'optionsFlowBoost', label: 'Options', max: 5 },
+] as const;
+
 export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [latest, setLatest] = useState<SnapshotDetail | null>(null);
+  const [breakdown, setBreakdown] = useState<ScoreBreakdown | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [news, setNews] = useState<NewsEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +94,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         if (res.ok) {
           const data = await res.json();
           setLatest(data.latest);
+          setBreakdown(data.breakdown ?? null);
           setHistory(data.history);
           setNews(data.news);
         }
@@ -92,9 +126,14 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{symbol}</h1>
-          <span className="text-gray-400 text-lg">${latest.currentPrice.toFixed(2)}</span>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">{symbol}</h1>
+            <span className="text-gray-400 text-lg">${latest.currentPrice.toFixed(2)}</span>
+          </div>
+          {history.length >= 2 && (
+            <Sparkline data={history.map(h => h.signalScore).reverse()} width={80} height={32} />
+          )}
         </div>
         <ScoreBadge score={latest.signalScore} />
       </div>
@@ -124,101 +163,170 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         <p className="text-sm">{latest.explanation}</p>
       </div>
 
-      {/* Price Action */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-sm font-semibold text-gray-400 mb-2">Price Action</h2>
-        {hasCandleData ? (
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div>
-              <div className="text-gray-500 text-xs mb-1">5m</div>
-              <PctChange value={latest.pctChange5m} />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs mb-1">15m</div>
-              <PctChange value={latest.pctChange15m} />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs mb-1">1h</div>
-              <PctChange value={latest.pctChange1h} />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs mb-1">1d</div>
-              <PctChange value={latest.pctChange1d} />
-            </div>
+      {/* Two-column layout on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Main content — left 2 cols */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Price Action */}
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+            <h2 className="text-sm font-semibold text-gray-400 mb-2">Price Action</h2>
+            {hasCandleData ? (
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div>
+                  <div className="text-gray-500 text-xs mb-1">5m</div>
+                  <PctChange value={latest.pctChange5m} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs mb-1">15m</div>
+                  <PctChange value={latest.pctChange15m} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs mb-1">1h</div>
+                  <PctChange value={latest.pctChange1h} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs mb-1">1d</div>
+                  <PctChange value={latest.pctChange1d} />
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 text-center">
+                <div>
+                  <div className="text-gray-500 text-xs mb-1">Intraday</div>
+                  <PctChange value={latest.pctChangeIntraday ?? latest.pctChange5m} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs mb-1">1d Change</div>
+                  <PctChange value={latest.pctChange1d} />
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 text-center">
-            <div>
-              <div className="text-gray-500 text-xs mb-1">Intraday</div>
-              <PctChange value={latest.pctChangeIntraday ?? latest.pctChange5m} />
-            </div>
-            <div>
-              <div className="text-gray-500 text-xs mb-1">1d Change</div>
-              <PctChange value={latest.pctChange1d} />
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Volume & VWAP (only when candle data available) */}
-      {hasCandleData && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-          <h2 className="text-sm font-semibold text-gray-400 mb-2">Volume & VWAP</h2>
-          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-            <MetricRow label="RVOL" value={latest.rvol?.toFixed(1)} suffix="x" />
-            <MetricRow label="Vol Spike" value={latest.volumeSpikeRatio?.toFixed(1)} suffix="x" />
-            <MetricRow label="VWAP" value={latest.vwap?.toFixed(2)} prefix="$" />
-            <MetricRow label="% from VWAP" value={latest.pctFromVwap?.toFixed(1)} suffix="%" />
+          {/* Volume & VWAP (only when candle data available) */}
+          {hasCandleData && (
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+              <h2 className="text-sm font-semibold text-gray-400 mb-2">Volume & VWAP</h2>
+              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+                <MetricRow label="RVOL" value={latest.rvol?.toFixed(1)} suffix="x" />
+                <MetricRow label="Vol Spike" value={latest.volumeSpikeRatio?.toFixed(1)} suffix="x" />
+                <MetricRow label="VWAP" value={latest.vwap?.toFixed(2)} prefix="$" />
+                <MetricRow label="% from VWAP" value={latest.pctFromVwap?.toFixed(1)} suffix="%" />
+              </div>
+            </div>
+          )}
+
+          {/* Range & Gap */}
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+            <h2 className="text-sm font-semibold text-gray-400 mb-2">Range & Gap</h2>
+            <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+              <MetricRow label="Range Position" value={rangePct != null ? rangePct.toFixed(0) : null} suffix="%" />
+              <MetricRow label="Gap-Up" value={gapUpPct != null ? gapUpPct.toFixed(2) : null} suffix="%" />
+            </div>
+            {rangePct != null && (
+              <div className="mt-2">
+                <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${
+                      rangePct >= 80 ? 'bg-green-500' : rangePct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(0, rangePct))}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+                  <span>Low</span>
+                  <span>High</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Fundamentals */}
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+            <h2 className="text-sm font-semibold text-gray-400 mb-2">Fundamentals</h2>
+            <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+              <MetricRow label="Float" value={latest.float ? formatNum(latest.float) : null} />
+              <MetricRow label="Recent News" value={String(latest.recentNewsCount)} />
+              <MetricRow label="Short Interest" value={latest.shortInterest?.toFixed(2)} suffix="%" />
+              <MetricRow label="Options Flow" value={latest.optionsFlowValue ? formatNum(latest.optionsFlowValue) : null} prefix="$" />
+            </div>
+          </div>
+
+          {/* Data availability */}
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+            <h2 className="text-sm font-semibold text-gray-400 mb-2">Data Sources</h2>
+            <div className="grid grid-cols-2 gap-y-1 text-sm">
+              {Object.entries(meta).map(([key, status]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <DataStatus status={status} />
+                  <span className="text-gray-400 capitalize">{key}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Range & Gap */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-sm font-semibold text-gray-400 mb-2">Range & Gap</h2>
-        <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-          <MetricRow label="Range Position" value={rangePct != null ? rangePct.toFixed(0) : null} suffix="%" />
-          <MetricRow label="Gap-Up" value={gapUpPct != null ? gapUpPct.toFixed(2) : null} suffix="%" />
-        </div>
-        {rangePct != null && (
-          <div className="mt-2">
-            <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full ${
-                  rangePct >= 80 ? 'bg-green-500' : rangePct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${Math.min(100, Math.max(0, rangePct))}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-              <span>Low</span>
-              <span>High</span>
-            </div>
-          </div>
-        )}
-      </div>
+        {/* Sidebar — right col: Radar chart + Score Breakdown */}
+        <div className="space-y-4">
+          {breakdown && (
+            <>
+              {/* Radar Chart */}
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+                <h2 className="text-sm font-semibold text-gray-400 mb-2">Score Radar</h2>
+                <div className="flex justify-center">
+                  <RadarChart
+                    categories={SCORE_CATEGORIES.map(c => ({
+                      label: c.label,
+                      value: (breakdown[c.key] ?? 0) / c.max,
+                      max: c.max,
+                      actual: breakdown[c.key] ?? 0,
+                    }))}
+                    size={220}
+                  />
+                </div>
+              </div>
 
-      {/* Fundamentals */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-sm font-semibold text-gray-400 mb-2">Fundamentals</h2>
-        <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-          <MetricRow label="Float" value={latest.float ? formatNum(latest.float) : null} />
-          <MetricRow label="Recent News" value={String(latest.recentNewsCount)} />
-          <MetricRow label="Short Interest" value={latest.shortInterest?.toFixed(2)} suffix="%" />
-          <MetricRow label="Options Flow" value={latest.optionsFlowValue ? formatNum(latest.optionsFlowValue) : null} prefix="$" />
-        </div>
-      </div>
-
-      {/* Data availability */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-sm font-semibold text-gray-400 mb-2">Data Sources</h2>
-        <div className="grid grid-cols-2 gap-y-1 text-sm">
-          {Object.entries(meta).map(([key, status]) => (
-            <div key={key} className="flex items-center gap-2">
-              <DataStatus status={status} />
-              <span className="text-gray-400 capitalize">{key}</span>
-            </div>
-          ))}
+              {/* Score Breakdown Bars */}
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+                <h2 className="text-sm font-semibold text-gray-400 mb-3">Score Breakdown</h2>
+                <div className="space-y-2">
+                  {SCORE_CATEGORIES.map(c => {
+                    const val = breakdown[c.key] ?? 0;
+                    const pct = c.max > 0 ? (val / c.max) * 100 : 0;
+                    return (
+                      <div key={c.key}>
+                        <div className="flex justify-between text-xs mb-0.5">
+                          <span className="text-gray-400">{c.label}</span>
+                          <span className="font-mono text-gray-300">
+                            {val.toFixed(1)}/{c.max}
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              pct >= 70 ? 'bg-green-500' : pct >= 30 ? 'bg-blue-500' : 'bg-gray-500'
+                            }`}
+                            style={{ width: `${Math.min(100, pct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {breakdown.missingPenalty > 0 && (
+                  <div className="mt-3 text-xs text-gray-500">
+                    Missing data penalty: −{breakdown.missingPenalty.toFixed(1)} pts
+                  </div>
+                )}
+                <div className="mt-3 pt-2 border-t border-gray-800 flex justify-between text-sm">
+                  <span className="text-gray-400">Final Score</span>
+                  <span className="font-bold">
+                    {breakdown.rawTotal.toFixed(1)} / {breakdown.maxAchievable.toFixed(0)} → {breakdown.finalScore.toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

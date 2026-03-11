@@ -1,10 +1,11 @@
 /**
  * GET /api/snapshots/[symbol] — detail view for a single ticker.
- * Returns latest snapshot + recent history.
+ * Returns latest snapshot + score breakdown + recent history.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
+import { calculateScore, type SignalInputs } from '@/lib/scoring';
 
 export async function GET(
   _req: NextRequest,
@@ -41,5 +42,28 @@ export async function GET(
     return NextResponse.json({ error: 'No data found' }, { status: 404 });
   }
 
-  return NextResponse.json({ latest, history, news });
+  // Re-compute score breakdown from stored snapshot fields
+  const hasCandleData = latest.pctChange5m != null && latest.pctChangeIntraday != null;
+  const signalInputs: SignalInputs = {
+    pctChange5m: latest.pctChange5m,
+    pctChange15m: latest.pctChange15m,
+    pctChange1h: latest.pctChange1h,
+    pctChange1d: latest.pctChange1d,
+    pctChangeIntraday: latest.pctChangeIntraday,
+    intradayRangePct: latest.intradayRangePct,
+    gapUpPct: latest.gapUpPct,
+    rvol: latest.rvol,
+    volumeSpikeRatio: latest.volumeSpikeRatio,
+    pctFromVwap: latest.pctFromVwap,
+    isBreakout: latest.isBreakout,
+    nearHigh: latest.nearHigh,
+    float: latest.float,
+    newsScore: latest.newsScore ?? 0,
+    shortInterest: latest.shortInterest ?? null,
+    optionsFlowValue: latest.optionsFlowValue ?? null,
+    hasCandleData,
+  };
+  const breakdown = calculateScore(signalInputs);
+
+  return NextResponse.json({ latest, breakdown, history, news });
 }
