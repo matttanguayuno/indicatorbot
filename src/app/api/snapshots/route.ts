@@ -28,17 +28,19 @@ export async function GET(req: NextRequest) {
       if (!latest) return null;
 
       let scoreHistory: number[] = [];
+      let priceHistory: number[] = [];
       if (historyCount > 0) {
         const history = await prisma.signalSnapshot.findMany({
           where: { tickerId: t.id },
           orderBy: { timestamp: 'asc' },
           take: historyCount,
-          select: { signalScore: true },
+          select: { signalScore: true, currentPrice: true },
         });
         scoreHistory = history.map((h) => h.signalScore);
+        priceHistory = history.map((h) => h.currentPrice);
       }
 
-      return { ...latest, scoreHistory };
+      return { ...latest, scoreHistory, priceHistory };
     })
   );
 

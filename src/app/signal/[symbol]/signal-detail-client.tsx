@@ -5,6 +5,16 @@ import Link from 'next/link';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
 import { RadarChart } from '@/components/radar-chart';
 import { Sparkline } from '@/components/sparkline';
+import { PriceChart } from '@/components/price-chart';
+
+interface ChartCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 
 interface SnapshotDetail {
   id: number;
@@ -85,6 +95,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [breakdown, setBreakdown] = useState<ScoreBreakdown | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [news, setNews] = useState<NewsEntry[]>([]);
+  const [chartCandles, setChartCandles] = useState<ChartCandle[]>([]);
+  const [chartLoading, setChartLoading] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -108,6 +120,24 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
+  }, [symbol]);
+
+  // Fetch intraday chart data (separate from snapshot refresh)
+  useEffect(() => {
+    async function loadChart() {
+      try {
+        const res = await fetch(`/api/chart/${encodeURIComponent(symbol)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setChartCandles(data.candles ?? []);
+        }
+      } catch (err) {
+        console.error('Failed to load chart:', err);
+      } finally {
+        setChartLoading(false);
+      }
+    }
+    loadChart();
   }, [symbol]);
 
   if (loading) return <div className="text-center text-gray-500 py-12">Loading...</div>;
@@ -161,6 +191,24 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
         <h2 className="text-sm font-semibold text-gray-400 mb-1">Signal Summary</h2>
         <p className="text-sm">{latest.explanation}</p>
+      </div>
+
+      {/* Intraday Price Chart */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+        <h2 className="text-sm font-semibold text-gray-400 mb-2">Intraday Chart</h2>
+        {chartLoading ? (
+          <div className="h-[200px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+            Loading chart…
+          </div>
+        ) : chartCandles.length >= 2 ? (
+          <div className="w-full" style={{ aspectRatio: '600 / 280' }}>
+            <PriceChart candles={chartCandles} width={600} height={280} />
+          </div>
+        ) : (
+          <div className="h-[120px] bg-gray-800/30 rounded flex items-center justify-center text-gray-600 text-sm">
+            No intraday data available
+          </div>
+        )}
       </div>
 
       {/* Two-column layout on desktop */}

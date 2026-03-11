@@ -9,7 +9,7 @@ import {
   NewsIndicator,
   TimeAgo,
 } from '@/components/signal-badges';
-import { Sparkline } from '@/components/sparkline';
+import { MiniChart } from '@/components/mini-chart';
 
 interface Snapshot {
   id: number;
@@ -28,8 +28,10 @@ interface Snapshot {
   recentNewsCount: number;
   isBreakout: boolean;
   nearHigh: boolean;
+  explanation: string;
   timestamp: string;
   scoreHistory: number[];
+  priceHistory: number[];
 }
 
 export function DashboardClient() {
@@ -151,32 +153,37 @@ export function DashboardClient() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {snapshots.map((s) => (
+      {/* Hero card — top-scoring stock on desktop */}
+      {snapshots.length > 0 && <HeroCard s={snapshots[0]} />}
+
+      {/* Remaining cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4 mt-4">
+        {snapshots.slice(1).map((s) => (
           <Link
             key={s.id}
             href={`/signal/${s.symbol}`}
-            className="block bg-gray-900 border border-gray-800 rounded-lg p-3 hover:border-gray-600 transition-colors"
+            className="block bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-600 transition-colors"
           >
             <div className="flex items-start justify-between mb-2">
               <div>
-                <span className="font-bold text-base">{s.symbol}</span>
+                <span className="font-bold text-lg">{s.symbol}</span>
                 <span className="text-gray-400 text-sm ml-2">
                   ${s.currentPrice.toFixed(2)}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                {s.scoreHistory.length >= 2 && (
-                  <Sparkline data={s.scoreHistory} width={64} height={24} />
-                )}
-                <ScoreBadge score={s.signalScore} />
-              </div>
+              <ScoreBadge score={s.signalScore} />
             </div>
+
+            {/* Mini price chart */}
+            {s.priceHistory.length >= 2 && (
+              <div className="mb-2">
+                <MiniChart data={s.priceHistory} width={200} height={48} className="w-full" />
+              </div>
+            )}
 
             {/* Key metrics row — adapts to data source */}
             <div className="grid grid-cols-3 gap-2 text-center mb-2">
               {s.pctChange5m != null && s.pctChangeIntraday != null ? (
-                /* Candle mode: 5m / 1h / 1d */
                 <>
                   <div>
                     <div className="text-gray-500 text-[10px]">5m</div>
@@ -192,7 +199,6 @@ export function DashboardClient() {
                   </div>
                 </>
               ) : (
-                /* Quote-only mode: Intraday / 1d / Range */
                 <>
                   <div>
                     <div className="text-gray-500 text-[10px]">Intraday</div>
@@ -242,4 +248,107 @@ function RangePosition({ value }: { value: number | null }) {
   const pct = Math.round(value * 100);
   const color = pct >= 80 ? 'text-green-400' : pct >= 50 ? 'text-yellow-400' : 'text-red-400';
   return <span className={`text-xs font-medium ${color}`}>{pct}%</span>;
+}
+
+function HeroCard({ s }: { s: Snapshot }) {
+  const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
+
+  return (
+    <Link
+      href={`/signal/${s.symbol}`}
+      className="block bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-600 transition-colors"
+    >
+      {/* Hero header */}
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">{s.symbol}</h2>
+            <span className="text-gray-400 text-xl">${s.currentPrice.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {s.isBreakout && (
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-900/60 text-green-300 border border-green-700">
+                {hasCandleData ? 'BREAKOUT' : 'GAP UP'}
+              </span>
+            )}
+            {s.nearHigh && !s.isBreakout && (
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-900/60 text-yellow-300 border border-yellow-700">
+                Near High
+              </span>
+            )}
+            {s.rvol != null && s.rvol >= 1.5 && (
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-cyan-900/60 text-cyan-300 border border-cyan-700">
+                RVOL {s.rvol.toFixed(1)}x
+              </span>
+            )}
+            <NewsIndicator count={s.recentNewsCount} />
+          </div>
+        </div>
+        <ScoreBadge score={s.signalScore} />
+      </div>
+
+      {/* Hero chart + metrics side by side on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Price mini-chart — larger for hero */}
+        <div className="lg:col-span-2">
+          {s.priceHistory.length >= 2 ? (
+            <MiniChart data={s.priceHistory} width={500} height={80} className="w-full" />
+          ) : (
+            <div className="h-20 bg-gray-800/50 rounded flex items-center justify-center text-gray-600 text-sm">
+              No price history yet
+            </div>
+          )}
+        </div>
+
+        {/* Metrics */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-4 lg:grid-cols-2 gap-2 text-center">
+            {hasCandleData ? (
+              <>
+                <div>
+                  <div className="text-gray-500 text-[10px]">5m</div>
+                  <PctChange value={s.pctChange5m} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[10px]">15m</div>
+                  <PctChange value={s.pctChange15m} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[10px]">1h</div>
+                  <PctChange value={s.pctChange1h} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[10px]">1d</div>
+                  <PctChange value={s.pctChange1d} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="text-gray-500 text-[10px]">Intraday</div>
+                  <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[10px]">1d Change</div>
+                  <PctChange value={s.pctChange1d} />
+                </div>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <div>
+              <span className="text-gray-500 mr-1">Float</span>
+              <FloatDisplay value={s.float} />
+            </div>
+            <TimeAgo date={s.timestamp} />
+          </div>
+        </div>
+      </div>
+
+      {/* Explanation visible on hero */}
+      {s.explanation && (
+        <p className="text-sm text-gray-400 mt-3 line-clamp-2">{s.explanation}</p>
+      )}
+    </Link>
+  );
 }
