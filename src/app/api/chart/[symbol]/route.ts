@@ -1,16 +1,16 @@
 /**
  * GET /api/chart/[symbol] — on-demand candle data for charting.
  * Supports ?interval=1min|5min|15min|30min|1h|4h&range=1H|1D|1W|1M|Q|1Y|YTD|Max
- * Uses whichever data source is configured in settings.
- * Auto-falls back to Finnhub when Twelve Data credits are exhausted.
+ *
+ * Primary source: Twelve Data (800 credits/day free tier).
+ * Fallback: builds a simple price chart from stored SignalSnapshot history.
+ * (Finnhub free tier does NOT support candle data — returns 403.)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getTimeSeries, isQuotaExhausted } from '@/lib/twelvedata/client';
+import { getTimeSeries } from '@/lib/twelvedata/client';
 import { mapTwelveDataCandles } from '@/lib/twelvedata/mappers';
-import { getCandles as getFHCandles } from '@/lib/finnhub/client';
-import { mapCandles as mapFHCandles } from '@/lib/finnhub/mappers';
 
 interface CachedChart {
   data: ChartCandle[];
@@ -36,9 +36,8 @@ type Range = (typeof VALID_RANGES)[number];
 const INTERVAL_ORDER: Interval[] = ['1min', '5min', '15min', '30min', '1h', '4h'];
 
 /**
- * Minimum interval required for each range so APIs return useful data.
- * Finnhub free-tier only has limited intraday history, and Twelve Data
- * caps at 5000 candles per request.
+ * Minimum interval required for each range so the API can return useful data.
+ * Twelve Data caps at 5000 candles per request.
  */
 function minIntervalForRange(range: Range): Interval {
   switch (range) {
@@ -59,61 +58,6 @@ function coarsenInterval(interval: Interval, range: Range): Interval {
   const minIdx = INTERVAL_ORDER.indexOf(minIntervalForRange(range));
   const reqIdx = INTERVAL_ORDER.indexOf(interval);
   return reqIdx < minIdx ? INTERVAL_ORDER[minIdx] : interval;
-}
-
-/** Map our interval names to Finnhub resolution strings */
-function toFinnhubResolution(interval: Interval): string {
-  switch (interval) {
-    case '1min':  return '1';
-    case '5min':  return '5';
-    case '15min': return '15';
-    case '30min': return '30';
-    case '1h':    return '60';
-    case '4h':    return 'D'; // Finnhub doesn't support 4h; use daily
-    default:      return '1';
-  }
-}
-
-/** Compute UNIX-timestamp range (from/to) for a given range */
-function computeDateRange(range: Range): { from: number; to: number } {
-  const now = new Date();
-  const to = Math.floor(now.getTime() / 1000);
-  let fromDate: Date;
-
-  switch (range) {
-    case '1H':
-      fromDate = new Date(now.getTime() - 60 * 60 * 1000);
-      break;
-    case '1D':
-      fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      break;
-    case '1W':
-      fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case '1M':
-      fromDate = new Date(now);
-      fromDate.setMonth(fromDate.getMonth() - 1);
-      break;
-    case 'Q':
-      fromDate = new Date(now);
-      fromDate.setMonth(fromDate.getMonth() - 3);
-      break;
-    case '1Y':
-      fromDate = new Date(now);
-      fromDate.setFullYear(fromDate.getFullYear() - 1);
-      break;
-    case 'YTD':
-      fromDate = new Date(now.getFullYear(), 0, 1);
-      break;
-    case 'Max':
-      fromDate = new Date(now);
-      fromDate.setFullYear(fromDate.getFullYear() - 20);
-      break;
-    default:
-      fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  }
-
-  return { from: Math.floor(fromDate.getTime() / 1000), to };
 }
 
 /** Approximate number of trading minutes per range */
@@ -156,16 +100,22 @@ function computeOutputSize(interval: Interval, range: Range): number {
   return Math.max(1, Math.min(candles, 5000));
 }
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// 15-minute cache to conserve Twelve Data credits
+const CACHE_TTL_MS = 15 * 60 * 1000;
 const chartCache = new Map<string, CachedChart>();
 
 async function fetchTwelveDataCandles(symbol: string, interval: Interval, range: Range): Promise<ChartCandle[]> {
   const outputsize = computeOutputSize(interval, range);
+  console.log(`[Chart] TwelveData fetch: ${symbol} interval=${interval} outputsize=${outputsize}`);
   const seriesMap = await getTimeSeries([symbol], interval, outputsize);
   const series = seriesMap.get(symbol);
-  if (!series) return [];
+  if (!series) {
+    console.log(`[Chart] TwelveData returned no series for ${symbol}`);
+    return [];
+  }
 
   const normalized = mapTwelveDataCandles(series);
+  console.log(`[Chart] TwelveData returned ${normalized.length} candles for ${symbol}`);
   return normalized.map((c) => ({
     time: c.timestamp.toISOString(),
     open: c.open,
@@ -176,28 +126,39 @@ async function fetchTwelveDataCandles(symbol: string, interval: Interval, range:
   }));
 }
 
-async function fetchFinnhubCandles(symbol: string, interval: Interval, range: Range): Promise<ChartCandle[]> {
-  const resolution = toFinnhubResolution(interval);
-  const { from, to } = computeDateRange(range);
-  console.log(`[Chart] Finnhub fetch: ${symbol} res=${resolution} from=${new Date(from * 1000).toISOString()} to=${new Date(to * 1000).toISOString()}`);
-  const raw = await getFHCandles(symbol, resolution, from, to);
-  if (!raw) {
-    console.log(`[Chart] Finnhub returned null for ${symbol}`);
-    return [];
+/** Build a simple chart from stored SignalSnapshot prices (fallback when API is unavailable). */
+async function fetchSnapshotHistory(symbol: string, range: Range): Promise<ChartCandle[]> {
+  const now = new Date();
+  let since: Date;
+
+  switch (range) {
+    case '1H':  since = new Date(now.getTime() - 60 * 60 * 1000); break;
+    case '1D':  since = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
+    case '1W':  since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+    case '1M':  since = new Date(now); since.setMonth(since.getMonth() - 1); break;
+    case 'Q':   since = new Date(now); since.setMonth(since.getMonth() - 3); break;
+    case '1Y':  since = new Date(now); since.setFullYear(since.getFullYear() - 1); break;
+    case 'YTD': since = new Date(now.getFullYear(), 0, 1); break;
+    case 'Max': since = new Date(2000, 0, 1); break;
+    default:    since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   }
 
-  const normalized = mapFHCandles(raw);
-  console.log(`[Chart] Finnhub returned ${normalized.length} candles for ${symbol}`);
-  if (normalized.length > 0) {
-    console.log(`[Chart] Finnhub time range: ${normalized[0].timestamp.toISOString()} → ${normalized[normalized.length - 1].timestamp.toISOString()}`);
-  }
-  return normalized.map((c) => ({
-    time: c.timestamp.toISOString(),
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-    volume: c.volume,
+  const snapshots = await prisma.signalSnapshot.findMany({
+    where: { symbol, timestamp: { gte: since } },
+    orderBy: { timestamp: 'asc' },
+    select: { currentPrice: true, timestamp: true },
+    take: 5000,
+  });
+
+  console.log(`[Chart] Snapshot fallback: ${snapshots.length} points for ${symbol} since ${since.toISOString()}`);
+
+  return snapshots.map((s) => ({
+    time: s.timestamp.toISOString(),
+    open: s.currentPrice,
+    high: s.currentPrice,
+    low: s.currentPrice,
+    close: s.currentPrice,
+    volume: 0,
   }));
 }
 
@@ -227,35 +188,28 @@ export async function GET(
   // Check cache
   const cached = chartCache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return NextResponse.json({ symbol: upper, candles: cached.data, cached: true, interval, range });
+    return NextResponse.json({
+      symbol: upper, candles: cached.data, cached: true, interval, range,
+      source: 'cache', candleCount: cached.data.length,
+      timeRange: cached.data.length > 0
+        ? { first: cached.data[0].time, last: cached.data[cached.data.length - 1].time }
+        : null,
+    });
   }
 
-  // Determine data source from settings, with auto-fallback
-  const settings = await prisma.appSettings.findFirst();
-  let source = settings?.dataSource ?? 'twelvedata';
-  let fallback = false;
+  // Always try Twelve Data first — chart is just 1 credit per request
+  let candles = await fetchTwelveDataCandles(upper, interval, range);
+  let source = 'twelvedata';
 
-  if (source === 'twelvedata' && isQuotaExhausted()) {
-    source = 'finnhub';
-    fallback = true;
-  }
-  console.log(`[Chart] Source: ${source}, fallback: ${fallback}, quotaExhausted: ${isQuotaExhausted()}`);
-
-  let candles: ChartCandle[];
-  if (source === 'finnhub') {
-    candles = await fetchFinnhubCandles(upper, interval, range);
-  } else {
-    candles = await fetchTwelveDataCandles(upper, interval, range);
-    // If Twelve Data returned nothing (e.g. quota hit mid-request), try Finnhub
-    if (candles.length === 0) {
-      candles = await fetchFinnhubCandles(upper, interval, range);
-      if (candles.length > 0) fallback = true;
-    }
+  // If TD fails, fall back to snapshot-based price history from our DB
+  if (candles.length === 0) {
+    candles = await fetchSnapshotHistory(upper, range);
+    source = 'snapshot-history';
   }
 
   if (candles.length === 0) {
     return NextResponse.json(
-      { symbol: upper, candles: [], error: 'No candle data available', interval, range },
+      { symbol: upper, candles: [], error: 'No data available', interval, range, source: 'none' },
       { status: 200 },
     );
   }
@@ -277,7 +231,7 @@ export async function GET(
     cached: false,
     interval,
     range,
-    source: fallback ? 'finnhub (fallback)' : source,
+    source,
     candleCount: candles.length,
     timeRange: candles.length > 0
       ? { first: candles[0].time, last: candles[candles.length - 1].time }
