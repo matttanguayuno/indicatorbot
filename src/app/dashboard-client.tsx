@@ -205,7 +205,7 @@ export function DashboardClient() {
             {/* Mini intraday chart */}
             {((chartDataMap[s.symbol] ?? []).length >= 2 || s.priceHistory.length >= 2) && (
               <div className="mb-2">
-                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={200} height={48} className="w-full" />
+                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={400} height={140} className="w-full" />
               </div>
             )}
 
@@ -322,9 +322,9 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
         {/* Intraday price chart — larger for hero */}
         <div className="lg:col-span-2">
           {chartData.length >= 2 ? (
-            <MiniChart data={chartData} width={500} height={80} className="w-full" />
+            <MiniChart data={chartData} width={600} height={200} className="w-full" />
           ) : (
-            <div className="h-20 bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+            <div className="h-[200px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
               Loading chart…
             </div>
           )}
