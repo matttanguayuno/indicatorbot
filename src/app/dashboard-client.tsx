@@ -40,7 +40,7 @@ export function DashboardClient() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [polling, setPolling] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
-  const [chartDataMap, setChartDataMap] = useState<Record<string, number[]>>({});
+  const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({});
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -87,17 +87,19 @@ export function DashboardClient() {
     const symbols = snapshots.map((s) => s.symbol);
     let cancelled = false;
     async function fetchCharts() {
-      const entries: [string, number[]][] = await Promise.all(
+      const entries: [string, { closes: number[]; times: string[] }][] = await Promise.all(
         symbols.map(async (sym) => {
           try {
             const res = await fetch(`/api/chart/${encodeURIComponent(sym)}`);
             if (res.ok) {
               const data = await res.json();
-              const closes: number[] = (data.candles ?? []).map((c: { close: number }) => c.close);
-              return [sym, closes] as [string, number[]];
+              const candles: { close: number; time: string }[] = data.candles ?? [];
+              const closes = candles.map(c => c.close);
+              const times = candles.map(c => c.time);
+              return [sym, { closes, times }] as [string, { closes: number[]; times: string[] }];
             }
           } catch { /* ignore */ }
-          return [sym, []] as [string, number[]];
+          return [sym, { closes: [], times: [] }] as [string, { closes: number[]; times: string[] }];
         })
       );
       if (!cancelled) {
@@ -182,7 +184,7 @@ export function DashboardClient() {
       )}
 
       {/* Hero card — top-scoring stock on desktop */}
-      {snapshots.length > 0 && <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? []} />}
+      {snapshots.length > 0 && <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} />}
 
       {/* Remaining cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
@@ -204,9 +206,13 @@ export function DashboardClient() {
             </div>
 
             {/* Chart — edge-to-edge, no padding */}
-            {((chartDataMap[s.symbol] ?? []).length >= 2 || s.priceHistory.length >= 2) && (
+            {((chartDataMap[s.symbol]?.closes ?? []).length >= 2 || s.priceHistory.length >= 2) && (
               <div className="px-1">
-                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={400} height={150} className="w-full" />
+                <MiniChart
+                  data={(chartDataMap[s.symbol]?.closes ?? []).length >= 2 ? chartDataMap[s.symbol].closes : s.priceHistory}
+                  timestamps={(chartDataMap[s.symbol]?.times ?? []).length >= 2 ? chartDataMap[s.symbol].times : undefined}
+                  width={400} height={150} className="w-full"
+                />
               </div>
             )}
 
@@ -268,9 +274,10 @@ export function DashboardClient() {
   );
 }
 
-function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number[] }) {
+function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { closes: number[]; times: string[] } }) {
   const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
-  const chartData = candleData.length >= 2 ? candleData : s.priceHistory;
+  const chartData = candleData.closes.length >= 2 ? candleData.closes : s.priceHistory;
+  const chartTimes = candleData.times.length >= 2 ? candleData.times : undefined;
 
   return (
     <Link
@@ -308,7 +315,7 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
       {/* Full-width chart */}
       <div className="px-2">
         {chartData.length >= 2 ? (
-          <MiniChart data={chartData} width={900} height={260} className="w-full" />
+          <MiniChart data={chartData} timestamps={chartTimes} width={900} height={260} className="w-full" />
         ) : (
           <div className="h-[200px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…

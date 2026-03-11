@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 
 interface MiniChartProps {
   data: number[];
+  timestamps?: string[];
   width?: number;
   height?: number;
   className?: string;
@@ -11,6 +12,7 @@ interface MiniChartProps {
 
 export function MiniChart({
   data,
+  timestamps,
   width = 300,
   height = 120,
   className = '',
@@ -20,10 +22,11 @@ export function MiniChart({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
+  const hasXAxis = timestamps && timestamps.length === data.length;
   const padLeft = 50;
   const padRight = 6;
   const padTop = 10;
-  const padBottom = 6;
+  const padBottom = hasXAxis ? 22 : 6;
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
@@ -125,6 +128,32 @@ export function MiniChart({
           </text>
         </g>
       ))}
+
+      {/* X-axis time labels */}
+      {hasXAxis && (() => {
+        const n = data.length;
+        const targetLabels = width > 500 ? 5 : 3;
+        const step = Math.max(1, Math.floor(n / targetLabels));
+        const indices: number[] = [];
+        for (let i = 0; i < n; i += step) indices.push(i);
+        if (indices[indices.length - 1] !== n - 1) indices.push(n - 1);
+        return indices.map((i) => {
+          const d = new Date(timestamps[i]);
+          const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+          return (
+            <text
+              key={i}
+              x={x(i)}
+              y={padTop + chartH + 14}
+              textAnchor="middle"
+              fill="#6b7280"
+              fontSize="8"
+            >
+              {label}
+            </text>
+          );
+        });
+      })()}
 
       {/* Area fill */}
       <path d={areaPath} fill={fillColor} />
