@@ -179,10 +179,18 @@ async function fetchTwelveDataCandles(symbol: string, interval: Interval, range:
 async function fetchFinnhubCandles(symbol: string, interval: Interval, range: Range): Promise<ChartCandle[]> {
   const resolution = toFinnhubResolution(interval);
   const { from, to } = computeDateRange(range);
+  console.log(`[Chart] Finnhub fetch: ${symbol} res=${resolution} from=${new Date(from * 1000).toISOString()} to=${new Date(to * 1000).toISOString()}`);
   const raw = await getFHCandles(symbol, resolution, from, to);
-  if (!raw) return [];
+  if (!raw) {
+    console.log(`[Chart] Finnhub returned null for ${symbol}`);
+    return [];
+  }
 
   const normalized = mapFHCandles(raw);
+  console.log(`[Chart] Finnhub returned ${normalized.length} candles for ${symbol}`);
+  if (normalized.length > 0) {
+    console.log(`[Chart] Finnhub time range: ${normalized[0].timestamp.toISOString()} → ${normalized[normalized.length - 1].timestamp.toISOString()}`);
+  }
   return normalized.map((c) => ({
     time: c.timestamp.toISOString(),
     open: c.open,
@@ -212,6 +220,7 @@ export async function GET(
 
   // Auto-coarsen interval when range is too long for fine granularity
   const interval = coarsenInterval(rawParsedInterval, range);
+  console.log(`[Chart] Request: ${upper} rawInterval=${rawInterval} rawRange=${rawRange} → interval=${interval} range=${range}`);
 
   const cacheKey = `${upper}:${interval}:${range}`;
 
@@ -230,6 +239,7 @@ export async function GET(
     source = 'finnhub';
     fallback = true;
   }
+  console.log(`[Chart] Source: ${source}, fallback: ${fallback}, quotaExhausted: ${isQuotaExhausted()}`);
 
   let candles: ChartCandle[];
   if (source === 'finnhub') {
@@ -267,6 +277,10 @@ export async function GET(
     cached: false,
     interval,
     range,
-    ...(fallback && { source: 'finnhub (fallback)' }),
+    source: fallback ? 'finnhub (fallback)' : source,
+    candleCount: candles.length,
+    timeRange: candles.length > 0
+      ? { first: candles[0].time, last: candles[candles.length - 1].time }
+      : null,
   });
 }

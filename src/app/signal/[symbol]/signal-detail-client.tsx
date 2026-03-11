@@ -98,6 +98,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [news, setNews] = useState<NewsEntry[]>([]);
   const [chartCandles, setChartCandles] = useState<ChartCandle[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
+  const [chartDebug, setChartDebug] = useState<string>('');
   const [chartInterval, setChartInterval] = useState<string>('1min');
   const [chartRange, setChartRange] = useState<string>('1D');
   const [loading, setLoading] = useState(true);
@@ -132,10 +133,14 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       setChartLoading(true);
       try {
         const params = new URLSearchParams({ interval: chartInterval, range: chartRange });
-        const res = await fetch(`/api/chart/${encodeURIComponent(symbol)}?${params}`);
+        const url = `/api/chart/${encodeURIComponent(symbol)}?${params}`;
+        console.log(`[Chart] Fetching: ${url}`);
+        const res = await fetch(url);
         if (res.ok && !cancelled) {
           const data = await res.json();
+          console.log('[Chart] Response:', { source: data.source, interval: data.interval, range: data.range, cached: data.cached, candleCount: data.candleCount, timeRange: data.timeRange });
           setChartCandles(data.candles ?? []);
+          setChartDebug(`src=${data.source ?? '?'} int=${data.interval} rng=${data.range} cached=${data.cached} n=${data.candleCount ?? data.candles?.length ?? 0}`);
         }
       } catch (err) {
         console.error('Failed to load chart:', err);
@@ -266,6 +271,11 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         ) : (
           <div className="h-[120px] bg-gray-800/30 rounded flex items-center justify-center text-gray-600 text-sm">
             No intraday data available
+          </div>
+        )}
+        {chartDebug && (
+          <div className="mt-1 px-2 py-1 bg-gray-800/60 rounded text-[10px] font-mono text-gray-500">
+            {chartDebug}
           </div>
         )}
       </div>
