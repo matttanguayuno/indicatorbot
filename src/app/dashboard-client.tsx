@@ -252,6 +252,29 @@ function RangePosition({ value }: { value: number | null }) {
 
 function HeroCard({ s }: { s: Snapshot }) {
   const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
+  const [chartPrices, setChartPrices] = useState<number[]>([]);
+  const [chartLoading, setChartLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadChart() {
+      try {
+        const res = await fetch(`/api/chart/${encodeURIComponent(s.symbol)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const closes: number[] = (data.candles ?? []).map((c: { close: number }) => c.close);
+          setChartPrices(closes);
+        }
+      } catch (err) {
+        console.error('Hero chart load failed:', err);
+      } finally {
+        setChartLoading(false);
+      }
+    }
+    loadChart();
+  }, [s.symbol]);
+
+  // Use intraday candle closes, fall back to snapshot priceHistory
+  const chartData = chartPrices.length >= 2 ? chartPrices : s.priceHistory;
 
   return (
     <Link
@@ -289,13 +312,17 @@ function HeroCard({ s }: { s: Snapshot }) {
 
       {/* Hero chart + metrics side by side on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Price mini-chart — larger for hero */}
+        {/* Price chart — larger for hero */}
         <div className="lg:col-span-2">
-          {s.priceHistory.length >= 2 ? (
-            <MiniChart data={s.priceHistory} width={500} height={80} className="w-full" />
+          {chartLoading ? (
+            <div className="h-20 bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+              Loading chart…
+            </div>
+          ) : chartData.length >= 2 ? (
+            <MiniChart data={chartData} width={500} height={80} className="w-full" />
           ) : (
             <div className="h-20 bg-gray-800/50 rounded flex items-center justify-center text-gray-600 text-sm">
-              No price history yet
+              No chart data available
             </div>
           )}
         </div>
