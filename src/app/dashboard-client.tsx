@@ -447,7 +447,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           {yTicks.map((t) => (
             <g key={t}>
               <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-              <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={8}>{t}</text>
+              <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={9}>{t}</text>
             </g>
           ))}
 
@@ -506,10 +506,10 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
                 {items.map((item, i) => (
                   <g key={item.symbol}>
                     <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
-                    <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={8} fontWeight="500">
+                    <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={9} fontWeight="500">
                       {item.symbol}
                     </text>
-                    <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={8}>
+                    <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={9}>
                       {item.scores[hoverIdx]}
                     </text>
                   </g>

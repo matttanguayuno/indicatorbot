@@ -37,9 +37,9 @@ export function MiniChart({
 
   // Gentler font scaling so hero card labels stay readable
   const ts = Math.pow(400 / width, 0.7);
-  const fontY = Math.max(4, 9 * ts);
-  const fontX = Math.max(3, 8 * ts);
-  const fontTip = Math.max(4, 10 * ts);
+  const fontY = Math.max(7, 9 * ts);
+  const fontX = Math.max(6, 8 * ts);
+  const fontTip = Math.max(8, 10 * ts);
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
@@ -109,7 +109,8 @@ export function MiniChart({
       setZoom(([s, en]) => {
         const r = en - s;
         const factor = e.deltaY > 0 ? 1.2 : 0.85;
-        const nr = Math.min(1, Math.max(0.02, r * factor));
+        const minRange = Math.max(0.05, 3 / (data.length || 1));
+        const nr = Math.min(1, Math.max(minRange, r * factor));
         const center = s + frac * r;
         let ns = center - frac * nr;
         let ne = center + (1 - frac) * nr;
@@ -117,16 +118,17 @@ export function MiniChart({
         if (ne > 1) { ns = Math.max(0, ns - (ne - 1)); ne = 1; }
         return [ns, ne];
       });
+      setHoverIndex(null);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [width]);
+  }, [width, data.length]);
 
   // Tooltip position clamping
   const showTime = hasXAxis && visTimes;
   const tipW = (showTime ? 78 : 58) * ts;
   const tipH = (showTime ? 30 : 18) * ts;
-  const hIdx = hoverIndex ?? 0;
+  const hIdx = Math.min(hoverIndex ?? 0, visData.length - 1);
   const hx = x(hIdx);
   const hy = y(visData[hIdx]);
   let tipX = hx - tipW / 2;

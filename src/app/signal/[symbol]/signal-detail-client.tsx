@@ -458,12 +458,11 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
-  // Gentler font scaling so labels stay readable
-  const ts = Math.pow(400 / w, 0.7);
-  const fontY = Math.max(4, 9 * ts);
-  const fontX = Math.max(3, 8 * ts);
-  const fontTipLg = Math.max(4, 10 * ts);
-  const fontTipSm = Math.max(3, 8 * ts);
+  // Font sizes for 600-wide viewBox
+  const fontY = 10;
+  const fontX = 9;
+  const fontTipLg = 11;
+  const fontTipSm = 9;
 
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
@@ -503,7 +502,8 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
       setZoom(([s, en]) => {
         const r = en - s;
         const factor = e.deltaY > 0 ? 1.2 : 0.85;
-        const nr = Math.min(1, Math.max(0.02, r * factor));
+        const minRange = Math.max(0.05, 3 / (fullData.length || 1));
+        const nr = Math.min(1, Math.max(minRange, r * factor));
         const center = s + frac * r;
         let ns = center - frac * nr;
         let ne = center + (1 - frac) * nr;
@@ -511,10 +511,11 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
         if (ne > 1) { ns = Math.max(0, ns - (ne - 1)); ne = 1; }
         return [ns, ne];
       });
+      setHoverIdx(null);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [fullData.length]);
 
   // Y-axis ticks
   const yTicks = [0, 25, 50, 75, 100];
@@ -582,7 +583,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
       ))}
 
       {/* Hover crosshair + tooltip */}
-      {hoverIdx != null && (
+      {hoverIdx != null && hoverIdx < scores.length && (
         <>
           <line
             x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
