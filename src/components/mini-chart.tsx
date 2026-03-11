@@ -33,16 +33,19 @@ export function MiniChart({
 
   const hasXAxis = visTimes && visTimes.length === visData.length;
 
-  // Scale factor: keeps on-screen sizes consistent across different viewBox widths
+  // Scale padding/strokes proportionally to viewBox width, but clamp font sizes
+  // so they stay readable on both small (300px) and large (900px) viewBoxes
   const scale = width / 400;
   const padLeft = Math.round(50 * scale);
   const padRight = Math.round(8 * scale);
   const padTop = Math.round(10 * scale);
   const padBottom = hasXAxis ? Math.round(22 * scale) : Math.round(6 * scale);
 
-  const fontY = 11 * scale;
-  const fontX = 10 * scale;
-  const fontTip = 12 * scale;
+  // Font sizes: scale gently (sqrt) so they don't balloon on wide viewBoxes
+  const fontScale = Math.sqrt(scale);
+  const fontY = 11 * fontScale;
+  const fontX = 10 * fontScale;
+  const fontTip = 12 * fontScale;
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
@@ -97,6 +100,7 @@ export function MiniChart({
     [width, padLeft, chartW, visData.length],
   );
 
+  // Desktop: show tooltip on hover
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (e.pointerType === 'touch') return;
@@ -106,16 +110,55 @@ export function MiniChart({
     [calcIndex],
   );
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<SVGSVGElement>) => {
-      if (e.pointerType !== 'touch') return;
-      const idx = calcIndex(e.clientX);
-      setHoverIndex(idx);
-    },
-    [calcIndex],
-  );
-
   const handlePointerLeave = useCallback(() => setHoverIndex(null), []);
+
+  // Mobile: horizontal swipe shows data points, vertical scroll still works
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isHorizontalSwipe = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      isHorizontalSwipe = false;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const dx = Math.abs(e.touches[0].clientX - touchStartX);
+      const dy = Math.abs(e.touches[0].clientY - touchStartY);
+      // Once we determine direction, lock it in
+      if (!isHorizontalSwipe && dx < 8 && dy < 8) return;
+      if (!isHorizontalSwipe) {
+        isHorizontalSwipe = dx > dy;
+      }
+      if (isHorizontalSwipe) {
+        e.preventDefault(); // prevent vertical scroll during horizontal swipe
+        const idx = calcIndex(e.touches[0].clientX);
+        setHoverIndex(idx);
+      }
+    };
+
+    const onTouchEnd = () => {
+      // Clear tooltip after a short delay so user can see the last value
+      setTimeout(() => setHoverIndex(null), 1500);
+      isHorizontalSwipe = false;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [calcIndex]);
 
   // Mouse wheel zoom
   useEffect(() => {
@@ -204,16 +247,16 @@ export function MiniChart({
 
   // Tooltip position clamping
   const showTime = hasXAxis && visTimes;
-  const tipW = (showTime ? 80 : 58) * scale;
-  const tipH = (showTime ? 38 : 20) * scale;
+  const tipW = (showTime ? 80 : 58) * fontScale;
+  const tipH = (showTime ? 38 : 20) * fontScale;
   const hIdx = Math.min(hoverIndex ?? 0, visData.length - 1);
   const hx = x(hIdx);
   const hy = y(visData[hIdx]);
   let tipX = hx - tipW / 2;
   if (tipX < padLeft) tipX = padLeft;
   if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
-  let tipY = hy - tipH - 6 * scale;
-  if (tipY < 2 * scale) tipY = hy + 6 * scale;
+  let tipY = hy - tipH - 6 * fontScale;
+  if (tipY < 2 * fontScale) tipY = hy + 6 * fontScale;
 
   return (
     <svg
@@ -221,7 +264,6 @@ export function MiniChart({
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       onPointerMove={handlePointerMove}
-      onPointerDown={handlePointerDown}
       onPointerLeave={handlePointerLeave}
       onDoubleClick={() => setZoom([0, 1])}
       style={{ touchAction: 'pan-y', width: '100%', height: '100%' }}
@@ -336,10 +378,10 @@ export function MiniChart({
             y={tipY}
             width={tipW}
             height={tipH}
-            rx={3 * scale}
+            rx={3 * fontScale}
             fill="#111827"
             stroke="#4b5563"
-            strokeWidth={0.5 * scale}
+            strokeWidth={0.5 * fontScale}
           />
           <text
             x={tipX + tipW / 2}

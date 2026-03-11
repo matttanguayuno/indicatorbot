@@ -6,6 +6,7 @@ import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-
 import { RadarChart } from '@/components/radar-chart';
 import { Sparkline } from '@/components/sparkline';
 import { PriceChart } from '@/components/price-chart';
+import { MiniChart } from '@/components/mini-chart';
 
 interface ChartCandle {
   time: string;
@@ -204,6 +205,15 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           <div className="w-full" style={{ aspectRatio: '900 / 350' }}>
             <PriceChart candles={chartCandles} width={900} height={350} />
           </div>
+        ) : history.length >= 2 ? (
+          <div className="w-full" style={{ aspectRatio: '900 / 350' }}>
+            <MiniChart
+              data={[...history].reverse().map(h => h.currentPrice)}
+              timestamps={[...history].reverse().map(h => h.timestamp)}
+              width={900}
+              height={350}
+            />
+          </div>
         ) : (
           <div className="h-[120px] bg-gray-800/30 rounded flex items-center justify-center text-gray-600 text-sm">
             No intraday data available
@@ -332,6 +342,11 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
                     size={260}
                   />
                 </div>
+                {!hasCandleData && (
+                  <p className="text-xs text-gray-600 text-center mt-1">
+                    Some categories show 0 — intraday candle data not available for this source.
+                  </p>
+                )}
               </div>
 
               {/* Score Breakdown Bars */}

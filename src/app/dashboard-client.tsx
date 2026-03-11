@@ -270,7 +270,7 @@ export function DashboardClient() {
                 )}
                 <NewsIndicator count={s.recentNewsCount} />
               </div>
-              <TimeAgo date={s.timestamp} />
+              <span className="shrink-0"><TimeAgo date={s.timestamp} /></span>
             </div>
           </Link>
         ))}
@@ -460,11 +460,11 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
       <div className="px-4 pt-3 pb-1">
         <h3 className="text-base font-semibold text-gray-300">Score Evolution</h3>
       </div>
-      <div className="flex-1 px-2 pb-3">
+      <div className="flex-1 min-h-0 px-2 pb-3">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${w} ${h}`}
-          preserveAspectRatio="xMidYMid meet"
+          preserveAspectRatio="xMidYMid slice"
           style={{ width: '100%', height: '100%' }}
           className="select-none"
           onPointerMove={handlePointer}
