@@ -1,17 +1,27 @@
 /**
  * Core polling pipeline: fetches data, computes signals, stores snapshots, generates alerts.
- * All market data sourced from Twelve Data (candles, quotes, profiles).
- * News uses previously stored DB records (Twelve Data has no news API).
+ *
+ * Supports two data sources (configurable via Settings):
+ *  - "finnhub": quote + profile + news from Finnhub (60 calls/min, no daily cap)
+ *  - "twelvedata": candles + derived quote + profile from Twelve Data
  */
 
 import prisma from '@/lib/db';
+import {
+  getQuote as getFHQuote,
+  getCompanyProfile,
+  getCompanyNews,
+  mapQuote as mapFHQuote,
+  mapProfile as mapFHProfile,
+  mapNews,
+} from '@/lib/finnhub';
 import {
   getTimeSeries,
   mapTwelveDataCandles,
   deriveQuoteFromCandles,
   getQuote as getTDQuote,
   mapTwelveDataQuote,
-  getProfile,
+  getProfile as getTDProfile,
   getStatistics,
   mapTwelveDataProfile,
 } from '@/lib/twelvedata';
@@ -30,6 +40,7 @@ import { calculateScore, type SignalInputs } from '@/lib/scoring';
 import { generateExplanation } from '@/lib/explanations';
 import { ALERT_CONFIG, getScoringRules } from '@/lib/config';
 import type { ScoringRules } from '@/lib/config';
+import { format, subDays } from 'date-fns';
 
 interface ProcessResult {
   symbol: string;
@@ -49,39 +60,56 @@ async function processTicker(
   cooldownMin: number,
   candles: NormalizedCandle[] | null,
   series: TwelveDataTimeSeries | null,
+  dataSource: string,
   rules: ScoringRules,
 ): Promise<ProcessResult> {
   try {
-    // 1) Derive quote from candles (0 API credits) or fall back to /quote (1 credit)
+    // 1) Fetch quote — source-dependent
     let quote: NormalizedQuote;
     const hasCandleData = candles != null && candles.length > 0;
 
-    if (hasCandleData && series) {
-      quote = deriveQuoteFromCandles(symbol, candles!, series);
-    } else {
-      const rawQuote = await getTDQuote(symbol);
-      if (!rawQuote) {
-        return { symbol, success: false, error: 'No quote data' };
+    if (dataSource === 'twelvedata') {
+      // Derive from candles (0 credits) or fall back to /quote (1 credit)
+      if (hasCandleData && series) {
+        quote = deriveQuoteFromCandles(symbol, candles!, series);
+      } else {
+        const rawQuote = await getTDQuote(symbol);
+        if (!rawQuote) {
+          return { symbol, success: false, error: 'No quote data (Twelve Data)' };
+        }
+        quote = mapTwelveDataQuote(rawQuote);
       }
-      quote = mapTwelveDataQuote(rawQuote);
+    } else {
+      // Finnhub quote
+      const rawQuote = await getFHQuote(symbol);
+      if (!rawQuote || rawQuote.c === 0) {
+        return { symbol, success: false, error: 'No quote data (Finnhub)' };
+      }
+      quote = mapFHQuote(symbol, rawQuote);
     }
 
     if (quote.currentPrice === 0) {
       return { symbol, success: false, error: 'Quote price is 0' };
     }
 
-    // 2) Fetch company profile (cached 24h to save credits)
+    // 2) Fetch company profile — source-dependent (cached 24h)
     let profile: NormalizedProfile | null = null;
     const cachedProfile = profileCache.get(symbol);
     if (cachedProfile && Date.now() - cachedProfile.fetchedAt < PROFILE_CACHE_TTL_MS) {
       profile = cachedProfile.profile;
-    } else {
+    } else if (dataSource === 'twelvedata') {
       const [rawProfile, rawStats] = await Promise.all([
-        getProfile(symbol),
+        getTDProfile(symbol),
         getStatistics(symbol),
       ]);
       if (rawProfile) {
         profile = mapTwelveDataProfile(rawProfile, rawStats);
+        profileCache.set(symbol, { profile, fetchedAt: Date.now() });
+      }
+    } else {
+      const rawProfile = await getCompanyProfile(symbol);
+      if (rawProfile) {
+        profile = mapFHProfile(rawProfile);
         profileCache.set(symbol, { profile, fetchedAt: Date.now() });
       }
     }
@@ -93,16 +121,52 @@ async function processTicker(
       });
     }
 
-    // 3) Recent news from database (Twelve Data has no news API)
+    // 3) News — Finnhub fetches fresh news; Twelve Data uses DB records
     const newsWindowMs = rules.weights.newsCatalyst.recentWindowMinutes * 60 * 1000;
-    const newsItems = await prisma.newsItem.findMany({
-      where: {
-        symbol,
-        publishedAt: { gte: new Date(Date.now() - newsWindowMs) },
-      },
-      orderBy: { publishedAt: 'desc' },
-      take: 20,
-    });
+    let recentNewsCount = 0;
+
+    if (dataSource === 'finnhub') {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const twoDaysAgo = format(subDays(new Date(), 2), 'yyyy-MM-dd');
+      const rawNews = await getCompanyNews(symbol, twoDaysAgo, today);
+      const newsItems = rawNews ? mapNews(symbol, rawNews) : [];
+
+      for (const item of newsItems.slice(0, 20)) {
+        await prisma.newsItem.upsert({
+          where: {
+            symbol_headline_publishedAt: {
+              symbol: item.symbol,
+              headline: item.headline,
+              publishedAt: item.publishedAt,
+            },
+          },
+          update: {},
+          create: {
+            tickerId,
+            symbol: item.symbol,
+            headline: item.headline,
+            source: item.source,
+            url: item.url,
+            summary: item.summary,
+            publishedAt: item.publishedAt,
+          },
+        });
+      }
+
+      recentNewsCount = newsItems.filter(
+        (n) => Date.now() - n.publishedAt.getTime() < newsWindowMs
+      ).length;
+    } else {
+      // Twelve Data has no news API — use existing DB records
+      const dbNews = await prisma.newsItem.findMany({
+        where: {
+          symbol,
+          publishedAt: { gte: new Date(Date.now() - newsWindowMs) },
+        },
+        take: 20,
+      });
+      recentNewsCount = dbNews.length;
+    }
 
     // 4) Compute indicators
     const currentPrice = quote.currentPrice;
@@ -173,7 +237,6 @@ async function processTicker(
     }
 
     // News scoring
-    const recentNewsCount = newsItems.length;
     const newsScore = calcNewsScore(recentNewsCount, rules.weights.newsCatalyst.maxArticles);
 
     // 5) Score
@@ -204,7 +267,7 @@ async function processTicker(
       quote: 'available',
       candles: hasCandleData ? 'available' : 'unavailable',
       profile: profile ? 'available' : 'unavailable',
-      news: newsItems.length > 0 ? 'available' : 'unavailable',
+      news: recentNewsCount > 0 ? 'available' : 'unavailable',
     };
 
     // 6) Store snapshot — use proper columns, no repurposing
@@ -413,7 +476,7 @@ export async function runPollingCycle(): Promise<{
   for (const ticker of tickers) {
     const candles = candleMap.get(ticker.symbol) ?? null;
     const series = seriesMap.get(ticker.symbol) ?? null;
-    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, series, rules);
+    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, series, dataSource, rules);
     results.push(result);
   }
 
