@@ -15,6 +15,7 @@ model AppSettings {
   alertCooldownMin    Int      @default(30)
   pollingIntervalSec  Int      @default(60)
   dataSource          String   @default("finnhub")
+  rulesJson           String?
   updatedAt           DateTime @updatedAt
 }
 

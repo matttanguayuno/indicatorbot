@@ -27,7 +27,8 @@ import {
 } from '@/lib/signals';
 import { calculateScore, type SignalInputs } from '@/lib/scoring';
 import { generateExplanation } from '@/lib/explanations';
-import { POLLING_CONFIG, SCORING_WEIGHTS, ALERT_CONFIG } from '@/lib/config';
+import { POLLING_CONFIG, SCORING_WEIGHTS, ALERT_CONFIG, getScoringRules } from '@/lib/config';
+import type { ScoringRules } from '@/lib/config';
 import { format, subDays } from 'date-fns';
 import type { NormalizedCandle } from '@/lib/finnhub/types';
 
@@ -47,6 +48,7 @@ async function processTicker(
   scoreThreshold: number,
   cooldownMin: number,
   candles: NormalizedCandle[] | null,
+  rules: ScoringRules,
 ): Promise<ProcessResult> {
   try {
     // 1) Fetch quote (OHLC + change) — always from Finnhub
@@ -154,22 +156,22 @@ async function processTicker(
       vwap = calcVWAP(candles!);
       pctFromVwap = calcPctFromVWAP(currentPrice, vwap);
 
-      const breakout = calcBreakoutFlags(currentPrice, candles!, SCORING_WEIGHTS.breakout.nearHighPct);
+      const breakout = calcBreakoutFlags(currentPrice, candles!, rules.weights.breakout.nearHighPct);
       isBreakout = breakout.isBreakout;
       nearHigh = breakout.nearHigh;
       recentHigh = breakout.recentHigh;
     } else {
       // Quote-only breakout detection
-      isBreakout = (gapUpPct ?? 0) >= SCORING_WEIGHTS.breakout.gapUpPct * 2;
-      nearHigh = intradayRangePct != null ? intradayRangePct >= 0.85 : false;
+      isBreakout = (gapUpPct ?? 0) >= rules.weights.breakout.gapUpPct * 2;
+      nearHigh = intradayRangePct != null ? intradayRangePct >= rules.weights.intradayRange.tiers.full : false;
     }
 
     // News scoring
-    const newsWindowMs = SCORING_WEIGHTS.newsCatalyst.recentWindowMinutes * 60 * 1000;
+    const newsWindowMs = rules.weights.newsCatalyst.recentWindowMinutes * 60 * 1000;
     const recentNewsCount = newsItems.filter(
       (n) => Date.now() - n.publishedAt.getTime() < newsWindowMs
     ).length;
-    const newsScore = calcNewsScore(recentNewsCount, SCORING_WEIGHTS.newsCatalyst.maxArticles);
+    const newsScore = calcNewsScore(recentNewsCount, rules.weights.newsCatalyst.maxArticles);
 
     // 5) Score
     const signalInputs: SignalInputs = {
@@ -192,7 +194,7 @@ async function processTicker(
       hasCandleData,
     };
 
-    const scoreBreakdown = calculateScore(signalInputs);
+    const scoreBreakdown = calculateScore(signalInputs, rules);
     const explanation = generateExplanation(signalInputs, scoreBreakdown);
 
     const dataSourceMeta: Record<string, string> = {
@@ -308,10 +310,13 @@ export async function runPollingCycle(): Promise<{
   const cooldownMin = settings?.alertCooldownMin ?? ALERT_CONFIG.cooldownMinutes;
   const dataSource = settings?.dataSource ?? 'finnhub';
 
+  // Load dynamic scoring rules
+  const rules = await getScoringRules();
+
   // Get active tickers
   const tickers = await prisma.ticker.findMany({
     where: { active: true },
-    take: POLLING_CONFIG.batchSize,
+    take: rules.polling.batchSize,
   });
 
   console.log(`[Pipeline] Processing ${tickers.length} tickers (source: ${dataSource})...`);
@@ -343,7 +348,7 @@ export async function runPollingCycle(): Promise<{
   // Process sequentially to respect API rate limits
   for (const ticker of tickers) {
     const candles = candleMap.get(ticker.symbol) ?? null;
-    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles);
+    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, rules);
     results.push(result);
   }
 

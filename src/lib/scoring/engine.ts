@@ -8,6 +8,29 @@
  */
 
 import { SCORING_WEIGHTS, SCORING_PENALTIES } from '@/lib/config';
+import type { ScoringRules } from '@/lib/config';
+
+// Build a rules object from the old static constants (used when no rules passed)
+function staticRules(): ScoringRules {
+  return {
+    weights: {
+      momentum: { weight: SCORING_WEIGHTS.momentum.weight, timeframes: { ...SCORING_WEIGHTS.momentum.timeframes } },
+      rvol: { ...SCORING_WEIGHTS.rvol },
+      volumeSpike: { ...SCORING_WEIGHTS.volumeSpike },
+      float: { ...SCORING_WEIGHTS.float },
+      vwap: { weight: SCORING_WEIGHTS.vwap.weight },
+      intradayRange: { weight: SCORING_WEIGHTS.intradayRange.weight, tiers: { full: 0.85, mid: 0.65, low: 0.50 } },
+      breakout: { ...SCORING_WEIGHTS.breakout },
+      newsCatalyst: { ...SCORING_WEIGHTS.newsCatalyst },
+      shortInterest: { ...SCORING_WEIGHTS.shortInterest },
+      optionsFlow: { ...SCORING_WEIGHTS.optionsFlow },
+    },
+    penalties: { ...SCORING_PENALTIES },
+    momentum: { maxPctForFullScore: 5 },
+    vwapTiers: { full: 2, half: 0 },
+    polling: { batchSize: 10 },
+  };
+}
 
 export interface SignalInputs {
   // Candle-based momentum (null when no candle data)
@@ -68,16 +91,16 @@ function round1(n: number): number {
 }
 
 // --- Momentum: uses whichever timeframes are available ---
-function scoreMomentum(inputs: SignalInputs): number {
-  const w = SCORING_WEIGHTS.momentum;
+function scoreMomentum(inputs: SignalInputs, r: ScoringRules): number {
+  const w = r.weights.momentum;
   const tf = w.timeframes;
 
   const entries: [number | null, number][] = [
-    [inputs.pctChange5m, tf['5m']],
-    [inputs.pctChange15m, tf['15m']],
-    [inputs.pctChange1h, tf['1h']],
-    [inputs.pctChange1d, tf['1d']],
-    [inputs.pctChangeIntraday, tf['intraday']],
+    [inputs.pctChange5m, tf['5m'] ?? 0],
+    [inputs.pctChange15m, tf['15m'] ?? 0],
+    [inputs.pctChange1h, tf['1h'] ?? 0],
+    [inputs.pctChange1d, tf['1d'] ?? 0],
+    [inputs.pctChangeIntraday, tf['intraday'] ?? 0],
   ];
 
   let totalWeight = 0;
@@ -85,7 +108,7 @@ function scoreMomentum(inputs: SignalInputs): number {
 
   for (const [pct, tfWeight] of entries) {
     if (pct != null) {
-      const factor = clamp(pct / 5, 0, 1);
+      const factor = clamp(pct / r.momentum.maxPctForFullScore, 0, 1);
       weightedSum += factor * tfWeight;
       totalWeight += tfWeight;
     }
@@ -96,36 +119,37 @@ function scoreMomentum(inputs: SignalInputs): number {
 }
 
 // --- RVOL ---
-function scoreRvol(rvol: number | null): number {
+function scoreRvol(rvol: number | null, r: ScoringRules): number {
   if (rvol == null) return 0;
-  const w = SCORING_WEIGHTS.rvol;
+  const w = r.weights.rvol;
   if (rvol >= w.highThreshold) return w.weight;
   if (rvol >= w.moderateThreshold) return w.weight * 0.5;
   return 0;
 }
 
 // --- Volume spike ---
-function scoreVolumeSpike(ratio: number | null): number {
+function scoreVolumeSpike(ratio: number | null, r: ScoringRules): number {
   if (ratio == null) return 0;
-  const w = SCORING_WEIGHTS.volumeSpike;
+  const w = r.weights.volumeSpike;
   if (ratio >= w.spikeThreshold) return w.weight;
   if (ratio >= w.spikeThreshold * 0.5) return w.weight * 0.5;
   return 0;
 }
 
 // --- Intraday range position ---
-function scoreIntradayRange(rangePct: number | null): number {
+function scoreIntradayRange(rangePct: number | null, r: ScoringRules): number {
   if (rangePct == null) return 0;
-  const w = SCORING_WEIGHTS.intradayRange;
-  if (rangePct >= 0.85) return w.weight;
-  if (rangePct >= 0.65) return w.weight * 0.6;
-  if (rangePct >= 0.50) return w.weight * 0.3;
+  const w = r.weights.intradayRange;
+  const t = w.tiers;
+  if (rangePct >= t.full) return w.weight;
+  if (rangePct >= t.mid) return w.weight * 0.6;
+  if (rangePct >= t.low) return w.weight * 0.3;
   return 0;
 }
 
 // --- Breakout / gap-up ---
-function scoreBreakout(inputs: SignalInputs): number {
-  const w = SCORING_WEIGHTS.breakout;
+function scoreBreakout(inputs: SignalInputs, r: ScoringRules): number {
+  const w = r.weights.breakout;
   if (inputs.isBreakout) return w.weight;
   if (inputs.nearHigh) return w.weight * 0.5;
   if (inputs.gapUpPct != null && inputs.gapUpPct >= w.gapUpPct) {
@@ -135,86 +159,87 @@ function scoreBreakout(inputs: SignalInputs): number {
 }
 
 // --- VWAP ---
-function scoreVwap(pctFromVwap: number | null): number {
+function scoreVwap(pctFromVwap: number | null, r: ScoringRules): number {
   if (pctFromVwap == null) return 0;
-  const w = SCORING_WEIGHTS.vwap;
-  if (pctFromVwap > 2) return w.weight;
-  if (pctFromVwap > 0) return w.weight * 0.5;
+  const w = r.weights.vwap;
+  if (pctFromVwap > r.vwapTiers.full) return w.weight;
+  if (pctFromVwap > r.vwapTiers.half) return w.weight * 0.5;
   return 0;
 }
 
 // --- Float ---
-function scoreFloat(floatVal: number | null): number {
+function scoreFloat(floatVal: number | null, r: ScoringRules): number {
   if (floatVal == null) return 0;
-  const w = SCORING_WEIGHTS.float;
+  const w = r.weights.float;
   if (floatVal <= w.microFloatThreshold) return w.weight;
   if (floatVal <= w.lowFloatThreshold) return w.weight * 0.5;
   return 0;
 }
 
 // --- News catalyst ---
-function scoreNewsCatalyst(newsScore: number): number {
-  return newsScore * SCORING_WEIGHTS.newsCatalyst.weight;
+function scoreNewsCatalyst(newsScore: number, r: ScoringRules): number {
+  return newsScore * r.weights.newsCatalyst.weight;
 }
 
 // --- Short interest ---
-function scoreShortInterest(si: number | null): number {
+function scoreShortInterest(si: number | null, r: ScoringRules): number {
   if (si == null) return 0;
-  const w = SCORING_WEIGHTS.shortInterest;
+  const w = r.weights.shortInterest;
   if (si >= w.highThreshold) return w.weight;
   if (si >= w.moderateThreshold) return w.weight * 0.5;
   return 0;
 }
 
 // --- Options flow ---
-function scoreOptionsFlow(flow: number | null): number {
+function scoreOptionsFlow(flow: number | null, r: ScoringRules): number {
   if (flow == null) return 0;
-  const w = SCORING_WEIGHTS.optionsFlow;
+  const w = r.weights.optionsFlow;
   if (flow >= w.bullishThreshold) return w.weight;
   return 0;
 }
 
 // --- Missing data penalty (only for fields that COULD be available) ---
-function calcMissingPenalty(inputs: SignalInputs): number {
+function calcMissingPenalty(inputs: SignalInputs, r: ScoringRules): number {
   const fields: (keyof SignalInputs)[] = ['float', 'shortInterest', 'optionsFlowValue'];
   let count = 0;
   for (const f of fields) {
     if (inputs[f] == null) count++;
   }
-  return Math.min(count * SCORING_PENALTIES.missingDataPerField, SCORING_PENALTIES.maxMissingPenalty);
+  return Math.min(count * r.penalties.missingDataPerField, r.penalties.maxMissingPenalty);
 }
 
 // --- Max achievable: lower when candle-only categories can't score ---
-function calcMaxAchievable(inputs: SignalInputs): number {
+function calcMaxAchievable(inputs: SignalInputs, r: ScoringRules): number {
   let max = 100;
   if (!inputs.hasCandleData) {
-    max -= SCORING_WEIGHTS.rvol.weight;        // 10
-    max -= SCORING_WEIGHTS.volumeSpike.weight;  // 5
-    max -= SCORING_WEIGHTS.vwap.weight;         // 5
+    max -= r.weights.rvol.weight;
+    max -= r.weights.volumeSpike.weight;
+    max -= r.weights.vwap.weight;
   }
   return max;
 }
 
 // --- Main scoring function ---
-export function calculateScore(inputs: SignalInputs): ScoreBreakdown {
-  const momentumScore = scoreMomentum(inputs);
-  const rvolBoost = scoreRvol(inputs.rvol);
-  const volumeSpikeBoost = scoreVolumeSpike(inputs.volumeSpikeRatio);
-  const intradayRangeBoost = scoreIntradayRange(inputs.intradayRangePct);
-  const breakoutBoost = scoreBreakout(inputs);
-  const vwapBoost = scoreVwap(inputs.pctFromVwap);
-  const floatBoost = scoreFloat(inputs.float);
-  const newsBoost = scoreNewsCatalyst(inputs.newsScore);
-  const shortInterestBoost = scoreShortInterest(inputs.shortInterest);
-  const optionsFlowBoost = scoreOptionsFlow(inputs.optionsFlowValue);
-  const missingPenalty = calcMissingPenalty(inputs);
+export function calculateScore(inputs: SignalInputs, rules?: ScoringRules): ScoreBreakdown {
+  const r = rules ?? staticRules();
+  const momentumScore = scoreMomentum(inputs, r);
+  const rvolBoost = scoreRvol(inputs.rvol, r);
+  const volumeSpikeBoost = scoreVolumeSpike(inputs.volumeSpikeRatio, r);
+  const intradayRangeBoost = scoreIntradayRange(inputs.intradayRangePct, r);
+  const breakoutBoost = scoreBreakout(inputs, r);
+  const vwapBoost = scoreVwap(inputs.pctFromVwap, r);
+  const floatBoost = scoreFloat(inputs.float, r);
+  const newsBoost = scoreNewsCatalyst(inputs.newsScore, r);
+  const shortInterestBoost = scoreShortInterest(inputs.shortInterest, r);
+  const optionsFlowBoost = scoreOptionsFlow(inputs.optionsFlowValue, r);
+  const missingPenalty = calcMissingPenalty(inputs, r);
 
   const rawTotal =
     momentumScore + rvolBoost + volumeSpikeBoost + intradayRangeBoost +
     breakoutBoost + vwapBoost + floatBoost + newsBoost +
     shortInterestBoost + optionsFlowBoost - missingPenalty;
 
-  const maxAchievable = calcMaxAchievable(inputs);
+  const maxAchievable = calcMaxAchievable(inputs, r);
   const normalised = (rawTotal / maxAchievable) * 100;
   const finalScore = clamp(Math.round(normalised), 0, 100);
 
