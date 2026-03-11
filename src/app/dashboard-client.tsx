@@ -185,72 +185,69 @@ export function DashboardClient() {
       {snapshots.length > 0 && <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? []} />}
 
       {/* Remaining cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
         {snapshots.slice(1).map((s) => (
           <Link
             key={s.id}
             href={`/signal/${s.symbol}`}
-            className="block bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-gray-600 transition-colors"
+            className="block bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition-colors overflow-hidden"
           >
-            <div className="flex items-start justify-between mb-2">
-              <div>
+            {/* Card header */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <div className="flex items-center gap-2">
                 <span className="font-bold text-lg">{s.symbol}</span>
-                <span className="text-gray-400 text-sm ml-2">
+                <span className="text-gray-400 text-sm">
                   ${s.currentPrice.toFixed(2)}
                 </span>
               </div>
               <ScoreBadge score={s.signalScore} />
             </div>
 
-            {/* Mini intraday chart */}
+            {/* Chart — edge-to-edge, no padding */}
             {((chartDataMap[s.symbol] ?? []).length >= 2 || s.priceHistory.length >= 2) && (
-              <div className="mb-2">
-                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={400} height={160} className="w-full" />
+              <div className="px-1">
+                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={400} height={150} className="w-full" />
               </div>
             )}
 
-            {/* Key metrics row — adapts to data source */}
-            <div className="grid grid-cols-3 gap-2 text-center mb-2">
-              {s.pctChange5m != null && s.pctChangeIntraday != null ? (
-                <>
-                  <div>
-                    <div className="text-gray-500 text-xs">5m</div>
-                    <PctChange value={s.pctChange5m} />
+            {/* Metrics bar — visually separated from chart */}
+            <div className="mx-3 mt-1 mb-2 bg-gray-800/50 rounded-md px-3 py-2">
+              <div className="flex items-center justify-between">
+                {s.pctChange5m != null && s.pctChangeIntraday != null ? (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-xs">5m</span>
+                      <PctChange value={s.pctChange5m} />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-xs">1h</span>
+                      <PctChange value={s.pctChange1h} />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-xs">1d</span>
+                      <PctChange value={s.pctChange1d} />
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-gray-500 text-xs">1h</div>
-                    <PctChange value={s.pctChange1h} />
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-xs">Intraday</span>
+                      <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 text-xs">1d</span>
+                      <PctChange value={s.pctChange1d} />
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-gray-500 text-xs">1d</div>
-                    <PctChange value={s.pctChange1d} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <div className="text-gray-500 text-xs">Intraday</div>
-                    <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
-                  </div>
-                  <div>
-                    <div className="text-gray-500 text-xs">1d Change</div>
-                    <PctChange value={s.pctChange1d} />
-                  </div>
-                  <div>
-                    <div className="text-gray-500 text-xs">Range</div>
-                    <RangePosition value={s.intradayRangePct ?? s.pctChange15m} />
-                  </div>
-                </>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* Info row */}
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-3">
-                <div>
-                  <span className="text-gray-500 mr-1">Float</span>
-                  <FloatDisplay value={s.float} />
-                </div>
+            {/* Footer — badges & meta */}
+            <div className="flex items-center justify-between px-4 pb-3 text-sm">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-gray-500">Float</span>
+                <FloatDisplay value={s.float} />
                 {s.rvol != null && s.rvol >= 1.5 && (
                   <span className="text-cyan-400 font-medium">RVOL {s.rvol.toFixed(1)}x</span>
                 )}
@@ -271,31 +268,22 @@ export function DashboardClient() {
   );
 }
 
-function RangePosition({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-gray-600 text-sm">—</span>;
-  const pct = Math.round(value * 100);
-  const color = pct >= 80 ? 'text-green-400' : pct >= 50 ? 'text-yellow-400' : 'text-red-400';
-  return <span className={`text-sm font-medium ${color}`}>{pct}%</span>;
-}
-
 function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number[] }) {
   const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
-  // Use intraday candle closes, fall back to snapshot priceHistory
   const chartData = candleData.length >= 2 ? candleData : s.priceHistory;
 
   return (
     <Link
       href={`/signal/${s.symbol}`}
-      className="block bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-600 transition-colors"
+      className="block bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition-colors overflow-hidden"
     >
       {/* Hero header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold">{s.symbol}</h2>
-            <span className="text-gray-400 text-xl">${s.currentPrice.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold">{s.symbol}</h2>
+          <span className="text-gray-400 text-xl">${s.currentPrice.toFixed(2)}</span>
+          {/* Badges inline with ticker */}
+          <div className="flex items-center gap-2">
             {s.isBreakout && (
               <span className="px-2 py-0.5 rounded text-sm font-semibold bg-green-900/60 text-green-300 border border-green-700">
                 {hasCandleData ? 'BREAKOUT' : 'GAP UP'}
@@ -317,55 +305,60 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
         <ScoreBadge score={s.signalScore} />
       </div>
 
-      {/* Hero chart + metrics side by side on desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Intraday price chart — larger for hero */}
-        <div className="lg:col-span-2">
-          {chartData.length >= 2 ? (
-            <MiniChart data={chartData} width={600} height={240} className="w-full" />
-          ) : (
-            <div className="h-[240px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
-              Loading chart…
-            </div>
-          )}
-        </div>
+      {/* Full-width chart */}
+      <div className="px-2">
+        {chartData.length >= 2 ? (
+          <MiniChart data={chartData} width={900} height={260} className="w-full" />
+        ) : (
+          <div className="h-[200px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+            Loading chart…
+          </div>
+        )}
+      </div>
 
-        {/* Metrics */}
-        <div className="space-y-2">
-          <div className="grid grid-cols-4 lg:grid-cols-2 gap-2 text-center">
+      {/* Metrics bar + footer combined */}
+      <div className="px-5 pt-2 pb-4">
+        <div className="flex items-center justify-between bg-gray-800/50 rounded-md px-4 py-2.5">
+          {/* Change metrics */}
+          <div className="flex items-center gap-5">
             {hasCandleData ? (
               <>
-                <div>
-                  <div className="text-gray-500 text-xs">5m</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-xs">5m</span>
                   <PctChange value={s.pctChange5m} />
                 </div>
-                <div>
-                  <div className="text-gray-500 text-xs">15m</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-xs">15m</span>
                   <PctChange value={s.pctChange15m} />
                 </div>
-                <div>
-                  <div className="text-gray-500 text-xs">1h</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-xs">1h</span>
                   <PctChange value={s.pctChange1h} />
                 </div>
-                <div>
-                  <div className="text-gray-500 text-xs">1d</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-xs">1d</span>
                   <PctChange value={s.pctChange1d} />
                 </div>
               </>
             ) : (
               <>
-                <div>
-                  <div className="text-gray-500 text-xs">Intraday</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-xs">Intraday</span>
                   <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
                 </div>
-                <div>
-                  <div className="text-gray-500 text-xs">1d Change</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-500 text-xs">1d</span>
                   <PctChange value={s.pctChange1d} />
                 </div>
               </>
             )}
           </div>
-          <div className="flex items-center gap-3 text-sm">
+
+          {/* Separator */}
+          <div className="h-5 w-px bg-gray-700" />
+
+          {/* Meta info */}
+          <div className="flex items-center gap-4 text-sm">
             <div>
               <span className="text-gray-500 mr-1">Float</span>
               <FloatDisplay value={s.float} />
@@ -373,12 +366,12 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number
             <TimeAgo date={s.timestamp} />
           </div>
         </div>
-      </div>
 
-      {/* Explanation visible on hero */}
-      {s.explanation && (
-        <p className="text-sm text-gray-400 mt-3 line-clamp-2">{s.explanation}</p>
-      )}
+        {/* Explanation */}
+        {s.explanation && (
+          <p className="text-sm text-gray-400 mt-2 line-clamp-2">{s.explanation}</p>
+        )}
+      </div>
     </Link>
   );
 }
