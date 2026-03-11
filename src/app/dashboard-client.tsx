@@ -185,7 +185,7 @@ export function DashboardClient() {
 
       {/* Hero section — top-scoring stock + score evolution */}
       {snapshots.length > 0 && (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
           <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} />
           <ScoreEvolutionPanel snapshots={snapshots} />
         </div>
@@ -407,8 +407,8 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   if (lines.length === 0) return null;
 
   const maxLen = Math.max(...lines.map((l) => l.scores.length));
-  const w = 400, h = 300;
-  const padL = 36, padR = 50, padT = 12, padB = 20;
+  const w = 600, h = 300;
+  const padL = 36, padR = 60, padT = 12, padB = 20;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
@@ -464,7 +464,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
         <svg
           ref={svgRef}
           viewBox={`0 0 ${w} ${h}`}
-          preserveAspectRatio="xMidYMid slice"
+          preserveAspectRatio="none"
           style={{ width: '100%', height: '100%' }}
           className="select-none"
           onPointerMove={handlePointer}

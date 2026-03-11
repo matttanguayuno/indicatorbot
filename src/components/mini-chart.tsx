@@ -33,19 +33,17 @@ export function MiniChart({
 
   const hasXAxis = visTimes && visTimes.length === visData.length;
 
-  // Scale padding/strokes proportionally to viewBox width, but clamp font sizes
-  // so they stay readable on both small (300px) and large (900px) viewBoxes
+  // Scale strokes/dots proportionally; keep fonts and padding constant in SVG units
+  // so they render at the same visual proportion regardless of viewBox width.
   const scale = width / 400;
-  const padLeft = Math.round(50 * scale);
-  const padRight = Math.round(8 * scale);
-  const padTop = Math.round(10 * scale);
-  const padBottom = hasXAxis ? Math.round(22 * scale) : Math.round(6 * scale);
+  const padLeft = 50;
+  const padRight = 8;
+  const padTop = 10;
+  const padBottom = hasXAxis ? 22 : 6;
 
-  // Font sizes: scale gently (sqrt) so they don't balloon on wide viewBoxes
-  const fontScale = Math.sqrt(scale);
-  const fontY = 11 * fontScale;
-  const fontX = 10 * fontScale;
-  const fontTip = 12 * fontScale;
+  const fontY = 11;
+  const fontX = 10;
+  const fontTip = 12;
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
@@ -247,16 +245,16 @@ export function MiniChart({
 
   // Tooltip position clamping
   const showTime = hasXAxis && visTimes;
-  const tipW = (showTime ? 80 : 58) * fontScale;
-  const tipH = (showTime ? 38 : 20) * fontScale;
+  const tipW = showTime ? 80 : 58;
+  const tipH = showTime ? 38 : 20;
   const hIdx = Math.min(hoverIndex ?? 0, visData.length - 1);
   const hx = x(hIdx);
   const hy = y(visData[hIdx]);
   let tipX = hx - tipW / 2;
   if (tipX < padLeft) tipX = padLeft;
   if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
-  let tipY = hy - tipH - 6 * fontScale;
-  if (tipY < 2 * fontScale) tipY = hy + 6 * fontScale;
+  let tipY = hy - tipH - 6;
+  if (tipY < 2) tipY = hy + 6;
 
   return (
     <svg
@@ -308,7 +306,7 @@ export function MiniChart({
             <text
               key={i}
               x={x(i)}
-              y={padTop + chartH + 14 * scale}
+              y={padTop + chartH + 14}
               textAnchor="middle"
               fill="#6b7280"
               fontSize={fontX}
@@ -378,10 +376,10 @@ export function MiniChart({
             y={tipY}
             width={tipW}
             height={tipH}
-            rx={3 * fontScale}
+            rx={3}
             fill="#111827"
             stroke="#4b5563"
-            strokeWidth={0.5 * fontScale}
+            strokeWidth={0.5}
           />
           <text
             x={tipX + tipW / 2}
