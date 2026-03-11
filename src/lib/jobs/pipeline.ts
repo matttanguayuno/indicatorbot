@@ -24,6 +24,7 @@ import {
   getProfile as getTDProfile,
   getStatistics,
   mapTwelveDataProfile,
+  isQuotaExhausted,
 } from '@/lib/twelvedata';
 import type { TwelveDataTimeSeries } from '@/lib/twelvedata';
 import type { NormalizedCandle, NormalizedQuote, NormalizedProfile } from '@/lib/types';
@@ -389,7 +390,15 @@ export async function runPollingCycle(): Promise<{
   const settings = await prisma.appSettings.findFirst();
   const scoreThreshold = settings?.scoreThreshold ?? ALERT_CONFIG.defaultScoreThreshold;
   const cooldownMin = settings?.alertCooldownMin ?? ALERT_CONFIG.cooldownMinutes;
-  const dataSource = settings?.dataSource ?? 'twelvedata';
+  let dataSource = settings?.dataSource ?? 'twelvedata';
+
+  // Auto-fallback: if Twelve Data credits are exhausted, switch to Finnhub for this cycle
+  let autoFallback = false;
+  if (dataSource === 'twelvedata' && isQuotaExhausted()) {
+    dataSource = 'finnhub';
+    autoFallback = true;
+    console.warn('[Pipeline] ⚠️ Twelve Data credits exhausted — auto-switching to Finnhub for this cycle');
+  }
 
   // Load dynamic scoring rules
   const rules = await getScoringRules();
@@ -485,5 +494,15 @@ export async function runPollingCycle(): Promise<{
 
   console.log(`[Pipeline] Done: ${succeeded} succeeded, ${failed} failed`);
 
-  return { processed: tickers.length, succeeded, failed, results, dataSource, candlesAvailable: candleMap.size, candleError };
+  return {
+    processed: tickers.length,
+    succeeded,
+    failed,
+    results,
+    dataSource: autoFallback ? `finnhub (auto-fallback, Twelve Data credits exhausted)` : dataSource,
+    candlesAvailable: candleMap.size,
+    candleError: autoFallback
+      ? 'Twelve Data daily credits exhausted — using Finnhub as fallback (no candle data)'
+      : candleError,
+  };
 }

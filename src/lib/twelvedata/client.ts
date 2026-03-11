@@ -21,6 +21,11 @@ const RETRY_DELAY_MS = 2000;
 const QUOTA_BACKOFF_MS = 30 * 60 * 1000;
 let quotaExhaustedUntil = 0;
 
+/** Check whether Twelve Data credits are currently exhausted. */
+export function isQuotaExhausted(): boolean {
+  return Date.now() < quotaExhaustedUntil;
+}
+
 function getApiKey(): string {
   const key = process.env.TWELVEDATA_API_KEY;
   if (!key) {
