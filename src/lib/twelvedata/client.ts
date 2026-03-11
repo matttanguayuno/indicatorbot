@@ -17,6 +17,10 @@ const BASE_URL = 'https://api.twelvedata.com';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 2000;
 
+// Global backoff: stop all API calls for 30 min after a 429 (daily quota exhausted)
+const QUOTA_BACKOFF_MS = 30 * 60 * 1000;
+let quotaExhaustedUntil = 0;
+
 function getApiKey(): string {
   const key = process.env.TWELVEDATA_API_KEY;
   if (!key) {
@@ -36,6 +40,13 @@ export async function getTimeSeries(
 ): Promise<Map<string, TwelveDataTimeSeries>> {
   if (symbols.length === 0) return new Map();
 
+  // Skip if we're in global quota backoff
+  if (Date.now() < quotaExhaustedUntil) {
+    const waitMin = Math.round((quotaExhaustedUntil - Date.now()) / 60000);
+    console.log(`[TwelveData] Quota backoff active, skipping candle fetch (${waitMin}m remaining)`);
+    return new Map();
+  }
+
   const apiKey = getApiKey();
   const url = new URL(`${BASE_URL}/time_series`);
   url.searchParams.set('apikey', apiKey);
@@ -50,9 +61,9 @@ export async function getTimeSeries(
       const res = await fetch(url.toString());
 
       if (res.status === 429) {
-        console.warn(`[TwelveData] Rate limited, attempt ${attempt}`);
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt * 3));
-        continue;
+        quotaExhaustedUntil = Date.now() + QUOTA_BACKOFF_MS;
+        console.warn(`[TwelveData] Daily quota exhausted — backing off for 30 min`);
+        return new Map();
       }
 
       if (!res.ok) {
@@ -82,9 +93,13 @@ export async function getTimeSeries(
         }
       }
 
-      // API-level error (e.g. missing key)
+      // API-level error (e.g. missing key or quota exhausted in response body)
       if (data.code && data.status === 'error') {
         console.error(`[TwelveData] API error: ${data.message}`);
+        if (data.code === 429) {
+          quotaExhaustedUntil = Date.now() + QUOTA_BACKOFF_MS;
+          console.warn(`[TwelveData] Daily quota exhausted (response body) — backing off for 30 min`);
+        }
         return new Map();
       }
 
@@ -123,6 +138,13 @@ export async function getTimeSeries(
  * Generic fetch helper with retry for Twelve Data endpoints.
  */
 async function twelveDataFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T | null> {
+  // Skip if we're in global quota backoff
+  if (Date.now() < quotaExhaustedUntil) {
+    const waitMin = Math.round((quotaExhaustedUntil - Date.now()) / 60000);
+    console.log(`[TwelveData] Quota backoff active, skipping ${endpoint} (${waitMin}m remaining)`);
+    return null;
+  }
+
   const apiKey = getApiKey();
   const url = new URL(`${BASE_URL}${endpoint}`);
   url.searchParams.set('apikey', apiKey);
@@ -134,9 +156,9 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
     try {
       const res = await fetch(url.toString());
       if (res.status === 429) {
-        console.warn(`[TwelveData] Rate limited on ${endpoint}, attempt ${attempt}`);
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt * 3));
-        continue;
+        quotaExhaustedUntil = Date.now() + QUOTA_BACKOFF_MS;
+        console.warn(`[TwelveData] Daily quota exhausted on ${endpoint} — backing off for 30 min`);
+        return null;
       }
       if (!res.ok) {
         console.error(`[TwelveData] HTTP ${res.status} on ${endpoint}: ${res.statusText}`);
@@ -149,6 +171,10 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
       const data = await res.json();
       if (data.code && data.status === 'error') {
         console.error(`[TwelveData] API error on ${endpoint}: ${data.message}`);
+        if (data.code === 429) {
+          quotaExhaustedUntil = Date.now() + QUOTA_BACKOFF_MS;
+          console.warn(`[TwelveData] Daily quota exhausted on ${endpoint} (response body) — backing off for 30 min`);
+        }
         return null;
       }
       return data as T;
