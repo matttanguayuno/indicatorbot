@@ -40,6 +40,7 @@ export function DashboardClient() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [polling, setPolling] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  const [chartDataMap, setChartDataMap] = useState<Record<string, number[]>>({});
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -79,6 +80,33 @@ export function DashboardClient() {
       setPolling(false);
     }
   }
+
+  // Fetch intraday candle data for all current symbols
+  useEffect(() => {
+    if (snapshots.length === 0) return;
+    const symbols = snapshots.map((s) => s.symbol);
+    let cancelled = false;
+    async function fetchCharts() {
+      const entries: [string, number[]][] = await Promise.all(
+        symbols.map(async (sym) => {
+          try {
+            const res = await fetch(`/api/chart/${encodeURIComponent(sym)}`);
+            if (res.ok) {
+              const data = await res.json();
+              const closes: number[] = (data.candles ?? []).map((c: { close: number }) => c.close);
+              return [sym, closes] as [string, number[]];
+            }
+          } catch { /* ignore */ }
+          return [sym, []] as [string, number[]];
+        })
+      );
+      if (!cancelled) {
+        setChartDataMap(Object.fromEntries(entries));
+      }
+    }
+    fetchCharts();
+    return () => { cancelled = true; };
+  }, [snapshots]);
 
   useEffect(() => {
     // Always load existing data
@@ -154,10 +182,10 @@ export function DashboardClient() {
       )}
 
       {/* Hero card — top-scoring stock on desktop */}
-      {snapshots.length > 0 && <HeroCard s={snapshots[0]} />}
+      {snapshots.length > 0 && <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? []} />}
 
       {/* Remaining cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
         {snapshots.slice(1).map((s) => (
           <Link
             key={s.id}
@@ -174,10 +202,10 @@ export function DashboardClient() {
               <ScoreBadge score={s.signalScore} />
             </div>
 
-            {/* Mini price chart */}
-            {s.priceHistory.length >= 2 && (
+            {/* Mini intraday chart */}
+            {((chartDataMap[s.symbol] ?? []).length >= 2 || s.priceHistory.length >= 2) && (
               <div className="mb-2">
-                <MiniChart data={s.priceHistory} width={200} height={48} className="w-full" />
+                <MiniChart data={(chartDataMap[s.symbol] ?? []).length >= 2 ? chartDataMap[s.symbol] : s.priceHistory} width={200} height={48} className="w-full" />
               </div>
             )}
 
@@ -250,31 +278,10 @@ function RangePosition({ value }: { value: number | null }) {
   return <span className={`text-xs font-medium ${color}`}>{pct}%</span>;
 }
 
-function HeroCard({ s }: { s: Snapshot }) {
+function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: number[] }) {
   const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
-  const [chartPrices, setChartPrices] = useState<number[]>([]);
-  const [chartLoading, setChartLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadChart() {
-      try {
-        const res = await fetch(`/api/chart/${encodeURIComponent(s.symbol)}`);
-        if (res.ok) {
-          const data = await res.json();
-          const closes: number[] = (data.candles ?? []).map((c: { close: number }) => c.close);
-          setChartPrices(closes);
-        }
-      } catch (err) {
-        console.error('Hero chart load failed:', err);
-      } finally {
-        setChartLoading(false);
-      }
-    }
-    loadChart();
-  }, [s.symbol]);
-
   // Use intraday candle closes, fall back to snapshot priceHistory
-  const chartData = chartPrices.length >= 2 ? chartPrices : s.priceHistory;
+  const chartData = candleData.length >= 2 ? candleData : s.priceHistory;
 
   return (
     <Link
@@ -312,17 +319,13 @@ function HeroCard({ s }: { s: Snapshot }) {
 
       {/* Hero chart + metrics side by side on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Price chart — larger for hero */}
+        {/* Intraday price chart — larger for hero */}
         <div className="lg:col-span-2">
-          {chartLoading ? (
-            <div className="h-20 bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
-              Loading chart…
-            </div>
-          ) : chartData.length >= 2 ? (
+          {chartData.length >= 2 ? (
             <MiniChart data={chartData} width={500} height={80} className="w-full" />
           ) : (
-            <div className="h-20 bg-gray-800/50 rounded flex items-center justify-center text-gray-600 text-sm">
-              No chart data available
+            <div className="h-20 bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+              Loading chart…
             </div>
           )}
         </div>

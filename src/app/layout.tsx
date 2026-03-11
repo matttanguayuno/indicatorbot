@@ -36,7 +36,7 @@ export default function RootLayout({
       >
         <div className="flex min-h-screen">
           <AppNav />
-          <main className="flex-1 pb-20 lg:pb-4 px-4 max-w-6xl mx-auto w-full">
+          <main className="flex-1 pb-20 lg:pb-4 px-4 max-w-[1600px] mx-auto w-full">
             {children}
           </main>
         </div>
