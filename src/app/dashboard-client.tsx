@@ -212,7 +212,7 @@ export function DashboardClient() {
 
             {/* Chart — edge-to-edge, no padding */}
             {((chartDataMap[s.symbol]?.closes ?? []).length >= 2 || s.priceHistory.length >= 2) && (
-              <div className="px-1">
+              <div className="px-1" onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
                 <MiniChart
                   data={(chartDataMap[s.symbol]?.closes ?? []).length >= 2 ? chartDataMap[s.symbol].closes : s.priceHistory}
                   timestamps={(chartDataMap[s.symbol]?.times ?? []).length >= 2 ? chartDataMap[s.symbol].times : undefined}
@@ -287,7 +287,7 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
   return (
     <Link
       href={`/signal/${s.symbol}`}
-      className="block bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition-colors overflow-hidden"
+      className="flex flex-col bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition-colors overflow-hidden"
     >
       {/* Hero header */}
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
@@ -318,9 +318,9 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
       </div>
 
       {/* Full-width chart */}
-      <div className="px-2">
+      <div className="flex-1 min-h-0 px-2" onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
         {chartData.length >= 2 ? (
-          <MiniChart data={chartData} timestamps={chartTimes} width={900} height={260} className="w-full" />
+          <MiniChart data={chartData} timestamps={chartTimes} width={900} height={400} className="w-full h-full" />
         ) : (
           <div className="h-[200px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…

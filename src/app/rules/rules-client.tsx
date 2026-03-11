@@ -308,6 +308,7 @@ export function RulesClient() {
       </div>
 
       {/* Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
       {SECTIONS.map((section) => {
         const isCollapsed = collapsed[section.title];
         const sectionHasChanges = section.fields.some(
@@ -389,6 +390,7 @@ export function RulesClient() {
           </div>
         );
       })}
+      </div>
 
       {/* Sticky save bar on mobile */}
       {hasChanges && (

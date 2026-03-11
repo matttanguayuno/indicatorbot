@@ -109,6 +109,7 @@ export function SettingsClient() {
     <div className="pt-4 space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       {/* App Settings */}
       {settings && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
@@ -222,6 +223,7 @@ export function SettingsClient() {
         {pollStatus && (
           <div className="text-sm text-gray-400 mt-2">{pollStatus}</div>
         )}
+      </div>
       </div>
     </div>
   );
