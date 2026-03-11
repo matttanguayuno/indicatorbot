@@ -96,7 +96,12 @@ export function SettingsClient() {
         let status = `Processed ${data.processed}: ${data.succeeded} ok, ${data.failed} failed`;
         status += ` | Source: ${data.dataSource} | Candles: ${data.candlesAvailable}/${data.processed}`;
         if (data.candleError) {
-          status += ` | ⚠ ${data.candleError}`;
+          status += `\n⚠ ${data.candleError}`;
+        }
+        // Show per-symbol candle counts for diagnostics
+        const withCandles = (data.results || []).filter((r: { candleCount?: number }) => (r.candleCount ?? 0) > 0);
+        if (withCandles.length > 0) {
+          status += `\n✓ Candle data: ${withCandles.map((r: { symbol: string; candleCount: number }) => `${r.symbol}(${r.candleCount})`).join(', ')}`;
         }
         setPollStatus(status);
       } else {
@@ -226,7 +231,7 @@ export function SettingsClient() {
           {pollLoading ? 'Running...' : 'Run Poll Now'}
         </button>
         {pollStatus && (
-          <div className="text-sm text-gray-400 mt-2">{pollStatus}</div>
+          <div className="text-sm text-gray-400 mt-2 whitespace-pre-line">{pollStatus}</div>
         )}
       </div>
       </div>

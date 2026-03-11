@@ -296,6 +296,13 @@ async function maybeCreateAlert(
   console.log(`[Alert] Created alert for ${symbol} (score: ${score})`);
 }
 
+// ── Candle cache: avoid burning Twelve Data credits every poll cycle ──
+// Free tier = 800 credits/day. At 10 tickers polled every 60s that's 600/hr.
+// By caching candles for 5 minutes we cut credit usage ~5×.
+const CANDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+let cachedCandleMap = new Map<string, NormalizedCandle[]>();
+let lastCandleFetchTime = 0;
+
 /**
  * Main polling entry point: processes all active tickers.
  */
@@ -325,14 +332,23 @@ export async function runPollingCycle(): Promise<{
 
   console.log(`[Pipeline] Processing ${tickers.length} tickers (source: ${dataSource})...`);
 
-  // Pre-fetch candles from Twelve Data
+  // Pre-fetch candles from Twelve Data (throttled to save API credits)
   const candleMap = new Map<string, NormalizedCandle[]>();
   let candleError: string | null = null;
+  const now = Date.now();
+  const candleAge = now - lastCandleFetchTime;
+  const needsRefresh = candleAge >= CANDLE_REFRESH_INTERVAL_MS || cachedCandleMap.size === 0;
+
   if (dataSource === 'twelvedata') {
-    // Check API key availability first
     if (!process.env.TWELVEDATA_API_KEY) {
       candleError = 'TWELVEDATA_API_KEY is not set in environment variables';
       console.error(`[Pipeline] ${candleError}`);
+    } else if (!needsRefresh) {
+      // Reuse cached candles
+      for (const [sym, candles] of cachedCandleMap) {
+        candleMap.set(sym, candles);
+      }
+      console.log(`[Pipeline] Using cached candles (${candleMap.size} symbols, age: ${Math.round(candleAge / 1000)}s)`);
     } else {
       try {
         const symbols = tickers.map((t: { symbol: string }) => t.symbol);
@@ -355,10 +371,21 @@ export async function runPollingCycle(): Promise<{
         console.log(`[Pipeline] Fetched candles for ${candleMap.size}/${symbols.length} symbols`);
         if (candleMap.size === 0) {
           candleError = `Twelve Data returned 0 candles for ${symbols.length} symbols (API key may be invalid or rate-limited)`;
+        } else {
+          // Update cache
+          cachedCandleMap = new Map(candleMap);
+          lastCandleFetchTime = now;
         }
       } catch (err) {
         candleError = err instanceof Error ? err.message : String(err);
         console.error('[Pipeline] Failed to fetch Twelve Data candles:', candleError);
+        // Fall back to cached data if available
+        if (cachedCandleMap.size > 0) {
+          for (const [sym, candles] of cachedCandleMap) {
+            candleMap.set(sym, candles);
+          }
+          candleError += ' (using cached candles)';
+        }
       }
     }
   } else {
