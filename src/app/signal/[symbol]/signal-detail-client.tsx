@@ -452,6 +452,13 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
+  // Scale text to match other charts visually (reference: 400px viewBox)
+  const ts = 400 / w;
+  const fontY = Math.max(4, 9 * ts);
+  const fontX = Math.max(3, 8 * ts);
+  const fontTipLg = Math.max(4, 10 * ts);
+  const fontTipSm = Math.max(3, 8 * ts);
+
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
   const xScale = (i: number) => padL + (scores.length === 1 ? chartW / 2 : (i / (scores.length - 1)) * chartW);
@@ -493,7 +500,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
       {yTicks.map(t => (
         <g key={t}>
           <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-          <text x={padL - 6} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={9}>{t}</text>
+          <text x={padL - 6} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={fontY}>{t}</text>
         </g>
       ))}
 
@@ -505,7 +512,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
         const d = new Date(entry.timestamp);
         const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
         return (
-          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={8}>
+          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
             {label}
           </text>
         );
@@ -561,10 +568,10 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
             return (
               <g>
                 <rect x={tx - 36} y={padT - 14} width={72} height={30} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
-                <text x={tx} y={padT - 2} textAnchor="middle" fill="#fff" fontSize={10} fontWeight="bold">
+                <text x={tx} y={padT - 2} textAnchor="middle" fill="#fff" fontSize={fontTipLg} fontWeight="bold">
                   Score: {scores[hoverIdx]}
                 </text>
-                <text x={tx} y={padT + 10} textAnchor="middle" fill="#9ca3af" fontSize={8}>
+                <text x={tx} y={padT + 10} textAnchor="middle" fill="#9ca3af" fontSize={fontTipSm}>
                   {timeLabel} · ${data[hoverIdx].currentPrice.toFixed(2)}
                 </text>
               </g>

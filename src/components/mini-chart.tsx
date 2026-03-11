@@ -28,6 +28,13 @@ export function MiniChart({
   const padTop = 10;
   const padBottom = hasXAxis ? 22 : 6;
 
+  // Scale text sizes relative to viewBox width so fonts look consistent
+  // regardless of how wide the chart renders on screen
+  const ts = 400 / width;
+  const fontY = Math.max(4, 9 * ts);
+  const fontX = Math.max(3, 8 * ts);
+  const fontTip = Math.max(4, 10 * ts);
+
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
 
@@ -84,8 +91,8 @@ export function MiniChart({
   const handlePointerLeave = useCallback(() => setHoverIndex(null), []);
 
   // Tooltip position clamping
-  const tipW = 58;
-  const tipH = 18;
+  const tipW = 58 * ts;
+  const tipH = 18 * ts;
   const hIdx = hoverIndex ?? 0;
   const hx = x(hIdx);
   const hy = y(data[hIdx]);
@@ -122,7 +129,7 @@ export function MiniChart({
             y={t.yPos + 3}
             textAnchor="end"
             fill="#6b7280"
-            fontSize="9"
+            fontSize={fontY}
           >
             ${fmt(t.value)}
           </text>
@@ -147,7 +154,7 @@ export function MiniChart({
               y={padTop + chartH + 14}
               textAnchor="middle"
               fill="#6b7280"
-              fontSize="8"
+              fontSize={fontX}
             >
               {label}
             </text>
@@ -224,7 +231,7 @@ export function MiniChart({
             y={tipY + tipH / 2 + 3.5}
             textAnchor="middle"
             fill="#e5e7eb"
-            fontSize="10"
+            fontSize={fontTip}
             fontWeight="600"
           >
             ${fmt(data[hIdx])}
