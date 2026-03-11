@@ -1,0 +1,1 @@
+export { runPollingCycle } from './pipeline';

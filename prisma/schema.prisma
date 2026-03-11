@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// App Settings (singleton-ish row for global config)
+// ---------------------------------------------------------------------------
+model AppSettings {
+  id                  Int      @id @default(1)
+  scoreThreshold      Float    @default(65)
+  alertCooldownMin    Int      @default(30)
+  pollingIntervalSec  Int      @default(60)
+  dataSource          String   @default("finnhub")
+  updatedAt           DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Watchlist — tickers the system tracks
+// ---------------------------------------------------------------------------
+model Ticker {
+  id        Int      @id @default(autoincrement())
+  symbol    String   @unique
+  name      String?
+  sector    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  snapshots SignalSnapshot[]
+  alerts    Alert[]
+  news      NewsItem[]
+}
+
+// ---------------------------------------------------------------------------
+// Signal Snapshot — one point-in-time set of indicators & score for a ticker
+// ---------------------------------------------------------------------------
+model SignalSnapshot {
+  id        Int      @id @default(autoincrement())
+  tickerId  Int
+  ticker    Ticker   @relation(fields: [tickerId], references: [id])
+  symbol    String
+
+  // Price
+  currentPrice Float
+
+  // Momentum from candles (null when no candle data)
+  pctChange5m   Float?
+  pctChange15m  Float?
+  pctChange1h   Float?
+  pctChange1d   Float?
+
+  // Quote-derived indicators (always available)
+  pctChangeIntraday  Float?
+  intradayRangePct   Float?
+  gapUpPct           Float?
+
+  // Volume
+  currentVolume  Float?
+  averageVolume  Float?
+  rvol           Float?
+  volumeSpikeRatio Float?
+
+  // Float
+  float          Float?
+
+  // VWAP
+  vwap           Float?
+  pctFromVwap    Float?
+
+  // Breakout
+  isBreakout     Boolean @default(false)
+  nearHigh       Boolean @default(false)
+  high52w        Float?
+
+  // News
+  recentNewsCount Int     @default(0)
+  newsScore       Float?
+
+  // Short interest (nullable — may not be available)
+  shortInterest     Float?
+  shortInterestSource String?  // e.g. "finnhub", "manual", null
+
+  // Options flow (nullable — may not be available)
+  optionsFlowValue  Float?
+  optionsFlowSource String?
+
+  // Scoring
+  signalScore   Float
+  explanation   String
+
+  // Data source tracking
+  dataSourceMeta String?  // JSON string: { field: "available"|"unavailable"|"partial" }
+
+  timestamp DateTime @default(now())
+
+  @@index([tickerId, timestamp])
+  @@index([symbol, timestamp])
+  @@index([signalScore])
+}
+
+// ---------------------------------------------------------------------------
+// Alert — generated when a ticker crosses the score threshold
+// ---------------------------------------------------------------------------
+model Alert {
+  id        Int      @id @default(autoincrement())
+  tickerId  Int
+  ticker    Ticker   @relation(fields: [tickerId], references: [id])
+  symbol    String
+
+  scoreAtAlert  Float
+  explanation   String
+  snapshotId    Int?
+
+  acknowledged  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  feedback Feedback?
+
+  @@index([symbol, createdAt])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Feedback — user assessment of an alert / signal
+// ---------------------------------------------------------------------------
+model Feedback {
+  id       Int     @id @default(autoincrement())
+  alertId  Int     @unique
+  alert    Alert   @relation(fields: [alertId], references: [id])
+
+  rating   FeedbackRating
+  note     String?
+
+  createdAt DateTime @default(now())
+}
+
+enum FeedbackRating {
+  GOOD
+  BAD
+  TOO_LATE
+  FALSE_BREAKOUT
+  OTHER
+}
+
+// ---------------------------------------------------------------------------
+// News Item — cached news articles for a ticker
+// ---------------------------------------------------------------------------
+model NewsItem {
+  id        Int      @id @default(autoincrement())
+  tickerId  Int
+  ticker    Ticker   @relation(fields: [tickerId], references: [id])
+  symbol    String
+
+  headline  String
+  source    String?
+  url       String?
+  summary   String?
+  publishedAt DateTime
+  fetchedAt   DateTime @default(now())
+
+  @@unique([symbol, headline, publishedAt])
+  @@index([symbol, publishedAt])
+}
