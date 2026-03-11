@@ -58,6 +58,22 @@ export async function getTimeSeries(
 
       const data = await res.json();
 
+      // Log raw response shape for diagnostics
+      if (symbols.length === 1) {
+        console.log(`[TwelveData] Single response status: ${data.status}, values: ${data.values?.length ?? 0}`);
+        if (data.code || data.status === 'error') {
+          console.error(`[TwelveData] Error detail: code=${data.code}, message=${data.message}`);
+        }
+      } else {
+        for (const sym of symbols) {
+          const s = data[sym];
+          console.log(`[TwelveData] ${sym}: status=${s?.status}, values=${s?.values?.length ?? 0}`);
+          if (s?.code || s?.status === 'error') {
+            console.error(`[TwelveData] ${sym} error: code=${s.code}, message=${s.message}`);
+          }
+        }
+      }
+
       // API-level error (e.g. missing key)
       if (data.code && data.status === 'error') {
         console.error(`[TwelveData] API error: ${data.message}`);

@@ -37,6 +37,7 @@ interface ProcessResult {
   success: boolean;
   score?: number;
   error?: string;
+  candleCount?: number;
 }
 
 /**
@@ -248,7 +249,7 @@ async function processTicker(
       await maybeCreateAlert(symbol, tickerId, scoreBreakdown.finalScore, explanation, snapshot.id, cooldownMin);
     }
 
-    return { symbol, success: true, score: scoreBreakdown.finalScore };
+    return { symbol, success: true, score: scoreBreakdown.finalScore, candleCount: candles?.length ?? 0 };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[Pipeline] Error processing ${symbol}:`, message);
@@ -303,6 +304,9 @@ export async function runPollingCycle(): Promise<{
   succeeded: number;
   failed: number;
   results: ProcessResult[];
+  dataSource: string;
+  candlesAvailable: number;
+  candleError: string | null;
 }> {
   // Load settings
   const settings = await prisma.appSettings.findFirst();
@@ -323,25 +327,42 @@ export async function runPollingCycle(): Promise<{
 
   // Pre-fetch candles from Twelve Data
   const candleMap = new Map<string, NormalizedCandle[]>();
+  let candleError: string | null = null;
   if (dataSource === 'twelvedata') {
-    try {
-      const symbols = tickers.map((t: { symbol: string }) => t.symbol);
-      // Batch: up to 8 symbols per call (free-tier credit limit)
-      for (let i = 0; i < symbols.length; i += 8) {
-        const batch = symbols.slice(i, i + 8);
-        const result = await getTimeSeries(batch, '1min', 90);
-        for (const [sym, series] of result) {
-          candleMap.set(sym, mapTwelveDataCandles(series));
+    // Check API key availability first
+    if (!process.env.TWELVEDATA_API_KEY) {
+      candleError = 'TWELVEDATA_API_KEY is not set in environment variables';
+      console.error(`[Pipeline] ${candleError}`);
+    } else {
+      try {
+        const symbols = tickers.map((t: { symbol: string }) => t.symbol);
+        // Batch: up to 8 symbols per call (free-tier credit limit)
+        for (let i = 0; i < symbols.length; i += 8) {
+          const batch = symbols.slice(i, i + 8);
+          console.log(`[Pipeline] Fetching Twelve Data candles for: ${batch.join(', ')}`);
+          const result = await getTimeSeries(batch, '1min', 90);
+          console.log(`[Pipeline] Twelve Data returned data for: ${[...result.keys()].join(', ') || '(none)'}`);
+          for (const [sym, series] of result) {
+            const mapped = mapTwelveDataCandles(series);
+            console.log(`[Pipeline] ${sym}: ${mapped.length} candles mapped`);
+            candleMap.set(sym, mapped);
+          }
+          // Wait between batches to respect rate limits
+          if (i + 8 < symbols.length) {
+            await new Promise((r) => setTimeout(r, 15_000));
+          }
         }
-        // Wait between batches to respect rate limits
-        if (i + 8 < symbols.length) {
-          await new Promise((r) => setTimeout(r, 15_000));
+        console.log(`[Pipeline] Fetched candles for ${candleMap.size}/${symbols.length} symbols`);
+        if (candleMap.size === 0) {
+          candleError = `Twelve Data returned 0 candles for ${symbols.length} symbols (API key may be invalid or rate-limited)`;
         }
+      } catch (err) {
+        candleError = err instanceof Error ? err.message : String(err);
+        console.error('[Pipeline] Failed to fetch Twelve Data candles:', candleError);
       }
-      console.log(`[Pipeline] Fetched candles for ${candleMap.size}/${symbols.length} symbols`);
-    } catch (err) {
-      console.error('[Pipeline] Failed to fetch Twelve Data candles:', err);
     }
+  } else {
+    console.log(`[Pipeline] Data source is '${dataSource}', skipping candle fetch`);
   }
 
   const results: ProcessResult[] = [];
@@ -357,5 +378,5 @@ export async function runPollingCycle(): Promise<{
 
   console.log(`[Pipeline] Done: ${succeeded} succeeded, ${failed} failed`);
 
-  return { processed: tickers.length, succeeded, failed, results };
+  return { processed: tickers.length, succeeded, failed, results, dataSource, candlesAvailable: candleMap.size, candleError };
 }

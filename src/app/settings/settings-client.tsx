@@ -93,7 +93,12 @@ export function SettingsClient() {
       });
       const data = await res.json();
       if (res.ok) {
-        setPollStatus(`Processed ${data.processed}: ${data.succeeded} ok, ${data.failed} failed`);
+        let status = `Processed ${data.processed}: ${data.succeeded} ok, ${data.failed} failed`;
+        status += ` | Source: ${data.dataSource} | Candles: ${data.candlesAvailable}/${data.processed}`;
+        if (data.candleError) {
+          status += ` | ⚠ ${data.candleError}`;
+        }
+        setPollStatus(status);
       } else {
         setPollStatus(`Error: ${data.error}`);
       }
