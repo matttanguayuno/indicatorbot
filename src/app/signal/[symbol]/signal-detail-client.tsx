@@ -98,6 +98,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [news, setNews] = useState<NewsEntry[]>([]);
   const [chartCandles, setChartCandles] = useState<ChartCandle[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
+  const [chartInterval, setChartInterval] = useState<string>('1min');
+  const [chartRange, setChartRange] = useState<string>('1D');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -123,23 +125,27 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     return () => clearInterval(interval);
   }, [symbol]);
 
-  // Fetch intraday chart data (separate from snapshot refresh)
+  // Fetch chart data (re-fetches when interval or range changes)
   useEffect(() => {
+    let cancelled = false;
     async function loadChart() {
+      setChartLoading(true);
       try {
-        const res = await fetch(`/api/chart/${encodeURIComponent(symbol)}`);
-        if (res.ok) {
+        const params = new URLSearchParams({ interval: chartInterval, range: chartRange });
+        const res = await fetch(`/api/chart/${encodeURIComponent(symbol)}?${params}`);
+        if (res.ok && !cancelled) {
           const data = await res.json();
           setChartCandles(data.candles ?? []);
         }
       } catch (err) {
         console.error('Failed to load chart:', err);
       } finally {
-        setChartLoading(false);
+        if (!cancelled) setChartLoading(false);
       }
     }
     loadChart();
-  }, [symbol]);
+    return () => { cancelled = true; };
+  }, [symbol, chartInterval, chartRange]);
 
   if (loading) return <div className="text-center text-gray-500 py-12">Loading...</div>;
   if (!latest) return <div className="text-center text-gray-500 py-12">No data for {symbol}</div>;
@@ -194,9 +200,52 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         <p className="text-sm">{latest.explanation}</p>
       </div>
 
-      {/* Intraday Price Chart */}
+      {/* Price Chart */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-base font-semibold text-gray-400 mb-2">Intraday Chart</h2>
+        <h2 className="text-base font-semibold text-gray-400 mb-2">Chart</h2>
+
+        {/* Time Range toggles */}
+        <div className="flex flex-wrap gap-1 mb-2">
+          <span className="text-xs text-gray-500 mr-1 self-center">Range</span>
+          {(['1H', '1D', '1W', '1M', 'Q', '1Y', 'YTD', 'Max'] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setChartRange(r)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                chartRange === r
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {r === 'Q' ? 'Quarter' : r}
+            </button>
+          ))}
+        </div>
+
+        {/* Interval toggles */}
+        <div className="flex flex-wrap gap-1 mb-3">
+          <span className="text-xs text-gray-500 mr-1 self-center">Interval</span>
+          {([
+            ['1min', '1m'],
+            ['5min', '5m'],
+            ['15min', '15m'],
+            ['30min', '30m'],
+            ['1h', '1h'],
+            ['4h', '4h'],
+          ] as const).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setChartInterval(val)}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                chartInterval === val
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {chartLoading ? (
           <div className="h-[200px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…
