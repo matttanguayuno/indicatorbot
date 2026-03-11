@@ -7,7 +7,7 @@ export function ScoreBadge({ score }: { score: number }) {
   else bg = 'bg-red-700';
 
   return (
-    <span className={`${bg} text-white text-sm font-bold px-2.5 py-0.5 rounded-full`}>
+    <span className={`${bg} text-white text-base font-bold px-2.5 py-0.5 rounded-full`}>
       {score}
     </span>
   );
@@ -18,24 +18,24 @@ export function PctChange({ value }: { value: number | null }) {
   if (value == null) return <span className="text-gray-600">—</span>;
   const color = value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-400';
   const prefix = value > 0 ? '+' : '';
-  return <span className={`${color} text-sm font-mono`}>{prefix}{value.toFixed(2)}%</span>;
+  return <span className={`${color} text-base font-mono`}>{prefix}{value.toFixed(2)}%</span>;
 }
 
 /** Colored RVOL display */
 export function RvolBadge({ rvol }: { rvol: number | null }) {
-  if (rvol == null) return <span className="text-gray-600 text-sm">—</span>;
+  if (rvol == null) return <span className="text-gray-600 text-base">—</span>;
   let color = 'text-gray-400';
   if (rvol >= 3) color = 'text-green-400';
   else if (rvol >= 1.5) color = 'text-yellow-400';
-  return <span className={`${color} text-sm font-mono`}>{rvol.toFixed(1)}x</span>;
+  return <span className={`${color} text-base font-mono`}>{rvol.toFixed(1)}x</span>;
 }
 
 /** VWAP status display */
 export function VwapStatus({ pctFromVwap }: { pctFromVwap: number | null }) {
-  if (pctFromVwap == null) return <span className="text-gray-600 text-sm">—</span>;
+  if (pctFromVwap == null) return <span className="text-gray-600 text-base">—</span>;
   const above = pctFromVwap > 0;
   return (
-    <span className={`text-sm ${above ? 'text-green-400' : 'text-red-400'}`}>
+    <span className={`text-base ${above ? 'text-green-400' : 'text-red-400'}`}>
       {above ? '▲' : '▼'} {Math.abs(pctFromVwap).toFixed(1)}%
     </span>
   );
@@ -43,9 +43,9 @@ export function VwapStatus({ pctFromVwap }: { pctFromVwap: number | null }) {
 
 /** News indicator dot */
 export function NewsIndicator({ count }: { count: number }) {
-  if (count === 0) return <span className="text-gray-600 text-sm">—</span>;
+  if (count === 0) return <span className="text-gray-600 text-base">—</span>;
   return (
-    <span className="text-yellow-400 text-sm font-mono">
+    <span className="text-yellow-400 text-base font-mono">
       📰 {count}
     </span>
   );
@@ -54,12 +54,12 @@ export function NewsIndicator({ count }: { count: number }) {
 /** Data availability indicator */
 export function DataStatus({ status }: { status: string | null }) {
   if (!status || status === 'unavailable') {
-    return <span className="text-gray-600 text-sm italic">N/A</span>;
+    return <span className="text-gray-600 text-base italic">N/A</span>;
   }
   if (status === 'available') {
-    return <span className="text-green-500 text-sm">✓</span>;
+    return <span className="text-green-500 text-base">✓</span>;
   }
-  return <span className="text-yellow-500 text-sm">Partial</span>;
+  return <span className="text-yellow-500 text-base">Partial</span>;
 }
 
 /** Timestamp display */
@@ -67,17 +67,17 @@ export function TimeAgo({ date }: { date: string | Date }) {
   const d = new Date(date);
   const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return <span className="text-gray-500 text-sm">just now</span>;
-  if (mins < 60) return <span className="text-gray-500 text-sm">{mins}m ago</span>;
+  if (mins < 1) return <span className="text-gray-500 text-base">just now</span>;
+  if (mins < 60) return <span className="text-gray-500 text-base">{mins}m ago</span>;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return <span className="text-gray-500 text-sm">{hrs}h ago</span>;
-  return <span className="text-gray-500 text-sm">{d.toLocaleDateString()}</span>;
+  if (hrs < 24) return <span className="text-gray-500 text-base">{hrs}h ago</span>;
+  return <span className="text-gray-500 text-base">{d.toLocaleDateString()}</span>;
 }
 
 /** Format large numbers for float display */
 export function FloatDisplay({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-gray-600 text-sm">—</span>;
-  if (value >= 1_000_000_000) return <span className="text-sm font-mono">{(value / 1_000_000_000).toFixed(1)}B</span>;
-  if (value >= 1_000_000) return <span className="text-sm font-mono">{(value / 1_000_000).toFixed(1)}M</span>;
-  return <span className="text-sm font-mono">{(value / 1000).toFixed(0)}K</span>;
+  if (value == null) return <span className="text-gray-600 text-base">—</span>;
+  if (value >= 1_000_000_000) return <span className="text-base font-mono">{(value / 1_000_000_000).toFixed(1)}B</span>;
+  if (value >= 1_000_000) return <span className="text-base font-mono">{(value / 1_000_000).toFixed(1)}M</span>;
+  return <span className="text-base font-mono">{(value / 1000).toFixed(0)}K</span>;
 }

@@ -59,7 +59,7 @@ export function AlertsClient() {
 
   return (
     <div className="pt-4">
-      <h1 className="text-xl font-bold mb-4">Alerts</h1>
+      <h1 className="text-2xl font-bold mb-4">Alerts</h1>
 
       {loading && <div className="text-center text-gray-500 py-12">Loading alerts...</div>}
 
@@ -79,18 +79,18 @@ export function AlertsClient() {
               </Link>
               <ScoreBadge score={a.scoreAtAlert} />
             </div>
-            <p className="text-xs text-gray-400 mb-2">{a.explanation}</p>
+            <p className="text-sm text-gray-400 mb-2">{a.explanation}</p>
             <div className="flex items-center justify-between">
               <TimeAgo date={a.createdAt} />
               {a.feedback ? (
-                <span className="text-xs text-gray-400">
+                <span className="text-sm text-gray-400">
                   Rated: {RATINGS.find((r) => r.value === a.feedback!.rating)?.label ?? a.feedback.rating}
                   {a.feedback.note && ` — "${a.feedback.note}"`}
                 </span>
               ) : (
                 <button
                   onClick={() => setFeedbackAlert(feedbackAlert === a.id ? null : a.id)}
-                  className="text-xs text-blue-400 hover:underline"
+                  className="text-sm text-blue-400 hover:underline"
                 >
                   Leave feedback
                 </button>
@@ -104,7 +104,7 @@ export function AlertsClient() {
                     <button
                       key={r.value}
                       onClick={() => submitFeedback(a.id, r.value)}
-                      className={`${r.color} text-white text-xs px-2 py-1 rounded hover:opacity-80 transition-opacity`}
+                      className={`${r.color} text-white text-sm px-2.5 py-1.5 rounded hover:opacity-80 transition-opacity`}
                     >
                       {r.label}
                     </button>

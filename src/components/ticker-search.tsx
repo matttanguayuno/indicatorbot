@@ -106,9 +106,9 @@ export function TickerSearch({ onAdd, existingSymbols }: TickerSearchProps) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-sm text-gray-100">{r.symbol}</span>
-                    <span className="text-[10px] text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">{r.type}</span>
+                    <span className="text-xs text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">{r.type}</span>
                   </div>
-                  <div className="text-xs text-gray-400 truncate">{r.description}</div>
+                  <div className="text-sm text-gray-400 truncate">{r.description}</div>
                 </div>
                 {exists ? (
                   <span className="text-xs text-gray-500 shrink-0">Added</span>

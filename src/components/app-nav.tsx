@@ -46,7 +46,7 @@ export function AppNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center py-3 px-4 text-xs transition-colors ${
+                className={`flex flex-col items-center py-3 px-4 text-sm transition-colors ${
                   active ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
                 }`}
               >

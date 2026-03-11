@@ -37,9 +37,9 @@ export function MiniChart({
 
   // Gentler font scaling so hero card labels stay readable
   const ts = Math.pow(400 / width, 0.7);
-  const fontY = Math.max(7, 9 * ts);
-  const fontX = Math.max(6, 8 * ts);
-  const fontTip = Math.max(8, 10 * ts);
+  const fontY = Math.max(9, 11 * ts);
+  const fontX = Math.max(8, 10 * ts);
+  const fontTip = Math.max(10, 12 * ts);
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;

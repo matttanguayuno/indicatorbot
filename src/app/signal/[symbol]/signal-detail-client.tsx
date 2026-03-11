@@ -221,30 +221,30 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             {hasCandleData ? (
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
-                  <div className="text-gray-500 text-xs mb-1">5m</div>
+                <div className="text-gray-500 text-sm mb-1">5m</div>
                   <PctChange value={latest.pctChange5m} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs mb-1">15m</div>
+                <div className="text-gray-500 text-sm mb-1">15m</div>
                   <PctChange value={latest.pctChange15m} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs mb-1">1h</div>
+                <div className="text-gray-500 text-sm mb-1">1h</div>
                   <PctChange value={latest.pctChange1h} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs mb-1">1d</div>
+                <div className="text-gray-500 text-sm mb-1">1d</div>
                   <PctChange value={latest.pctChange1d} />
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 text-center">
                 <div>
-                  <div className="text-gray-500 text-xs mb-1">Intraday</div>
+                  <div className="text-gray-500 text-sm mb-1">Intraday</div>
                   <PctChange value={latest.pctChangeIntraday ?? latest.pctChange5m} />
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs mb-1">1d Change</div>
+                  <div className="text-gray-500 text-sm mb-1">1d Change</div>
                   <PctChange value={latest.pctChange1d} />
                 </div>
               </div>
@@ -281,7 +281,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
                     style={{ width: `${Math.min(100, Math.max(0, rangePct))}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+                <div className="flex justify-between text-sm text-gray-600 mt-0.5">
                   <span>Low</span>
                   <span>High</span>
                 </div>
@@ -397,7 +397,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
                 ) : (
                   <span>{n.headline}</span>
                 )}
-                <div className="text-xs text-gray-500">
+                <div className="text-sm text-gray-500">
                   {n.source ? `${n.source} · ` : ''}
                   <TimeAgo date={n.publishedAt} />
                 </div>
@@ -433,7 +433,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         </div>
       )}
 
-      <div className="text-xs text-gray-600 text-center pb-4">
+      <div className="text-sm text-gray-600 text-center pb-4">
         Auto-refreshes every 60s · Last updated: <TimeAgo date={latest.timestamp} />
       </div>
     </div>
@@ -459,10 +459,10 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const chartH = h - padT - padB;
 
   // Font sizes for 600-wide viewBox
-  const fontY = 10;
-  const fontX = 9;
-  const fontTipLg = 11;
-  const fontTipSm = 9;
+  const fontY = 11;
+  const fontX = 10;
+  const fontTipLg = 12;
+  const fontTipSm = 10;
 
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;

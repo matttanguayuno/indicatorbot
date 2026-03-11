@@ -107,7 +107,7 @@ export function SettingsClient() {
 
   return (
     <div className="pt-4 space-y-6">
-      <h1 className="text-xl font-bold">Settings</h1>
+      <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* App Settings */}
       {settings && (
@@ -127,12 +127,12 @@ export function SettingsClient() {
             </select>
           </div>
           {settings.dataSource === 'twelvedata' && (
-            <p className="text-[10px] text-gray-500 -mt-2">
+            <p className="text-xs text-gray-500 -mt-2">
               Uses 1-min candles for 5m/15m/1h momentum, RVOL, and VWAP. Free tier: 8 symbols/min.
             </p>
           )}
           {settings.dataSource === 'polygon' && (
-            <p className="text-[10px] text-yellow-500/70 -mt-2">
+            <p className="text-xs text-yellow-500/70 -mt-2">
               Free tier does not support intraday candles. Falls back to quote-only scoring.
             </p>
           )}
@@ -184,7 +184,7 @@ export function SettingsClient() {
           {tickers.map((t) => (
             <span
               key={t.id}
-              className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${
+              className={`flex items-center gap-1 text-sm px-2.5 py-1.5 rounded ${
                 t.active ? 'bg-gray-800 text-gray-200' : 'bg-gray-800/50 text-gray-500 line-through'
               }`}
             >
@@ -209,7 +209,7 @@ export function SettingsClient() {
       {/* Manual Poll Trigger */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
         <h2 className="text-sm font-semibold text-gray-400 mb-3">Manual Poll</h2>
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-sm text-gray-500 mb-3">
           Scan all watchlist tickers for fresh signals.
         </p>
         <button
@@ -220,7 +220,7 @@ export function SettingsClient() {
           {pollLoading ? 'Running...' : 'Run Poll Now'}
         </button>
         {pollStatus && (
-          <div className="text-xs text-gray-400 mt-2">{pollStatus}</div>
+          <div className="text-sm text-gray-400 mt-2">{pollStatus}</div>
         )}
       </div>
     </div>

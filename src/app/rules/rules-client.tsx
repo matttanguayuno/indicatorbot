@@ -272,12 +272,12 @@ export function RulesClient() {
     <div className="pt-4 space-y-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold">Scoring Rules</h1>
+        <h1 className="text-2xl font-bold">Scoring Rules</h1>
         <div className="flex items-center gap-2">
           {hasChanges && (
             <button
               onClick={resetAll}
-              className="px-3 py-1.5 text-xs bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-700 transition-colors"
+              className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-700 transition-colors"
             >
               Reset All
             </button>
@@ -285,12 +285,12 @@ export function RulesClient() {
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-1.5 text-xs bg-blue-600 rounded-lg text-white font-medium hover:bg-blue-500 disabled:opacity-50 transition-colors"
+            className="px-4 py-1.5 text-sm bg-blue-600 rounded-lg text-white font-medium hover:bg-blue-500 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
           {status && (
-            <span className={`text-xs ${status === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>
+            <span className={`text-sm ${status === 'Saved' ? 'text-green-400' : 'text-red-400'}`}>
               {status}
             </span>
           )}
@@ -298,7 +298,7 @@ export function RulesClient() {
       </div>
 
       {/* Weight summary */}
-      <div className={`text-xs px-3 py-2 rounded-lg border ${
+      <div className={`text-sm px-3 py-2 rounded-lg border ${
         totalWeight === 100
           ? 'bg-green-950/30 border-green-800/50 text-green-400'
           : 'bg-yellow-950/30 border-yellow-800/50 text-yellow-400'
@@ -328,7 +328,7 @@ export function RulesClient() {
                   <span className="w-2 h-2 rounded-full bg-blue-400" title="Modified" />
                 )}
               </div>
-              <span className="text-gray-500 text-xs">{isCollapsed ? '▸' : '▾'}</span>
+              <span className="text-gray-500 text-sm">{isCollapsed ? '▸' : '▾'}</span>
             </button>
 
             {/* Section body */}
@@ -342,19 +342,19 @@ export function RulesClient() {
                   return (
                     <div key={field.path.join('.')} className="flex flex-col gap-1 mt-3">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-gray-400 flex items-center gap-1.5">
+                        <label className="text-sm text-gray-400 flex items-center gap-1.5">
                           {field.label}
                           {field.unit && <span className="text-gray-600">({field.unit})</span>}
                           {modified && (
-                            <span className="text-[10px] text-blue-400 font-medium">modified</span>
+                            <span className="text-xs text-blue-400 font-medium">modified</span>
                           )}
                         </label>
-                        <span className="text-[10px] text-gray-600">
+                        <span className="text-xs text-gray-600">
                           default: {def}
                         </span>
                       </div>
                       {field.description && (
-                        <p className="text-[10px] text-gray-600 -mt-0.5">{field.description}</p>
+                        <p className="text-xs text-gray-600 -mt-0.5">{field.description}</p>
                       )}
                       <input
                         type="number"
@@ -379,7 +379,7 @@ export function RulesClient() {
                 {sectionHasChanges && (
                   <button
                     onClick={() => resetSection(section)}
-                    className="text-[10px] text-gray-500 hover:text-gray-300 mt-1 transition-colors"
+                    className="text-xs text-gray-500 hover:text-gray-300 mt-1 transition-colors"
                   >
                     Reset section to defaults
                   </button>

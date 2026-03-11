@@ -159,13 +159,13 @@ export function DashboardClient() {
         <h1 className="text-2xl font-bold">Live Opportunities</h1>
         <div className="flex items-center gap-2">
           {!marketOpen && (
-            <span className="text-xs text-yellow-500">market closed</span>
+            <span className="text-sm text-yellow-500">market closed</span>
           )}
           {polling && (
-            <span className="text-xs text-blue-400 animate-pulse">polling…</span>
+            <span className="text-sm text-blue-400 animate-pulse">polling…</span>
           )}
           {lastRefresh && (
-            <span className="text-xs text-gray-600">
+            <span className="text-sm text-gray-600">
               <TimeAgo date={lastRefresh.toISOString()} />
             </span>
           )}
@@ -227,26 +227,26 @@ export function DashboardClient() {
                 {s.pctChange5m != null && s.pctChangeIntraday != null ? (
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-gray-500 text-xs">5m</span>
+                      <span className="text-gray-500 text-sm">5m</span>
                       <PctChange value={s.pctChange5m} />
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-gray-500 text-xs">1h</span>
+                      <span className="text-gray-500 text-sm">1h</span>
                       <PctChange value={s.pctChange1h} />
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-gray-500 text-xs">1d</span>
+                      <span className="text-gray-500 text-sm">1d</span>
                       <PctChange value={s.pctChange1d} />
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-gray-500 text-xs">Intraday</span>
+                      <span className="text-gray-500 text-sm">Intraday</span>
                       <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-gray-500 text-xs">1d</span>
+                      <span className="text-gray-500 text-sm">1d</span>
                       <PctChange value={s.pctChange1d} />
                     </div>
                   </div>
@@ -255,9 +255,9 @@ export function DashboardClient() {
             </div>
 
             {/* Footer — badges & meta */}
-            <div className="flex items-center justify-between px-4 pb-3 text-sm">
+            <div className="flex items-center justify-between px-4 pb-3 text-base">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-gray-500">Float</span>
+                <span className="text-gray-500 text-sm">Float</span>
                 <FloatDisplay value={s.float} />
                 {s.rvol != null && s.rvol >= 1.5 && (
                   <span className="text-cyan-400 font-medium">RVOL {s.rvol.toFixed(1)}x</span>
@@ -336,30 +336,30 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
             {hasCandleData ? (
               <>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-gray-500 text-xs">5m</span>
+                  <span className="text-gray-500 text-sm">5m</span>
                   <PctChange value={s.pctChange5m} />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-gray-500 text-xs">15m</span>
+                  <span className="text-gray-500 text-sm">15m</span>
                   <PctChange value={s.pctChange15m} />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-gray-500 text-xs">1h</span>
+                  <span className="text-gray-500 text-sm">1h</span>
                   <PctChange value={s.pctChange1h} />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-gray-500 text-xs">1d</span>
+                  <span className="text-gray-500 text-sm">1d</span>
                   <PctChange value={s.pctChange1d} />
                 </div>
               </>
             ) : (
               <>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-gray-500 text-xs">Intraday</span>
+                  <span className="text-gray-500 text-sm">Intraday</span>
                   <PctChange value={s.pctChangeIntraday ?? s.pctChange5m} />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-gray-500 text-xs">1d</span>
+                  <span className="text-gray-500 text-sm">1d</span>
                   <PctChange value={s.pctChange1d} />
                 </div>
               </>
@@ -370,7 +370,7 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
           <div className="h-5 w-px bg-gray-700" />
 
           {/* Meta info */}
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-4 text-base">
             <div>
               <span className="text-gray-500 mr-1">Float</span>
               <FloatDisplay value={s.float} />
@@ -381,7 +381,7 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
 
         {/* Explanation */}
         {s.explanation && (
-          <p className="text-sm text-gray-400 mt-2 line-clamp-2">{s.explanation}</p>
+          <p className="text-base text-gray-400 mt-2 line-clamp-2">{s.explanation}</p>
         )}
       </div>
     </Link>
@@ -397,7 +397,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   // Build multi-line data: each stock with its scoreHistory
   const lines = snapshots
     .filter((s) => s.scoreHistory.length >= 2)
-    .slice(0, 8)
+    .slice(0, 12)
     .map((s, i) => ({
       symbol: s.symbol,
       scores: s.scoreHistory,
@@ -408,12 +408,28 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
 
   const maxLen = Math.max(...lines.map((l) => l.scores.length));
   const w = 400, h = 300;
-  const padL = 36, padR = 10, padT = 12, padB = 20;
+  const padL = 36, padR = 50, padT = 12, padB = 20;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
+  // Dynamic Y-axis: compute actual min/max from data with 10% padding
+  const allScores = lines.flatMap((l) => l.scores);
+  const dataMin = Math.min(...allScores);
+  const dataMax = Math.max(...allScores);
+  const dataRange = dataMax - dataMin || 1;
+  const yMin = Math.max(0, Math.floor(dataMin - dataRange * 0.1));
+  const yMax = Math.min(100, Math.ceil(dataMax + dataRange * 0.1));
+  const yRange = yMax - yMin || 1;
+
   const xScale = (i: number) => padL + (maxLen === 1 ? chartW / 2 : (i / (maxLen - 1)) * chartW);
-  const yScale = (v: number) => padT + chartH - (v / 100) * chartH;
+  const yScale = (v: number) => padT + chartH - ((v - yMin) / yRange) * chartH;
+
+  // Generate 3–5 nice Y ticks within the actual data range
+  const tickStep = yRange <= 10 ? 2 : yRange <= 30 ? 5 : yRange <= 60 ? 10 : 25;
+  const yTicks: number[] = [];
+  for (let t = Math.ceil(yMin / tickStep) * tickStep; t <= yMax; t += tickStep) {
+    yTicks.push(t);
+  }
 
   function handlePointer(e: React.PointerEvent) {
     const svg = svgRef.current;
@@ -426,14 +442,25 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     else setHoverIdx(null);
   }
 
-  const yTicks = [0, 25, 50, 75, 100];
+  // Resolve vertical collisions for end-of-line labels
+  const labelPositions = lines.map((line) => {
+    const lastScore = line.scores[line.scores.length - 1];
+    return { symbol: line.symbol, color: line.color, y: yScale(lastScore), score: lastScore };
+  });
+  labelPositions.sort((a, b) => a.y - b.y);
+  const labelH = 11;
+  for (let i = 1; i < labelPositions.length; i++) {
+    if (labelPositions[i].y - labelPositions[i - 1].y < labelH) {
+      labelPositions[i].y = labelPositions[i - 1].y + labelH;
+    }
+  }
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
       <div className="px-4 pt-3 pb-1">
-        <h3 className="text-sm font-semibold text-gray-300">Score Evolution</h3>
+        <h3 className="text-base font-semibold text-gray-300">Score Evolution</h3>
       </div>
-      <div className="flex-1 px-2 pb-2">
+      <div className="flex-1 px-2 pb-3">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${w} ${h}`}
@@ -447,7 +474,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           {yTicks.map((t) => (
             <g key={t}>
               <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-              <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={9}>{t}</text>
+              <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={11}>{t}</text>
             </g>
           ))}
 
@@ -466,6 +493,27 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               />
             );
           })}
+
+          {/* End-of-line inline labels (replaces bottom legend) */}
+          {labelPositions.map((lp) => (
+            <g key={lp.symbol}>
+              <circle
+                cx={xScale(maxLen - 1)}
+                cy={yScale(lines.find((l) => l.symbol === lp.symbol)!.scores[lines.find((l) => l.symbol === lp.symbol)!.scores.length - 1])}
+                r={3}
+                fill={lp.color}
+              />
+              <text
+                x={xScale(maxLen - 1) + 6}
+                y={lp.y + 3}
+                fill={lp.color}
+                fontSize={10}
+                fontWeight="600"
+              >
+                {lp.symbol}
+              </text>
+            </g>
+          ))}
 
           {/* Hover crosshair */}
           {hoverIdx != null && (
@@ -506,10 +554,10 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
                 {items.map((item, i) => (
                   <g key={item.symbol}>
                     <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
-                    <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={9} fontWeight="500">
+                    <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={10} fontWeight="500">
                       {item.symbol}
                     </text>
-                    <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={9}>
+                    <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={10}>
                       {item.scores[hoverIdx]}
                     </text>
                   </g>
@@ -521,15 +569,6 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           {/* Hit area */}
           <rect x={0} y={0} width={w} height={h} fill="transparent" />
         </svg>
-      </div>
-      {/* Legend */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-3">
-        {lines.map((line) => (
-          <div key={line.symbol} className="flex items-center gap-1">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: line.color }} />
-            <span className="text-xs text-gray-400">{line.symbol}</span>
-          </div>
-        ))}
       </div>
     </div>
   );
