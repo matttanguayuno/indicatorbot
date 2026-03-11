@@ -307,8 +307,8 @@ export function RulesClient() {
         {totalWeight !== 100 && ' — adjust weights so they sum to 100'}
       </div>
 
-      {/* Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+      {/* Sections — masonry layout */}
+      <div className="columns-1 lg:columns-2 xl:columns-3 gap-4 space-y-4">
       {SECTIONS.map((section) => {
         const isCollapsed = collapsed[section.title];
         const sectionHasChanges = section.fields.some(
@@ -316,7 +316,7 @@ export function RulesClient() {
         );
 
         return (
-          <div key={section.title} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <div key={section.title} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden break-inside-avoid">
             {/* Section header */}
             <button
               onClick={() => toggleSection(section.title)}
