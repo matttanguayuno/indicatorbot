@@ -201,8 +201,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div className="w-full" style={{ aspectRatio: '600 / 280' }}>
-            <PriceChart candles={chartCandles} width={600} height={280} />
+          <div className="w-full" style={{ aspectRatio: '900 / 350' }}>
+            <PriceChart candles={chartCandles} width={900} height={350} />
           </div>
         ) : (
           <div className="h-[120px] bg-gray-800/30 rounded flex items-center justify-center text-gray-600 text-sm">

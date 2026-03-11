@@ -18,17 +18,17 @@ interface PriceChartProps {
 
 export function PriceChart({
   candles,
-  width = 600,
-  height = 280,
+  width = 900,
+  height = 350,
   className = '',
 }: PriceChartProps) {
   if (candles.length < 2) return null;
 
-  const padLeft = 58;
+  const padLeft = 52;
   const padRight = 8;
-  const padTop = 12;
-  const padBottom = 48;
-  const volHeight = 40;
+  const padTop = 10;
+  const padBottom = 28;
+  const volHeight = 32;
 
   const chartW = width - padLeft - padRight;
   const priceH = height - padTop - padBottom - volHeight;
@@ -144,12 +144,11 @@ export function PriceChart({
       {yTicks.map((t, i) => (
         <text
           key={i}
-          x={padLeft - 6}
+          x={padLeft - 5}
           y={t.y + 3}
           textAnchor="end"
           fill="#9ca3af"
-          fontSize="10"
-          fontFamily="monospace"
+          fontSize="8"
         >
           ${t.price.toFixed(2)}
         </text>
@@ -160,11 +159,10 @@ export function PriceChart({
         <text
           key={i}
           x={t.x}
-          y={height - padBottom + 16}
+          y={height - padBottom + 12}
           textAnchor="middle"
           fill="#6b7280"
-          fontSize="10"
-          fontFamily="monospace"
+          fontSize="8"
         >
           {t.label}
         </text>
@@ -180,12 +178,11 @@ export function PriceChart({
 
       {/* Current price label */}
       <text
-        x={x(candles.length - 1) + 6}
-        y={yPrice(closes[closes.length - 1]) + 4}
+        x={x(candles.length - 1) + 5}
+        y={yPrice(closes[closes.length - 1]) + 3}
         fill={lineColor}
-        fontSize="11"
+        fontSize="8"
         fontWeight="bold"
-        fontFamily="monospace"
       >
         ${closes[closes.length - 1].toFixed(2)}
       </text>
