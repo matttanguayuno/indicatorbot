@@ -9,11 +9,9 @@
 import prisma from '@/lib/db';
 import {
   getQuote,
-  getCandles,
   getCompanyProfile,
   getCompanyNews,
   mapQuote,
-  mapCandles,
   mapProfile,
   mapNews,
 } from '@/lib/finnhub';
@@ -310,7 +308,7 @@ export async function runPollingCycle(): Promise<{
   const settings = await prisma.appSettings.findFirst();
   const scoreThreshold = settings?.scoreThreshold ?? ALERT_CONFIG.defaultScoreThreshold;
   const cooldownMin = settings?.alertCooldownMin ?? ALERT_CONFIG.cooldownMinutes;
-  const dataSource = settings?.dataSource ?? 'finnhub';
+  const dataSource = settings?.dataSource ?? 'twelvedata';
 
   // Load dynamic scoring rules
   const rules = await getScoringRules();
@@ -323,7 +321,7 @@ export async function runPollingCycle(): Promise<{
 
   console.log(`[Pipeline] Processing ${tickers.length} tickers (source: ${dataSource})...`);
 
-  // Pre-fetch candles
+  // Pre-fetch candles from Twelve Data
   const candleMap = new Map<string, NormalizedCandle[]>();
   if (dataSource === 'twelvedata') {
     try {
@@ -343,23 +341,6 @@ export async function runPollingCycle(): Promise<{
       console.log(`[Pipeline] Fetched candles for ${candleMap.size}/${symbols.length} symbols`);
     } catch (err) {
       console.error('[Pipeline] Failed to fetch Twelve Data candles:', err);
-    }
-  } else {
-    // Finnhub candles: fetch 1-min resolution for the current trading day
-    const now = Math.floor(Date.now() / 1000);
-    const marketOpenToday = now - 7 * 3600; // ~7 hours back covers full trading day
-    for (const ticker of tickers) {
-      try {
-        const raw = await getCandles(ticker.symbol, '1', marketOpenToday, now);
-        if (raw && raw.s === 'ok' && raw.t && raw.t.length > 0) {
-          candleMap.set(ticker.symbol, mapCandles(raw));
-        }
-      } catch (err) {
-        console.warn(`[Pipeline] Finnhub candle fetch failed for ${ticker.symbol}:`, err);
-      }
-    }
-    if (candleMap.size > 0) {
-      console.log(`[Pipeline] Fetched Finnhub candles for ${candleMap.size}/${tickers.length} symbols`);
     }
   }
 

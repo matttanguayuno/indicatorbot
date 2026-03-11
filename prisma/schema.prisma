@@ -14,7 +14,7 @@ model AppSettings {
   scoreThreshold      Float    @default(65)
   alertCooldownMin    Int      @default(30)
   pollingIntervalSec  Int      @default(60)
-  dataSource          String   @default("finnhub")
+  dataSource          String   @default("twelvedata")
   rulesJson           String?
   updatedAt           DateTime @updatedAt
 }
