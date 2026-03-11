@@ -414,7 +414,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
 
   // Use 900x400 viewBox — same as hero chart — so font sizes render identically
   const w = 900, h = 400;
-  const padL = 36, padR = 60, padT = 12, padB = 24;
+  const padL = 48, padR = 60, padT = 12, padB = 28;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
@@ -485,7 +485,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
       {yTicks.map((t) => (
         <g key={t}>
           <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-          <text x={padL - 5} y={yScale(t) + 3} textAnchor="end" fill="#6b7280" fontSize={11}>{t}</text>
+          <text x={padL - 5} y={yScale(t) + 5} textAnchor="end" fill="#6b7280" fontSize={18}>{t}</text>
         </g>
       ))}
 
@@ -495,7 +495,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
         const d = new Date(timestamps[i]);
         const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
         return (
-          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={10}>
+          <text key={i} x={xScale(i)} y={h - 2} textAnchor="middle" fill="#6b7280" fontSize={16}>
             {label}
           </text>
         );
@@ -528,9 +528,9 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           />
           <text
             x={xScale(maxLen - 1) + 6}
-            y={lp.y + 3}
+            y={lp.y + 5}
             fill={lp.color}
-            fontSize={10}
+            fontSize={16}
             fontWeight="600"
           >
             {lp.symbol}
@@ -577,10 +577,10 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
             {items.map((item, i) => (
               <g key={item.symbol}>
                 <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
-                <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={10} fontWeight="500">
+                <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={12} fontWeight="500">
                   {item.symbol}
                 </text>
-                <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={10}>
+                <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={12}>
                   {item.scores[hoverIdx]}
                 </text>
               </g>
