@@ -119,6 +119,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const nextSymbol = currentIdx >= 0 && currentIdx < tickerList.length - 1 ? tickerList[currentIdx + 1] : null;
 
   // Measure chart container so viewBox matches rendered size (prevents font scaling)
+  // Depends on chartLoading so it re-runs once the chart div actually mounts
   useEffect(() => {
     const el = chartContainerRef.current;
     if (!el) return;
@@ -128,7 +129,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [chartLoading]);
 
   useEffect(() => {
     async function load() {
