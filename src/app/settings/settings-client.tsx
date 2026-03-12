@@ -10,6 +10,7 @@ interface Settings {
   alertCooldownMin: number;
   pollingIntervalSec: number;
   dataSource: string;
+  screenerTopN: number;
   twelveDataExhausted?: boolean;
   twelveDataResumesAt?: string | null;
 }
@@ -27,6 +28,8 @@ export function SettingsClient() {
   const [saving, setSaving] = useState(false);
   const [pollStatus, setPollStatus] = useState<string | null>(null);
   const [pollLoading, setPollLoading] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     const [settingsRes, tickersRes] = await Promise.all([
@@ -69,6 +72,7 @@ export function SettingsClient() {
           alertCooldownMin: settings.alertCooldownMin,
           pollingIntervalSec: settings.pollingIntervalSec,
           dataSource: settings.dataSource,
+          screenerTopN: settings.screenerTopN,
         }),
       });
       if (res.ok) setSettings(await res.json());
@@ -206,6 +210,16 @@ export function SettingsClient() {
             min={10}
             max={3600}
           />
+          <SettingInput
+            label="Screener Top N"
+            value={settings.screenerTopN}
+            onChange={(v) => setSettings({ ...settings, screenerTopN: v })}
+            min={1}
+            max={200}
+          />
+          <p className="text-xs text-gray-500 -mt-2">
+            Number of stocks to pull from the Webull screener. Syncs at 6:30 AM, 10 AM, 1 PM MT.
+          </p>
 
           <button
             onClick={saveSettings}
@@ -252,6 +266,41 @@ export function SettingsClient() {
             <span className="text-gray-500 text-sm">No tickers — search above to add stocks</span>
           )}
         </div>
+      </div>
+
+      {/* Screener Sync */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <h2 className="text-sm font-semibold text-gray-400 mb-3">Screener Sync</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Scrape the Webull screener and replace your watchlist with the top results.
+        </p>
+        <button
+          onClick={async () => {
+            setSyncLoading(true);
+            setSyncStatus(null);
+            try {
+              const res = await fetch('/api/screener/sync', { method: 'POST' });
+              const data = await res.json();
+              if (res.ok) {
+                setSyncStatus(`Synced ${data.total} tickers (${data.added} new). Symbols: ${data.symbols?.join(', ')}`);
+                loadData();
+              } else {
+                setSyncStatus(`Error: ${data.error}`);
+              }
+            } catch {
+              setSyncStatus('Network error');
+            } finally {
+              setSyncLoading(false);
+            }
+          }}
+          disabled={syncLoading}
+          className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-700 text-sm py-2 rounded transition-colors"
+        >
+          {syncLoading ? 'Syncing...' : 'Sync Now'}
+        </button>
+        {syncStatus && (
+          <div className="text-sm text-gray-400 mt-2 whitespace-pre-line">{syncStatus}</div>
+        )}
       </div>
 
       {/* Manual Poll Trigger */}

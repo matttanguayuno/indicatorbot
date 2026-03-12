@@ -16,6 +16,7 @@ model AppSettings {
   alertCooldownMin    Int      @default(30)
   pollingIntervalSec  Int      @default(60)
   dataSource          String   @default("twelvedata")
+  screenerTopN        Int      @default(30)
   rulesJson           String?
   updatedAt           DateTime @updatedAt
 }

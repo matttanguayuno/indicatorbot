@@ -36,12 +36,16 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerTopN } = body;
 
   const settings = await getOrCreateSettings();
 
   const validSource = typeof dataSource === 'string' && (VALID_DATA_SOURCES as readonly string[]).includes(dataSource)
     ? dataSource
+    : undefined;
+
+  const validTopN = typeof screenerTopN === 'number' && screenerTopN >= 1 && screenerTopN <= 200
+    ? screenerTopN
     : undefined;
 
   const updated = await prisma.appSettings.update({
@@ -52,6 +56,7 @@ export async function PUT(req: NextRequest) {
       ...(alertCooldownMin != null && { alertCooldownMin }),
       ...(pollingIntervalSec != null && { pollingIntervalSec }),
       ...(validSource != null && { dataSource: validSource }),
+      ...(validTopN != null && { screenerTopN: validTopN }),
     },
   });
 
