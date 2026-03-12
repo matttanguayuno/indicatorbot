@@ -29,6 +29,7 @@ export function PriceChart({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<{ startX: number; startZoom: [number, number] } | null>(null);
 
   // Visible candles based on zoom level
   const zStart = Math.floor(zoom[0] * (candles.length - 1));
@@ -115,16 +116,54 @@ export function PriceChart({
     return v.toFixed(2);
   }
 
+  const isZoomed = zoom[0] > 0 || zoom[1] < 1;
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      if (!isZoomed) return;
+      dragRef.current = { startX: e.clientX, startZoom: [...zoom] as [number, number] };
+      svgRef.current?.setPointerCapture(e.pointerId);
+      setHoverIndex(null);
+    },
+    [isZoomed, zoom],
+  );
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (!svgRef.current) return;
       const rect = svgRef.current.getBoundingClientRect();
+
+      // Drag-to-pan when zoomed
+      if (dragRef.current) {
+        const dx = e.clientX - dragRef.current.startX;
+        const pxRange = rect.width * (1 - padLeft / width - padRight / width);
+        const zoomRange = dragRef.current.startZoom[1] - dragRef.current.startZoom[0];
+        const shift = -(dx / pxRange) * zoomRange;
+        let ns = dragRef.current.startZoom[0] + shift;
+        let ne = dragRef.current.startZoom[1] + shift;
+        if (ns < 0) { ne -= ns; ns = 0; }
+        if (ne > 1) { ns -= (ne - 1); ne = 1; }
+        setZoom([Math.max(0, ns), Math.min(1, ne)]);
+        return;
+      }
+
+      // Hover tooltip
       const screenX = e.clientX - rect.left;
       const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
       const idx = Math.round(fraction * (visCandles.length - 1));
       setHoverIndex(Math.max(0, Math.min(visCandles.length - 1, idx)));
     },
-    [width, padLeft, chartW, visCandles.length],
+    [width, padLeft, padRight, chartW, visCandles.length, zoom],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<SVGSVGElement>) => {
+      if (dragRef.current) {
+        svgRef.current?.releasePointerCapture(e.pointerId);
+        dragRef.current = null;
+      }
+    },
+    [],
   );
 
   const handlePointerLeave = useCallback(() => setHoverIndex(null), []);
@@ -187,10 +226,12 @@ export function PriceChart({
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       preserveAspectRatio="xMidYMid meet"
+      onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={(e) => { handlePointerUp(e); handlePointerLeave(); }}
       onDoubleClick={() => setZoom([0, 1])}
-      style={{ touchAction: 'none', width: '100%', height: '100%' }}
+      style={{ touchAction: 'none', width: '100%', height: '100%', cursor: isZoomed ? 'grab' : 'crosshair' }}
     >
       {/* Grid lines */}
       {yTicks.map((t, i) => (

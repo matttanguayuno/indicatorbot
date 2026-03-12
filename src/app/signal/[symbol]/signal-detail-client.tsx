@@ -104,6 +104,19 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [loading, setLoading] = useState(true);
   const [chartWidth, setChartWidth] = useState(900);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [tickerList, setTickerList] = useState<string[]>([]);
+
+  // Fetch ticker list for prev/next navigation
+  useEffect(() => {
+    fetch('/api/tickers')
+      .then(r => r.ok ? r.json() : [])
+      .then((tickers: { symbol: string }[]) => setTickerList(tickers.map(t => t.symbol)))
+      .catch(() => {});
+  }, []);
+
+  const currentIdx = tickerList.indexOf(symbol);
+  const prevSymbol = currentIdx > 0 ? tickerList[currentIdx - 1] : null;
+  const nextSymbol = currentIdx >= 0 && currentIdx < tickerList.length - 1 ? tickerList[currentIdx + 1] : null;
 
   // Measure chart container so viewBox matches rendered size (prevents font scaling)
   useEffect(() => {
@@ -178,7 +191,29 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
   return (
     <div className="pt-4 space-y-4">
-      <Link href="/" className="text-blue-400 text-sm hover:underline">← Back</Link>
+      {/* Navigation: Back + Prev/Next */}
+      <div className="flex items-center justify-between">
+        <Link href="/" className="text-blue-400 text-sm hover:underline">← Back</Link>
+        <div className="flex items-center gap-2">
+          {prevSymbol ? (
+            <Link href={`/signal/${prevSymbol}`} className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+              ← {prevSymbol}
+            </Link>
+          ) : (
+            <span className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800/40 text-gray-600 cursor-default">← Prev</span>
+          )}
+          {tickerList.length > 0 && (
+            <span className="text-xs text-gray-500">{currentIdx + 1}/{tickerList.length}</span>
+          )}
+          {nextSymbol ? (
+            <Link href={`/signal/${nextSymbol}`} className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+              {nextSymbol} →
+            </Link>
+          ) : (
+            <span className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800/40 text-gray-600 cursor-default">Next →</span>
+          )}
+        </div>
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between">
