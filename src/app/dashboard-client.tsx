@@ -56,7 +56,7 @@ export function DashboardClient() {
 
   async function fetchSnapshots() {
     try {
-      const res = await fetch('/api/snapshots?history=20');
+      const res = await fetch('/api/snapshots?history=500');
       if (res.ok) {
         const data = await res.json();
         setSnapshots(data);

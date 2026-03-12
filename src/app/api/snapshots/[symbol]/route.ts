@@ -22,7 +22,7 @@ export async function GET(
     prisma.signalSnapshot.findMany({
       where: { symbol: upperSymbol },
       orderBy: { timestamp: 'desc' },
-      take: 20,
+      take: 500,
       select: {
         id: true,
         signalScore: true,

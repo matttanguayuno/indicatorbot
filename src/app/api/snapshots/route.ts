@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   );
   const historyCount = Math.min(
     parseInt(req.nextUrl.searchParams.get('history') ?? '0', 10),
-    50
+    500
   );
 
   // For each active ticker, get the most recent snapshot
