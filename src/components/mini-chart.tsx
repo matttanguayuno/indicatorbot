@@ -36,14 +36,14 @@ export function MiniChart({
   // Scale strokes/dots proportionally; keep fonts and padding constant in SVG units
   // so they render at the same visual proportion regardless of viewBox width.
   const scale = width / 400;
-  const padLeft = 52;
+  const padLeft = 42;
   const padRight = 8;
   const padTop = 10;
-  const padBottom = hasXAxis ? 22 : 6;
+  const padBottom = hasXAxis ? 18 : 6;
 
-  const fontY = 12;
-  const fontX = 10;
-  const fontTip = 12;
+  const fontY = 10;
+  const fontX = 8;
+  const fontTip = 10;
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;

@@ -103,8 +103,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [chartInterval, setChartInterval] = useState<string>('1min');
   const [chartRange, setChartRange] = useState<string>('1D');
   const [loading, setLoading] = useState(true);
-  const [chartWidth, setChartWidth] = useState(900);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null); // kept for layout
   const [tickerList, setTickerList] = useState<string[]>([]);
 
   // Fetch ticker list ordered by score DESC (same as homepage dashboard)
@@ -171,18 +170,10 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     };
   }, [router]);
 
-  // Measure chart container so viewBox matches rendered size (prevents font scaling)
-  // Depends on chartLoading so it re-runs once the chart div actually mounts
-  useEffect(() => {
-    const el = chartContainerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = Math.round(entry.contentRect.width);
-      if (w > 0) setChartWidth(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [chartLoading]);
+  // Fixed chart dimensions — viewBox is constant so font sizes scale
+  // proportionally with the chart rather than with the container
+  const chartWidth = 900;
+  const chartHeight = 350;
 
   useEffect(() => {
     async function load() {
@@ -360,7 +351,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           </div>
         ) : chartCandles.length >= 2 ? (
           <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 350' }}>
-            <PriceChart key={`${chartInterval}:${chartRange}:${chartWidth}`} candles={chartCandles} width={chartWidth} height={Math.round(chartWidth * 350 / 900)} />
+            <PriceChart key={`${chartInterval}:${chartRange}`} candles={chartCandles} width={chartWidth} height={chartHeight} />
           </div>
         ) : history.length >= 2 ? (
           <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 350' }}>
@@ -368,7 +359,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               data={[...history].reverse().map(h => h.currentPrice)}
               timestamps={[...history].reverse().map(h => h.timestamp)}
               width={chartWidth}
-              height={Math.round(chartWidth * 350 / 900)}
+              height={chartHeight}
             />
           </div>
         ) : (
@@ -601,22 +592,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
 function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
-  const [cWidth, setCWidth] = useState(600);
-
-  // ResizeObserver so viewBox matches actual container width (prevents font scaling)
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const cw = Math.round(entry.contentRect.width);
-      if (cw > 0) setCWidth(cw);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Show oldest first (history comes newest-first)
   const fullData = [...history].reverse();
@@ -626,17 +603,18 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const zEnd = Math.ceil(zoom[1] * (fullData.length - 1));
   const data = fullData.slice(zStart, Math.max(zStart + 2, zEnd + 1));
   const scores = data.map(h => h.signalScore);
-  const w = cWidth;
-  const h = Math.round(cWidth * 180 / 600);
-  const padL = 48, padR = 10, padT = 16, padB = 28;
+
+  // Fixed viewBox — text scales proportionally with chart, consistent across devices
+  const w = 600;
+  const h = 180;
+  const padL = 36, padR = 8, padT = 12, padB = 22;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
-  // Match PriceChart font sizes (13/11/13/11)
-  const fontY = 13;
-  const fontX = 11;
-  const fontTipLg = 13;
-  const fontTipSm = 11;
+  const fontY = 11;
+  const fontX = 9;
+  const fontTipLg = 11;
+  const fontTipSm = 9;
 
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
@@ -695,7 +673,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const yTicks = [0, 25, 50, 75, 100];
 
   return (
-    <div ref={containerRef} style={{ aspectRatio: '600 / 180' }}>
+    <div style={{ aspectRatio: '600 / 180' }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}

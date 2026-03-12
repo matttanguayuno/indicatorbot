@@ -412,12 +412,6 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   const maxLen = Math.max(...lines.map((l) => l.scores.length));
   const timestamps = snapshots[0]?.priceTimestamps ?? [];
 
-  // Use 900x400 viewBox — same as hero chart — so font sizes render identically
-  const w = 900, h = 400;
-  const padL = 38, padR = 60, padT = 12, padB = 22;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
-
   // Dynamic Y-axis: compute actual min/max from data with 10% padding
   const allScores = lines.flatMap((l) => l.scores);
   const dataMin = Math.min(...allScores);
@@ -427,17 +421,14 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   const yMax = Math.min(100, Math.ceil(dataMax + dataRange * 0.1));
   const yRange = yMax - yMin || 1;
 
-  const xScale = (i: number) => padL + (maxLen === 1 ? chartW / 2 : (i / (maxLen - 1)) * chartW);
-  const yScale = (v: number) => padT + chartH - ((v - yMin) / yRange) * chartH;
-
-  // Generate 3–5 nice Y ticks within the actual data range
+  // Y ticks
   const tickStep = yRange <= 10 ? 2 : yRange <= 30 ? 5 : yRange <= 60 ? 10 : 25;
   const yTicks: number[] = [];
   for (let t = Math.ceil(yMin / tickStep) * tickStep; t <= yMax; t += tickStep) {
     yTicks.push(t);
   }
 
-  // X-axis label indices — evenly spaced
+  // X-axis label indices
   const xLabelIndices: number[] = [];
   const xStep = Math.max(1, Math.floor(maxLen / 5));
   for (let i = 0; i < maxLen; i += xStep) xLabelIndices.push(i);
@@ -445,154 +436,169 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     xLabelIndices.push(maxLen - 1);
   }
 
-  function makePointerHandler(ref: React.RefObject<SVGSVGElement | null>) {
-    return (e: React.PointerEvent) => {
+  // Fixed viewBox — text scales proportionally with chart, stable across devices
+  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>, vw: number, vh: number) => {
+    const padL = 32, padR = 52, padT = 10, padB = 18;
+    const chartW = vw - padL - padR;
+    const chartH = vh - padT - padB;
+
+    const xScale = (i: number) => padL + (maxLen === 1 ? chartW / 2 : (i / (maxLen - 1)) * chartW);
+    const yScale = (v: number) => padT + chartH - ((v - yMin) / yRange) * chartH;
+
+    const onPointerMove = (e: React.PointerEvent) => {
       const svg = ref.current;
       if (!svg) return;
       const rect = svg.getBoundingClientRect();
       const screenX = e.clientX - rect.left;
-      const fraction = (screenX / rect.width - padL / w) / (chartW / w);
+      const fraction = (screenX / rect.width - padL / vw) / (chartW / vw);
       const idx = Math.round(fraction * (maxLen - 1));
       if (idx >= 0 && idx < maxLen) setHoverIdx(idx);
       else setHoverIdx(null);
     };
-  }
 
-  // Resolve vertical collisions for end-of-line labels
-  const labelPositions = lines.map((line) => {
-    const lastScore = line.scores[line.scores.length - 1];
-    return { symbol: line.symbol, color: line.color, y: yScale(lastScore), score: lastScore };
-  });
-  labelPositions.sort((a, b) => a.y - b.y);
-  const labelH = 13;
-  for (let i = 1; i < labelPositions.length; i++) {
-    if (labelPositions[i].y - labelPositions[i - 1].y < labelH) {
-      labelPositions[i].y = labelPositions[i - 1].y + labelH;
+    // Resolve vertical collisions for end-of-line labels
+    const labelPositions = lines.map((line) => {
+      const lastScore = line.scores[line.scores.length - 1];
+      return { symbol: line.symbol, color: line.color, y: yScale(lastScore), score: lastScore };
+    });
+    labelPositions.sort((a, b) => a.y - b.y);
+    const labelH = vh / 28;
+    for (let i = 1; i < labelPositions.length; i++) {
+      if (labelPositions[i].y - labelPositions[i - 1].y < labelH) {
+        labelPositions[i].y = labelPositions[i - 1].y + labelH;
+      }
     }
-  }
 
-  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>) => (
-    <svg
-      ref={ref}
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="xMidYMid meet"
-      style={{ width: '100%', height: '100%' }}
-      className="select-none"
-      onPointerMove={makePointerHandler(ref)}
-      onPointerLeave={() => setHoverIdx(null)}
-    >
-      {/* Grid + Y labels */}
-      {yTicks.map((t) => (
-        <g key={t}>
-          <line x1={padL} x2={w - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
-          <text x={padL - 5} y={yScale(t) + 4} textAnchor="end" fill="#6b7280" fontSize={12}>{t}</text>
-        </g>
-      ))}
+    // Font sizes proportional to viewBox height for stable scaling
+    const fontY = vh * 0.04;
+    const fontX = vh * 0.035;
+    const fontLabel = vh * 0.04;
+    const fontTip = vh * 0.04;
+    const tipLineH = vh * 0.05;
 
-      {/* X-axis time labels */}
-      {xLabelIndices.map((i) => {
-        if (i >= timestamps.length) return null;
-        const d = new Date(timestamps[i]);
-        const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
-        return (
-          <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={10}>
-            {label}
-          </text>
-        );
-      })}
-
-      {/* Lines for each stock */}
-      {lines.map((line) => {
-        const pts = line.scores.map((s, i) => `${xScale(i)},${yScale(s)}`).join(' ');
-        return (
-          <polyline
-            key={line.symbol}
-            points={pts}
-            fill="none"
-            stroke={line.color}
-            strokeWidth={1.5}
-            strokeLinejoin="round"
-            opacity={0.85}
-          />
-        );
-      })}
-
-      {/* End-of-line inline labels */}
-      {labelPositions.map((lp) => (
-        <g key={lp.symbol}>
-          <circle
-            cx={xScale(maxLen - 1)}
-            cy={yScale(lines.find((l) => l.symbol === lp.symbol)!.scores[lines.find((l) => l.symbol === lp.symbol)!.scores.length - 1])}
-            r={3}
-            fill={lp.color}
-          />
-          <text
-            x={xScale(maxLen - 1) + 6}
-            y={lp.y + 5}
-            fill={lp.color}
-            fontSize={11}
-            fontWeight="600"
-          >
-            {lp.symbol}
-          </text>
-        </g>
-      ))}
-
-      {/* Hover crosshair */}
-      {hoverIdx != null && (
-        <line
-          x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
-          y1={padT} y2={h - padB}
-          stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
-        />
-      )}
-
-      {/* Hover dots */}
-      {hoverIdx != null && lines.map((line) => {
-        if (hoverIdx >= line.scores.length) return null;
-        return (
-          <circle
-            key={line.symbol}
-            cx={xScale(hoverIdx)}
-            cy={yScale(line.scores[hoverIdx])}
-            r={3.5}
-            fill={line.color}
-            stroke="#111827"
-            strokeWidth={1}
-          />
-        );
-      })}
-
-      {/* Hover tooltip */}
-      {hoverIdx != null && (() => {
-        const items = lines.filter((l) => hoverIdx < l.scores.length);
-        if (items.length === 0) return null;
-        const tipW = 90;
-        const tipH = 12 + items.length * 14;
-        let tx = xScale(hoverIdx) + 8;
-        if (tx + tipW > w - padR) tx = xScale(hoverIdx) - tipW - 8;
-        return (
-          <g>
-            <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
-            {items.map((item, i) => (
-              <g key={item.symbol}>
-                <circle cx={tx + 10} cy={padT + 10 + i * 14} r={3} fill={item.color} />
-                <text x={tx + 18} y={padT + 13 + i * 14} fill="#e5e7eb" fontSize={12} fontWeight="500">
-                  {item.symbol}
-                </text>
-                <text x={tx + tipW - 6} y={padT + 13 + i * 14} textAnchor="end" fill="#9ca3af" fontSize={12}>
-                  {item.scores[hoverIdx]}
-                </text>
-              </g>
-            ))}
+    return (
+      <svg
+        ref={ref}
+        viewBox={`0 0 ${vw} ${vh}`}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ width: '100%', height: '100%' }}
+        className="select-none"
+        onPointerMove={onPointerMove}
+        onPointerLeave={() => setHoverIdx(null)}
+      >
+        {/* Grid + Y labels */}
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={vw - padR} y1={yScale(t)} y2={yScale(t)} stroke="#374151" strokeWidth={0.5} />
+            <text x={padL - 4} y={yScale(t) + fontY * 0.35} textAnchor="end" fill="#6b7280" fontSize={fontY}>{t}</text>
           </g>
-        );
-      })()}
+        ))}
 
-      {/* Hit area */}
-      <rect x={0} y={0} width={w} height={h} fill="transparent" />
-    </svg>
-  );
+        {/* X-axis time labels */}
+        {xLabelIndices.map((i) => {
+          if (i >= timestamps.length) return null;
+          const d = new Date(timestamps[i]);
+          const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+          return (
+            <text key={i} x={xScale(i)} y={vh - 2} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
+              {label}
+            </text>
+          );
+        })}
+
+        {/* Lines for each stock */}
+        {lines.map((line) => {
+          const pts = line.scores.map((s, i) => `${xScale(i)},${yScale(s)}`).join(' ');
+          return (
+            <polyline
+              key={line.symbol}
+              points={pts}
+              fill="none"
+              stroke={line.color}
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+              opacity={0.85}
+            />
+          );
+        })}
+
+        {/* End-of-line inline labels */}
+        {labelPositions.map((lp) => (
+          <g key={lp.symbol}>
+            <circle
+              cx={xScale(maxLen - 1)}
+              cy={yScale(lines.find((l) => l.symbol === lp.symbol)!.scores[lines.find((l) => l.symbol === lp.symbol)!.scores.length - 1])}
+              r={2.5}
+              fill={lp.color}
+            />
+            <text
+              x={xScale(maxLen - 1) + 5}
+              y={lp.y + fontLabel * 0.35}
+              fill={lp.color}
+              fontSize={fontLabel}
+              fontWeight="600"
+            >
+              {lp.symbol}
+            </text>
+          </g>
+        ))}
+
+        {/* Hover crosshair */}
+        {hoverIdx != null && (
+          <line
+            x1={xScale(hoverIdx)} x2={xScale(hoverIdx)}
+            y1={padT} y2={vh - padB}
+            stroke="#6b7280" strokeWidth={0.5} strokeDasharray="3,2"
+          />
+        )}
+
+        {/* Hover dots */}
+        {hoverIdx != null && lines.map((line) => {
+          if (hoverIdx >= line.scores.length) return null;
+          return (
+            <circle
+              key={line.symbol}
+              cx={xScale(hoverIdx)}
+              cy={yScale(line.scores[hoverIdx])}
+              r={3}
+              fill={line.color}
+              stroke="#111827"
+              strokeWidth={1}
+            />
+          );
+        })}
+
+        {/* Hover tooltip */}
+        {hoverIdx != null && (() => {
+          const items = lines.filter((l) => hoverIdx < l.scores.length);
+          if (items.length === 0) return null;
+          const tipW = vw * 0.12;
+          const tipH = tipLineH + items.length * tipLineH;
+          let tx = xScale(hoverIdx) + 8;
+          if (tx + tipW > vw - padR) tx = xScale(hoverIdx) - tipW - 8;
+          return (
+            <g>
+              <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
+              {items.map((item, i) => (
+                <g key={item.symbol}>
+                  <circle cx={tx + tipW * 0.1} cy={padT + tipLineH * 0.6 + i * tipLineH} r={2.5} fill={item.color} />
+                  <text x={tx + tipW * 0.18} y={padT + tipLineH * 0.78 + i * tipLineH} fill="#e5e7eb" fontSize={fontTip} fontWeight="500">
+                    {item.symbol}
+                  </text>
+                  <text x={tx + tipW - 5} y={padT + tipLineH * 0.78 + i * tipLineH} textAnchor="end" fill="#9ca3af" fontSize={fontTip}>
+                    {item.scores[hoverIdx]}
+                  </text>
+                </g>
+              ))}
+            </g>
+          );
+        })()}
+
+        {/* Hit area */}
+        <rect x={0} y={0} width={vw} height={vh} fill="transparent" />
+      </svg>
+    );
+  };
 
   return (
     <>
@@ -608,7 +614,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           </button>
         </div>
         <div className="flex-1 min-h-0 px-2 pb-3">
-          {chartSvg(svgRef)}
+          {chartSvg(svgRef, 900, 400)}
         </div>
       </div>
 
@@ -632,7 +638,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               </button>
             </div>
             <div className="flex-1 min-h-0 px-3 pb-3">
-              {chartSvg(modalRef)}
+              {chartSvg(modalRef, 900, 400)}
             </div>
           </div>
         </div>
