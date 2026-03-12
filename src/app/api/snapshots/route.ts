@@ -48,9 +48,12 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  // Apply watchlist threshold filter
+  // Apply watchlist threshold filter (overridable via ?threshold=0)
   const settings = await prisma.appSettings.findFirst();
-  const watchlistThreshold = settings?.watchlistThreshold ?? 0;
+  const thresholdParam = req.nextUrl.searchParams.get('threshold');
+  const watchlistThreshold = thresholdParam !== null
+    ? parseInt(thresholdParam, 10)
+    : (settings?.watchlistThreshold ?? 0);
 
   const results = snapshots
     .filter((s): s is NonNullable<typeof s> => s !== null)

@@ -37,11 +37,12 @@ interface Snapshot {
 
 export function DashboardClient() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [allSnapshots, setAllSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [polling, setPolling] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
-  const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({});
+  const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({}); 
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -56,11 +57,18 @@ export function DashboardClient() {
 
   async function fetchSnapshots() {
     try {
-      const res = await fetch('/api/snapshots?history=500');
+      const [res, allRes] = await Promise.all([
+        fetch('/api/snapshots?history=500'),
+        fetch('/api/snapshots?history=500&threshold=0'),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setSnapshots(data);
         setLastRefresh(new Date());
+      }
+      if (allRes.ok) {
+        const allData = await allRes.json();
+        setAllSnapshots(allData);
       }
     } catch (err) {
       console.error('Failed to fetch snapshots:', err);
@@ -175,11 +183,16 @@ export function DashboardClient() {
         <div className="text-center text-gray-500 py-12">Loading signals...</div>
       )}
 
-      {!loading && snapshots.length === 0 && (
+      {!loading && snapshots.length === 0 && allSnapshots.length === 0 && (
         <div className="text-center text-gray-500 py-12">
           <p className="text-lg mb-2">No signals yet</p>
           <p className="text-sm">Trigger a polling cycle from Settings or wait for market hours.</p>
         </div>
+      )}
+
+      {/* Full-width score evolution when no stocks above threshold */}
+      {snapshots.length === 0 && allSnapshots.length > 0 && (
+        <ScoreEvolutionPanel snapshots={allSnapshots} fullSize />
       )}
 
       {/* Hero section — top-scoring stock + score evolution */}
@@ -389,7 +402,7 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
 
 const SCORE_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#a855f7', '#ec4899', '#06b6d4', '#f43e5c'];
 
-function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
+function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; fullSize?: boolean }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const modalRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -636,7 +649,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
 
   return (
     <>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col">
+      <div className={`bg-gray-900 border border-gray-800 rounded-xl overflow-hidden flex flex-col ${fullSize ? 'h-[calc(100vh-10rem)]' : ''}`}>
         <div className="flex items-center justify-between px-4 pt-3 pb-1">
           <h3 className="text-base font-semibold text-gray-300">Score Evolution</h3>
           <button
