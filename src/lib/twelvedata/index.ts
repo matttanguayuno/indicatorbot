@@ -1,4 +1,4 @@
-export { getTimeSeries, getQuote, getProfile, getStatistics, searchSymbols, isQuotaExhausted, getQuotaResumeTime } from './client';
+export { getTimeSeries, getQuote, getProfile, getStatistics, searchSymbols, isQuotaExhausted, getQuotaResumeTime, wouldExceedRateLimit } from './client';
 export { mapTwelveDataCandles, deriveQuoteFromCandles, mapTwelveDataQuote, mapTwelveDataProfile } from './mappers';
 export type {
   TwelveDataTimeSeries,

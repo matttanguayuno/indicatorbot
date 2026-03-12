@@ -1,6 +1,6 @@
 /**
  * Twelve Data API client — sole data source for quotes, candles, profiles, and search.
- * Free tier: 8 API credits/min, 800/day. Each symbol in a batch = 1 credit.
+ * Grow plan: 55 API credits/min, no daily cap. Each symbol in a batch = 1 credit.
  * Symbol search is free (0 credits).
  */
 
@@ -17,18 +17,36 @@ const BASE_URL = 'https://api.twelvedata.com';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 2000;
 
-// Global backoff: stop all API calls until midnight UTC after hitting daily limit.
-// Per-minute rate limiting uses a shorter backoff.
+// Per-minute rate-limit backoff (Grow plan: 55 credits/min, no daily cap).
+// On 429 we back off for 60s, NOT until midnight.
+const RATE_LIMIT_BACKOFF_MS = 60_000;
 let quotaExhaustedUntil = 0;
 
-/** Compute midnight UTC of the next day. */
-function nextMidnightUTC(): number {
-  const now = new Date();
-  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-  return tomorrow.getTime();
+// ── Per-minute credit tracker ──
+const CREDITS_PER_MINUTE = 55;
+const MINUTE_MS = 60_000;
+let creditWindowStart = 0;
+let creditsUsedInWindow = 0;
+
+/** Record that `n` credits were consumed and return true if we're still under the limit. */
+function recordCredits(n: number): boolean {
+  const now = Date.now();
+  if (now - creditWindowStart >= MINUTE_MS) {
+    creditWindowStart = now;
+    creditsUsedInWindow = 0;
+  }
+  creditsUsedInWindow += n;
+  return creditsUsedInWindow <= CREDITS_PER_MINUTE;
 }
 
-/** Check whether Twelve Data credits are currently exhausted. */
+/** Check whether making `n` more credit calls would exceed the per-minute cap. */
+export function wouldExceedRateLimit(n: number): boolean {
+  const now = Date.now();
+  if (now - creditWindowStart >= MINUTE_MS) return false;
+  return creditsUsedInWindow + n > CREDITS_PER_MINUTE;
+}
+
+/** Check whether Twelve Data credits are currently rate-limited. */
 export function isQuotaExhausted(): boolean {
   return Date.now() < quotaExhaustedUntil;
 }
@@ -57,10 +75,16 @@ export async function getTimeSeries(
 ): Promise<Map<string, TwelveDataTimeSeries>> {
   if (symbols.length === 0) return new Map();
 
-  // Skip if we're in global quota backoff
+  // Skip if we're in rate-limit backoff
   if (Date.now() < quotaExhaustedUntil) {
-    const waitMin = Math.round((quotaExhaustedUntil - Date.now()) / 60000);
-    console.log(`[TwelveData] Quota backoff active, skipping candle fetch (${waitMin}m remaining)`);
+    const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
+    console.log(`[TwelveData] Rate-limit backoff active, skipping candle fetch (${waitSec}s remaining)`);
+    return new Map();
+  }
+
+  // Pre-check: would this batch exceed our per-minute budget?
+  if (wouldExceedRateLimit(symbols.length)) {
+    console.log(`[TwelveData] Skipping candle fetch for ${symbols.length} symbols — would exceed ${CREDITS_PER_MINUTE} credits/min`);
     return new Map();
   }
 
@@ -78,8 +102,8 @@ export async function getTimeSeries(
       const res = await fetch(url.toString());
 
       if (res.status === 429) {
-        quotaExhaustedUntil = nextMidnightUTC();
-        console.warn(`[TwelveData] Daily quota exhausted — backing off until ${new Date(quotaExhaustedUntil).toISOString()}`);
+        quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+        console.warn(`[TwelveData] Rate limited — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
         return new Map();
       }
 
@@ -114,11 +138,14 @@ export async function getTimeSeries(
       if (data.code && data.status === 'error') {
         console.error(`[TwelveData] API error: ${data.message}`);
         if (data.code === 429) {
-          quotaExhaustedUntil = nextMidnightUTC();
-          console.warn(`[TwelveData] Daily quota exhausted (response body) — backing off until ${new Date(quotaExhaustedUntil).toISOString()}`);
+          quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+          console.warn(`[TwelveData] Rate limited (response body) — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
         }
         return new Map();
       }
+
+      // Record credits: 1 per symbol in the batch
+      recordCredits(symbols.length);
 
       const result = new Map<string, TwelveDataTimeSeries>();
 
@@ -155,10 +182,16 @@ export async function getTimeSeries(
  * Generic fetch helper with retry for Twelve Data endpoints.
  */
 async function twelveDataFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T | null> {
-  // Skip if we're in global quota backoff
+  // Skip if we're in rate-limit backoff
   if (Date.now() < quotaExhaustedUntil) {
-    const waitMin = Math.round((quotaExhaustedUntil - Date.now()) / 60000);
-    console.log(`[TwelveData] Quota backoff active, skipping ${endpoint} (${waitMin}m remaining)`);
+    const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
+    console.log(`[TwelveData] Rate-limit backoff active, skipping ${endpoint} (${waitSec}s remaining)`);
+    return null;
+  }
+
+  // Pre-check: would this call exceed our per-minute budget?
+  if (wouldExceedRateLimit(1)) {
+    console.log(`[TwelveData] Skipping ${endpoint} — would exceed ${CREDITS_PER_MINUTE} credits/min`);
     return null;
   }
 
@@ -173,8 +206,8 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
     try {
       const res = await fetch(url.toString());
       if (res.status === 429) {
-        quotaExhaustedUntil = nextMidnightUTC();
-        console.warn(`[TwelveData] Daily quota exhausted on ${endpoint} — backing off until ${new Date(quotaExhaustedUntil).toISOString()}`);
+        quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+        console.warn(`[TwelveData] Rate limited on ${endpoint} — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
         return null;
       }
       if (!res.ok) {
@@ -185,12 +218,13 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
         }
         return null;
       }
+      recordCredits(1);
       const data = await res.json();
       if (data.code && data.status === 'error') {
         console.error(`[TwelveData] API error on ${endpoint}: ${data.message}`);
         if (data.code === 429) {
-          quotaExhaustedUntil = nextMidnightUTC();
-          console.warn(`[TwelveData] Daily quota exhausted on ${endpoint} (response body) — backing off until ${new Date(quotaExhaustedUntil).toISOString()}`);
+          quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+          console.warn(`[TwelveData] Rate limited on ${endpoint} (response body) — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
         }
         return null;
       }

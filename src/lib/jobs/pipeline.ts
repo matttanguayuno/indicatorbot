@@ -93,25 +93,36 @@ async function processTicker(
       return { symbol, success: false, error: 'Quote price is 0' };
     }
 
-    // 2) Fetch company profile — source-dependent (cached 24h)
+    // 2) Fetch company profile — use DB-persisted data first to avoid burning credits.
+    //    Only call the API when the ticker has never had profile data populated.
     let profile: NormalizedProfile | null = null;
+
+    // Check in-memory cache first
     const cachedProfile = profileCache.get(symbol);
     if (cachedProfile && Date.now() - cachedProfile.fetchedAt < PROFILE_CACHE_TTL_MS) {
       profile = cachedProfile.profile;
-    } else if (dataSource === 'twelvedata') {
-      const [rawProfile, rawStats] = await Promise.all([
-        getTDProfile(symbol),
-        getStatistics(symbol),
-      ]);
-      if (rawProfile) {
-        profile = mapTwelveDataProfile(rawProfile, rawStats);
-        profileCache.set(symbol, { profile, fetchedAt: Date.now() });
-      }
     } else {
-      const rawProfile = await getCompanyProfile(symbol);
-      if (rawProfile) {
-        profile = mapFHProfile(rawProfile);
+      // Check DB — profile data is persisted on the Ticker row
+      const tickerRow = await prisma.ticker.findUnique({ where: { id: tickerId }, select: { name: true, sector: true } });
+      if (tickerRow?.name) {
+        // DB already has profile info — reuse it (0 credits)
+        profile = { name: tickerRow.name, sector: tickerRow.sector ?? undefined } as NormalizedProfile;
         profileCache.set(symbol, { profile, fetchedAt: Date.now() });
+      } else if (dataSource === 'twelvedata') {
+        const [rawProfile, rawStats] = await Promise.all([
+          getTDProfile(symbol),
+          getStatistics(symbol),
+        ]);
+        if (rawProfile) {
+          profile = mapTwelveDataProfile(rawProfile, rawStats);
+          profileCache.set(symbol, { profile, fetchedAt: Date.now() });
+        }
+      } else {
+        const rawProfile = await getCompanyProfile(symbol);
+        if (rawProfile) {
+          profile = mapFHProfile(rawProfile);
+          profileCache.set(symbol, { profile, fetchedAt: Date.now() });
+        }
       }
     }
 
@@ -363,8 +374,8 @@ async function maybeCreateAlert(
 }
 
 // ── Candle cache: avoid burning Twelve Data credits every poll cycle ──
-// Free tier = 800 credits/day. At 10 tickers polled every 60s that's 600/hr.
-// By caching candles for 5 minutes we cut credit usage ~5×.
+// Grow plan = 55 credits/min, no daily cap. At 12 tickers polled every 60s
+// that's 12 credits per candle refresh. 5-min cache keeps average to ~2.4/min.
 const CANDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 let cachedCandleMap = new Map<string, NormalizedCandle[]>();
 let cachedSeriesMap = new Map<string, TwelveDataTimeSeries>();
@@ -397,7 +408,7 @@ export async function runPollingCycle(): Promise<{
   if (dataSource === 'twelvedata' && isQuotaExhausted()) {
     dataSource = 'finnhub';
     autoFallback = true;
-    console.warn('[Pipeline] ⚠️ Twelve Data credits exhausted — auto-switching to Finnhub for this cycle');
+    console.warn('[Pipeline] ⚠️ Twelve Data rate-limited — auto-switching to Finnhub for this cycle');
   }
 
   // Load dynamic scoring rules
@@ -435,22 +446,16 @@ export async function runPollingCycle(): Promise<{
     } else {
       try {
         const symbols = tickers.map((t: { symbol: string }) => t.symbol);
-        // Batch: up to 8 symbols per call (free-tier credit limit)
-        for (let i = 0; i < symbols.length; i += 8) {
-          const batch = symbols.slice(i, i + 8);
-          console.log(`[Pipeline] Fetching Twelve Data candles for: ${batch.join(', ')}`);
-          const result = await getTimeSeries(batch, '1min', 90);
-          console.log(`[Pipeline] Twelve Data returned data for: ${[...result.keys()].join(', ') || '(none)'}`);
-          for (const [sym, series] of result) {
-            const mapped = mapTwelveDataCandles(series);
-            console.log(`[Pipeline] ${sym}: ${mapped.length} candles mapped`);
-            candleMap.set(sym, mapped);
-            seriesMap.set(sym, series);
-          }
-          // Wait between batches to respect rate limits
-          if (i + 8 < symbols.length) {
-            await new Promise((r) => setTimeout(r, 15_000));
-          }
+        // Grow plan: send all symbols in one batch (cost = 1 credit per symbol regardless).
+        // Single request avoids inter-batch delay and reduces HTTP overhead.
+        console.log(`[Pipeline] Fetching Twelve Data candles for: ${symbols.join(', ')}`);
+        const result = await getTimeSeries(symbols, '1min', 90);
+        console.log(`[Pipeline] Twelve Data returned data for: ${[...result.keys()].join(', ') || '(none)'}`);
+        for (const [sym, series] of result) {
+          const mapped = mapTwelveDataCandles(series);
+          console.log(`[Pipeline] ${sym}: ${mapped.length} candles mapped`);
+          candleMap.set(sym, mapped);
+          seriesMap.set(sym, series);
         }
         console.log(`[Pipeline] Fetched candles for ${candleMap.size}/${symbols.length} symbols`);
         if (candleMap.size === 0) {
@@ -499,10 +504,10 @@ export async function runPollingCycle(): Promise<{
     succeeded,
     failed,
     results,
-    dataSource: autoFallback ? `finnhub (auto-fallback, Twelve Data credits exhausted)` : dataSource,
+    dataSource: autoFallback ? `finnhub (auto-fallback, Twelve Data rate-limited)` : dataSource,
     candlesAvailable: candleMap.size,
     candleError: autoFallback
-      ? 'Twelve Data daily credits exhausted — using Finnhub as fallback (no candle data)'
+      ? 'Twelve Data rate-limited — using Finnhub as fallback temporarily (no candle data)'
       : candleError,
   };
 }

@@ -2,7 +2,7 @@
  * GET /api/chart/[symbol] — on-demand candle data for charting.
  * Supports ?interval=1min|5min|15min|30min|1h|4h&range=1H|1D|1W|1M|Q|1Y|YTD|Max
  *
- * Primary source: Twelve Data (800 credits/day free tier).
+ * Primary source: Twelve Data (Grow plan: 55 credits/min).
  * Fallback: builds a simple price chart from stored SignalSnapshot history.
  * (Finnhub free tier does NOT support candle data — returns 403.)
  */

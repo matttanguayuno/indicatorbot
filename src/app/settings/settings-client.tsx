@@ -156,14 +156,14 @@ export function SettingsClient() {
           </div>
           {settings.dataSource === 'twelvedata' && (
             <p className="text-xs text-gray-500 -mt-2">
-              Uses 1-min candles for 5m/15m/1h momentum, RVOL, and VWAP. Free tier: 8 symbols/min.
+              Uses 1-min candles for 5m/15m/1h momentum, RVOL, and VWAP. Grow plan: 55 credits/min.
             </p>
           )}
           {settings.dataSource === 'twelvedata' && settings.twelveDataExhausted && (
             <div className="bg-yellow-900/40 border border-yellow-700 rounded p-2.5 -mt-1">
-              <p className="text-xs text-yellow-300 font-semibold">⚠ Twelve Data credits exhausted — auto-fallback to Finnhub active</p>
+              <p className="text-xs text-yellow-300 font-semibold">⚠ Twelve Data rate-limited — auto-fallback to Finnhub active</p>
               <p className="text-xs text-yellow-400/80 mt-0.5">
-                Polling is using Finnhub as a temporary fallback. Charts will use Finnhub candle data until Twelve Data resumes.
+                Polling is using Finnhub as a temporary fallback until the per-minute rate limit resets.
                 {settings.twelveDataResumesAt && (
                   <> Estimated resume: {new Date(settings.twelveDataResumesAt).toLocaleTimeString()}.</>
                 )}
