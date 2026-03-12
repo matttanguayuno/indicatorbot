@@ -5,8 +5,6 @@
  * and scrape the top N ticker symbols from the results table.
  */
 
-import type { Browser, Page } from 'playwright';
-
 export interface ScrapedTicker {
   symbol: string;
   name: string;
@@ -26,10 +24,14 @@ export async function scrapeWebullScreener(topN: number): Promise<ScrapedTicker[
     throw new Error('Missing WEBULL_EMAIL, WEBULL_PASSWORD, or WEBULL_PIN env vars');
   }
 
-  let browser: Browser | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let browser: any = null;
 
   try {
-    const { chromium } = await import('playwright');
+    // Dynamic import hidden from Turbopack static analysis to prevent
+    // playwright from being bundled into the Edge Instrumentation bundle.
+    const mod = 'playwright';
+    const { chromium } = await (Function('m', 'return import(m)')(mod) as Promise<any>);
     browser = await chromium.launch({
       headless: true,
       args: [
@@ -71,7 +73,7 @@ export async function scrapeWebullScreener(topN: number): Promise<ScrapedTicker[
   }
 }
 
-async function login(page: Page, email: string, password: string, pin: string) {
+async function login(page: any, email: string, password: string, pin: string) {
   await page.goto('https://app.webull.com/account', {
     waitUntil: 'networkidle',
     timeout: 30_000,
@@ -124,7 +126,7 @@ async function login(page: Page, email: string, password: string, pin: string) {
   console.log('[Screener] Login completed');
 }
 
-async function loadPreset(page: Page, presetName: string) {
+async function loadPreset(page: any, presetName: string) {
   // Look for "My Screeners" tab or similar
   const myScreenersTab = page.locator('text=/my screener|saved|custom/i').first();
   if (await myScreenersTab.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -145,7 +147,7 @@ async function loadPreset(page: Page, presetName: string) {
   console.log(`[Screener] Loaded preset "${presetName}"`);
 }
 
-async function scrapeTable(page: Page, topN: number): Promise<ScrapedTicker[]> {
+async function scrapeTable(page: any, topN: number): Promise<ScrapedTicker[]> {
   const tickers: ScrapedTicker[] = [];
   const seen = new Set<string>();
 
