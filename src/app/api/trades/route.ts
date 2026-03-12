@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { symbol, side, quantity, price, notes, screenshot, tradedAt } = body;
+  const { symbol, side, quantity, price, notes, tradedAt } = body;
 
   if (!symbol || typeof symbol !== 'string') {
     return NextResponse.json({ error: 'symbol is required' }, { status: 400 });
@@ -45,13 +45,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Find the nearest snapshot to the trade time for score linkage
+  const snapshotWhere: { symbol: string; timestamp?: { lte: Date } } = { symbol: upper };
+  if (tradedAt) snapshotWhere.timestamp = { lte: tradeTime };
+
   const nearestSnapshot = await prisma.signalSnapshot.findFirst({
-    where: { symbol: upper },
-    orderBy: {
-      timestamp: 'desc',
-    },
-    // Get the most recent snapshot at or before trade time
-    ...(tradedAt ? { where: { symbol: upper, timestamp: { lte: tradeTime } } } : {}),
+    where: snapshotWhere,
+    orderBy: { timestamp: 'desc' },
     select: { id: true, signalScore: true },
   });
 
@@ -64,7 +63,6 @@ export async function POST(req: NextRequest) {
       price,
       total,
       notes: notes || null,
-      screenshot: screenshot || null,
       snapshotId: nearestSnapshot?.id ?? null,
       scoreAtTrade: nearestSnapshot?.signalScore ?? null,
       tradedAt: tradeTime,
