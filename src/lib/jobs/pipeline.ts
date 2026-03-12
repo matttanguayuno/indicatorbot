@@ -373,10 +373,10 @@ async function maybeCreateAlert(
   console.log(`[Alert] Created alert for ${symbol} (score: ${score})`);
 }
 
-// ── Candle cache: avoid burning Twelve Data credits every poll cycle ──
-// Grow plan = 55 credits/min, no daily cap. At 12 tickers polled every 60s
-// that's 12 credits per candle refresh. 5-min cache keeps average to ~2.4/min.
-const CANDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+// ── Candle cache: refetch every poll cycle for real-time data ──
+// Grow plan = 55 credits/min, no daily cap. 12 tickers = 12 credits/min,
+// well within budget. Fetch fresh candles every cycle for up-to-date signals.
+const CANDLE_REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute (matches polling interval)
 let cachedCandleMap = new Map<string, NormalizedCandle[]>();
 let cachedSeriesMap = new Map<string, TwelveDataTimeSeries>();
 let lastCandleFetchTime = 0;
