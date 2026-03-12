@@ -1,9 +1,10 @@
 /**
- * GET /api/chart/[symbol] — on-demand candle data for charting.
+ * GET /api/chart/[symbol] — candle data for charting.
  * Supports ?interval=1min|5min|15min|30min|1h|4h&range=1H|1D|1W|1M|Q|1Y|YTD|Max
  *
- * Primary source: Twelve Data (Grow plan: 55 credits/min).
- * Fallback: builds a simple price chart from stored SignalSnapshot history.
+ * Short ranges (1H, 1D): uses stored SignalSnapshot history from DB (0 credits).
+ *   The polling pipeline writes a price point every ~60s, so the DB has live data.
+ * Longer ranges (1W+): fetches from Twelve Data API (1 credit, cached 15 min).
  * (Finnhub free tier does NOT support candle data — returns 403.)
  */
 
@@ -15,6 +16,7 @@ import { mapTwelveDataCandles } from '@/lib/twelvedata/mappers';
 interface CachedChart {
   data: ChartCandle[];
   fetchedAt: number;
+  ttl: number;
 }
 
 interface ChartCandle {
@@ -212,9 +214,9 @@ export async function GET(
 
   const cacheKey = `${upper}:${interval}:${range}`;
 
-  // Check cache
+  // Check in-memory cache (applies to both snapshot and API-sourced data)
   const cached = chartCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.fetchedAt < cached.ttl) {
     return NextResponse.json({
       symbol: upper, candles: cached.data, cached: true, interval, range,
       source: 'cache', candleCount: cached.data.length,
@@ -224,12 +226,25 @@ export async function GET(
     });
   }
 
-  // Always try Twelve Data first — chart is just 1 credit per request
-  let candles = await fetchTwelveDataCandles(upper, interval, range);
-  let source = 'twelvedata';
+  let candles: ChartCandle[] = [];
+  let source = 'snapshot-history';
 
-  // If TD fails, fall back to snapshot-based price history from our DB
-  if (candles.length === 0) {
+  // Short ranges (1H, 1D): use DB snapshot history — no API credits needed.
+  // The polling pipeline writes a price point every ~60s so DB data is live.
+  const shortRange = range === '1H' || range === '1D';
+
+  if (shortRange) {
+    candles = await fetchSnapshotHistory(upper, interval, range);
+  }
+
+  // Longer ranges or empty snapshot result: fetch from Twelve Data API (cached 15 min)
+  if (candles.length === 0 && !shortRange) {
+    candles = await fetchTwelveDataCandles(upper, interval, range);
+    source = 'twelvedata';
+  }
+
+  // Final fallback for any range: try snapshots if API failed
+  if (candles.length === 0 && !shortRange) {
     candles = await fetchSnapshotHistory(upper, interval, range);
     source = 'snapshot-history';
   }
@@ -241,14 +256,15 @@ export async function GET(
     );
   }
 
-  // Cache result
-  chartCache.set(cacheKey, { data: candles, fetchedAt: Date.now() });
+  // Cache result — short TTL for DB-sourced data, longer for API-sourced
+  const ttl = source === 'snapshot-history' ? 60_000 : CACHE_TTL_MS; // 1 min vs 15 min
+  chartCache.set(cacheKey, { data: candles, fetchedAt: Date.now(), ttl });
 
   // Evict stale entries periodically
   if (chartCache.size > 100) {
     const now = Date.now();
     for (const [key, entry] of chartCache) {
-      if (now - entry.fetchedAt > CACHE_TTL_MS * 2) chartCache.delete(key);
+      if (now - entry.fetchedAt > entry.ttl * 2) chartCache.delete(key);
     }
   }
 
