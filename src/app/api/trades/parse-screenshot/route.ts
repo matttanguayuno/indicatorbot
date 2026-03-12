@@ -7,7 +7,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai: OpenAI | null = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
 
 const SYSTEM_PROMPT = `You are a trade screenshot parser. The user will send you a screenshot of a trade confirmation, order fill, or position from a brokerage app (e.g. Webull, Robinhood, Fidelity, TD Ameritrade, IBKR, etc).
 
@@ -57,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 300,
       messages: [
