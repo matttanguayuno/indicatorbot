@@ -114,8 +114,6 @@ export function DashboardClient() {
   useEffect(() => {
     // Always load existing data
     fetchSnapshots();
-    // Poll once on load if market is open
-    if (isMarketOpen()) runPoll();
 
     // Check market status and auto-poll at configured interval
     let pollTimer: ReturnType<typeof setInterval>;
@@ -131,11 +129,11 @@ export function DashboardClient() {
         }
       } catch { /* default 60s */ }
 
-      // Auto-poll only during market hours
+      // Auto-refresh display data (server-side instrumentation handles the actual polling)
       pollTimer = setInterval(() => {
         const open = isMarketOpen();
         setMarketOpen(open);
-        if (open) runPoll();
+        if (open) fetchSnapshots();
       }, intervalSec * 1000);
 
       // Refresh display every 30s during market hours

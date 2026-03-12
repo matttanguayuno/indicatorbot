@@ -54,12 +54,19 @@ export async function register() {
     }
   }
 
-  // Start the scheduler after a short delay to let the server fully initialize
+  // Start the scheduler aligned to clock minutes so API credit usage
+  // is predictable and doesn't straddle Twelve Data's per-minute windows.
   const intervalMs = await getPollingInterval();
   console.log(`[Server Poll] Scheduler started (interval: ${intervalMs / 1000}s, market hours only)`);
 
   // Initial poll after 10s delay
   setTimeout(tick, 10_000);
-  // Recurring poll at the configured interval
-  setInterval(tick, intervalMs);
+
+  // Align recurring polls to the next clock minute boundary
+  const now = Date.now();
+  const msUntilNextMinute = 60_000 - (now % 60_000);
+  setTimeout(() => {
+    tick(); // fire at the top of the minute
+    setInterval(tick, intervalMs); // then every interval, aligned
+  }, msUntilNextMinute);
 }
