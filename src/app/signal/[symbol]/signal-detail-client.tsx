@@ -477,6 +477,14 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               ))}
             </div>
           </div>
+
+          {/* Score Evolution Chart */}
+          {history.length > 1 && (
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+              <h2 className="text-base font-semibold text-gray-400 mb-2">Score Evolution</h2>
+              <ScoreHistoryChart history={history} />
+            </div>
+          )}
         </div>
 
         {/* Sidebar — right col: Radar chart + Score Breakdown */}
@@ -574,14 +582,6 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Score Evolution Chart */}
-      {history.length > 1 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-          <h2 className="text-base font-semibold text-gray-400 mb-2">Score Evolution</h2>
-          <ScoreHistoryChart history={history} />
         </div>
       )}
 
