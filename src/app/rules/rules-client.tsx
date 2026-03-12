@@ -308,7 +308,7 @@ export function RulesClient() {
       </div>
 
       {/* Sections — masonry layout */}
-      <div className="columns-1 lg:columns-2 xl:columns-3 gap-4 space-y-4">
+      <div className="columns-1 lg:columns-2 xl:columns-3 gap-6 space-y-6">
       {SECTIONS.map((section) => {
         const isCollapsed = collapsed[section.title];
         const sectionHasChanges = section.fields.some(
@@ -323,8 +323,8 @@ export function RulesClient() {
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-800/50 transition-colors text-left"
             >
               <div className="flex items-center gap-2">
-                <span>{section.icon}</span>
-                <span className="text-sm font-semibold text-gray-200">{section.title}</span>
+                <span className="text-lg">{section.icon}</span>
+                <span className="text-base font-bold text-gray-100">{section.title}</span>
                 {sectionHasChanges && (
                   <span className="w-2 h-2 rounded-full bg-blue-400" title="Modified" />
                 )}
