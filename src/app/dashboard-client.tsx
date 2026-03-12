@@ -394,8 +394,25 @@ const SCORE_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#a855f7', '#e
 function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const modalRef = useRef<SVGSVGElement>(null);
+  const modalContainerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [mSize, setMSize] = useState<[number, number]>([900, 500]);
+
+  // ResizeObserver for modal — viewBox matches container pixels so chart
+  // fills available space (portrait or landscape) and fonts stay consistent
+  useEffect(() => {
+    if (!expanded) return;
+    const el = modalContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) setMSize([w, h]);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expanded]);
 
   // Build multi-line data: each stock with its scoreHistory
   const lines = snapshots
@@ -436,9 +453,13 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     xLabelIndices.push(maxLen - 1);
   }
 
-  // Fixed viewBox — text scales proportionally with chart, stable across devices
-  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>, vw: number, vh: number) => {
-    const padL = 32, padR = 52, padT = 10, padB = 18;
+  // pixelMode: when true, viewBox = CSS pixels so font sizes = real screen pixels.
+  // Used for fullscreen modal. When false, fixed viewBox with proportional fonts (inline card).
+  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>, vw: number, vh: number, pixelMode: boolean) => {
+    const padL = pixelMode ? 44 : 32;
+    const padR = pixelMode ? 64 : 52;
+    const padT = pixelMode ? 12 : 10;
+    const padB = pixelMode ? 24 : 18;
     const chartW = vw - padL - padR;
     const chartH = vh - padT - padB;
 
@@ -456,25 +477,27 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
       else setHoverIdx(null);
     };
 
+    // Font sizes: pixelMode = CSS pixels, otherwise proportional to viewBox height
+    const fontY = pixelMode ? 12 : vh * 0.04;
+    const fontX = pixelMode ? 10 : vh * 0.035;
+    const fontLabel = pixelMode ? 12 : vh * 0.04;
+    const fontTip = pixelMode ? 12 : vh * 0.04;
+    const tipLineH = pixelMode ? 18 : vh * 0.05;
+    const labelH = pixelMode ? 16 : vh / 28;
+    const dotR = pixelMode ? 3 : 2.5;
+    const strokeW = pixelMode ? 1.5 : 1.5;
+
     // Resolve vertical collisions for end-of-line labels
     const labelPositions = lines.map((line) => {
       const lastScore = line.scores[line.scores.length - 1];
       return { symbol: line.symbol, color: line.color, y: yScale(lastScore), score: lastScore };
     });
     labelPositions.sort((a, b) => a.y - b.y);
-    const labelH = vh / 28;
     for (let i = 1; i < labelPositions.length; i++) {
       if (labelPositions[i].y - labelPositions[i - 1].y < labelH) {
         labelPositions[i].y = labelPositions[i - 1].y + labelH;
       }
     }
-
-    // Font sizes proportional to viewBox height for stable scaling
-    const fontY = vh * 0.04;
-    const fontX = vh * 0.035;
-    const fontLabel = vh * 0.04;
-    const fontTip = vh * 0.04;
-    const tipLineH = vh * 0.05;
 
     return (
       <svg
@@ -500,7 +523,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           const d = new Date(timestamps[i]);
           const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
           return (
-            <text key={i} x={xScale(i)} y={vh - 2} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
+            <text key={i} x={xScale(i)} y={vh - 4} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
               {label}
             </text>
           );
@@ -515,7 +538,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               points={pts}
               fill="none"
               stroke={line.color}
-              strokeWidth={1.5}
+              strokeWidth={strokeW}
               strokeLinejoin="round"
               opacity={0.85}
             />
@@ -528,7 +551,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
             <circle
               cx={xScale(maxLen - 1)}
               cy={yScale(lines.find((l) => l.symbol === lp.symbol)!.scores[lines.find((l) => l.symbol === lp.symbol)!.scores.length - 1])}
-              r={2.5}
+              r={dotR}
               fill={lp.color}
             />
             <text
@@ -560,7 +583,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               key={line.symbol}
               cx={xScale(hoverIdx)}
               cy={yScale(line.scores[hoverIdx])}
-              r={3}
+              r={dotR + 0.5}
               fill={line.color}
               stroke="#111827"
               strokeWidth={1}
@@ -572,7 +595,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
         {hoverIdx != null && (() => {
           const items = lines.filter((l) => hoverIdx < l.scores.length);
           if (items.length === 0) return null;
-          const tipW = vw * 0.12;
+          const tipW = pixelMode ? 110 : vw * 0.12;
           const tipH = tipLineH + items.length * tipLineH;
           let tx = xScale(hoverIdx) + 8;
           if (tx + tipW > vw - padR) tx = xScale(hoverIdx) - tipW - 8;
@@ -581,11 +604,11 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
               {items.map((item, i) => (
                 <g key={item.symbol}>
-                  <circle cx={tx + tipW * 0.1} cy={padT + tipLineH * 0.6 + i * tipLineH} r={2.5} fill={item.color} />
-                  <text x={tx + tipW * 0.18} y={padT + tipLineH * 0.78 + i * tipLineH} fill="#e5e7eb" fontSize={fontTip} fontWeight="500">
+                  <circle cx={tx + 10} cy={padT + tipLineH * 0.6 + i * tipLineH} r={dotR} fill={item.color} />
+                  <text x={tx + 18} y={padT + tipLineH * 0.78 + i * tipLineH} fill="#e5e7eb" fontSize={fontTip} fontWeight="500">
                     {item.symbol}
                   </text>
-                  <text x={tx + tipW - 5} y={padT + tipLineH * 0.78 + i * tipLineH} textAnchor="end" fill="#9ca3af" fontSize={fontTip}>
+                  <text x={tx + tipW - 6} y={padT + tipLineH * 0.78 + i * tipLineH} textAnchor="end" fill="#9ca3af" fontSize={fontTip}>
                     {item.scores[hoverIdx]}
                   </text>
                 </g>
@@ -614,7 +637,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
           </button>
         </div>
         <div className="flex-1 min-h-0 px-2 pb-3">
-          {chartSvg(svgRef, 900, 400)}
+          {chartSvg(svgRef, 900, 400, false)}
         </div>
       </div>
 
@@ -637,8 +660,8 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
                 ✕
               </button>
             </div>
-            <div className="flex-1 min-h-0 px-3 pb-3">
-              {chartSvg(modalRef, 900, 400)}
+            <div ref={modalContainerRef} className="flex-1 min-h-0 px-3 pb-3">
+              {chartSvg(modalRef, mSize[0], mSize[1], true)}
             </div>
           </div>
         </div>
