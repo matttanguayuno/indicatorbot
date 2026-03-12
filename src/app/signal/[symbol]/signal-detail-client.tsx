@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
 import { RadarChart } from '@/components/radar-chart';
 import { Sparkline } from '@/components/sparkline';
@@ -118,6 +119,38 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const prevSymbol = currentIdx > 0 ? tickerList[currentIdx - 1] : null;
   const nextSymbol = currentIdx >= 0 && currentIdx < tickerList.length - 1 ? tickerList[currentIdx + 1] : null;
 
+  // Mobile swipe navigation between stocks
+  const router = useRouter();
+  const swipeRef = useRef<{ startX: number; startY: number } | null>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return;
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      swipeRef.current = { startX: t.clientX, startY: t.clientY };
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!swipeRef.current) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - swipeRef.current.startX;
+      const dy = t.clientY - swipeRef.current.startY;
+      swipeRef.current = null;
+      // Only trigger if horizontal swipe is dominant and > 60px
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx < 0 && nextSymbol) router.push(`/signal/${nextSymbol}`);
+        if (dx > 0 && prevSymbol) router.push(`/signal/${prevSymbol}`);
+      }
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [nextSymbol, prevSymbol, router]);
+
   // Measure chart container so viewBox matches rendered size (prevents font scaling)
   // Depends on chartLoading so it re-runs once the chart div actually mounts
   useEffect(() => {
@@ -191,7 +224,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const gapUpPct = latest.gapUpPct ?? latest.pctChange1h;
 
   return (
-    <div className="pt-4 space-y-4">
+    <div ref={pageRef} className="pt-4 space-y-4">
       {/* Navigation: Back + Prev/Next */}
       <div className="flex items-center justify-between">
         <Link href="/" className="text-blue-400 text-sm hover:underline">← Back</Link>

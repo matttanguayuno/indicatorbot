@@ -36,10 +36,10 @@ export function PriceChart({
   const zEnd = Math.ceil(zoom[1] * (candles.length - 1));
   const visCandles = candles.slice(zStart, Math.max(zStart + 2, zEnd + 1));
 
-  const padLeft = 52;
+  const padLeft = 60;
   const padRight = 8;
   const padTop = 10;
-  const padBottom = 22;
+  const padBottom = 26;
   const volHeight = 32;
 
   const chartW = width - padLeft - padRight;
@@ -201,8 +201,8 @@ export function PriceChart({
   const hIdx = Math.min(hoverIndex ?? 0, visCandles.length - 1);
   const hx = x(hIdx);
   const hy = yPrice(closes[hIdx]);
-  const tipW = 70;
-  const tipH = 28;
+  const tipW = 80;
+  const tipH = 34;
   let tipX = hx - tipW / 2;
   if (tipX < padLeft) tipX = padLeft;
   if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
@@ -279,7 +279,7 @@ export function PriceChart({
           y={t.y + 3}
           textAnchor="end"
           fill="#9ca3af"
-          fontSize={11}
+          fontSize={13}
         >
           ${fmtPrice(t.price)}
         </text>
@@ -290,10 +290,10 @@ export function PriceChart({
         <text
           key={i}
           x={t.x}
-          y={height - padBottom + 13}
+          y={height - padBottom + 15}
           textAnchor="middle"
           fill="#6b7280"
-          fontSize={9}
+          fontSize={11}
         >
           {t.label}
         </text>
@@ -312,7 +312,7 @@ export function PriceChart({
         x={x(visCandles.length - 1) + 5}
         y={yPrice(closes[closes.length - 1]) + 5}
         fill={lineColor}
-        fontSize={11}
+        fontSize={13}
         fontWeight="bold"
       >
         ${fmtPrice(closes[closes.length - 1])}
@@ -325,10 +325,10 @@ export function PriceChart({
           <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
           <circle cx={hx} cy={hy} r="3.5" fill={lineColor} stroke="#111827" strokeWidth="1.5" />
           <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="3" fill="#111827" stroke="#4b5563" strokeWidth="0.5" />
-          <text x={tipX + tipW / 2} y={tipY + 11} textAnchor="middle" fill="#e5e7eb" fontSize={10} fontWeight="600">
+          <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fill="#e5e7eb" fontSize={13} fontWeight="600">
             ${fmtPrice(closes[hIdx])}
           </text>
-          <text x={tipX + tipW / 2} y={tipY + 22} textAnchor="middle" fill="#9ca3af" fontSize={8}>
+          <text x={tipX + tipW / 2} y={tipY + 27} textAnchor="middle" fill="#9ca3af" fontSize={11}>
             {hoverTime}
           </text>
         </g>
