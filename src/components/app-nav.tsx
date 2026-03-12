@@ -19,7 +19,7 @@ export function AppNav() {
   return (
     <>
       {/* Desktop sidebar — hidden on mobile */}
-      <nav className={`hidden lg:flex flex-col min-h-screen bg-gray-900 border-r border-gray-800 p-4 gap-1 shrink-0 transition-all duration-200 ${collapsed ? 'w-16' : 'w-52'}`}>
+      <nav className={`hidden lg:flex flex-col sticky top-0 h-screen overflow-y-auto bg-gray-900 border-r border-gray-800 p-4 gap-1 shrink-0 transition-all duration-200 ${collapsed ? 'w-16' : 'w-52'}`}>
         <div className="flex items-center justify-between mb-6">
           {!collapsed && <span className="text-lg font-bold text-blue-400 px-2">Indicator Bot</span>}
           <button

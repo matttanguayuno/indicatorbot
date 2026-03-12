@@ -143,7 +143,7 @@ export function RadarChart({ categories, size = 240, className = '' }: RadarChar
           textAnchor="middle"
           dominantBaseline="central"
           className="fill-gray-400"
-          fontSize="11"
+          fontSize="13"
           fontWeight={hoverIdx === i ? 'bold' : 'normal'}
           fill={hoverIdx === i ? '#e5e7eb' : '#9ca3af'}
         >
@@ -175,10 +175,10 @@ export function RadarChart({ categories, size = 240, className = '' }: RadarChar
             stroke="#4b5563"
             strokeWidth="0.5"
           />
-          <text x={cx} y={cy - 1} textAnchor="middle" fill="#e5e7eb" fontSize="12" fontWeight="600">
+          <text x={cx} y={cy - 1} textAnchor="middle" fill="#e5e7eb" fontSize="14" fontWeight="600">
             {hCat.actual.toFixed(1)}/{hCat.max}
           </text>
-          <text x={cx} y={cy + 11} textAnchor="middle" fill="#9ca3af" fontSize="10">
+          <text x={cx} y={cy + 11} textAnchor="middle" fill="#9ca3af" fontSize="12">
             {Math.round(hCat.value * 100)}%
           </text>
         </g>

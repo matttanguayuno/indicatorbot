@@ -385,7 +385,8 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
 
   const lines = snapshots
     .filter((s) => s.scoreHistory.length >= 2)
-    .slice(0, 12)
+    .sort((a, b) => b.signalScore - a.signalScore)
+    .slice(0, 3)
     .map((s, i) => ({
       symbol: s.symbol,
       scores: s.scoreHistory,

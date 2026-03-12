@@ -51,14 +51,14 @@ export function MiniChart({
 
   const hasXAxis = visTimes && visTimes.length === visData.length;
 
-  const padLeft = 42;
+  const padLeft = 48;
   const padRight = 8;
   const padTop = 10;
-  const padBottom = hasXAxis ? 18 : 6;
+  const padBottom = hasXAxis ? 22 : 6;
 
-  const fontY = 12;
-  const fontX = 10;
-  const fontTip = 12;
+  const fontY = 14;
+  const fontX = 12;
+  const fontTip = 14;
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;

@@ -439,15 +439,14 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
     return () => ro.disconnect();
   }, [expanded]);
 
-  // Build multi-line data: each stock with its scoreHistory
-  const lines = snapshots
-    .filter((s) => s.scoreHistory.length >= 2)
-    .slice(0, 12)
-    .map((s, i) => ({
-      symbol: s.symbol,
-      scores: s.scoreHistory,
-      color: SCORE_COLORS[i % SCORE_COLORS.length],
-    }));
+  // Build single-line data: only the highest-scoring stock
+  const eligible = snapshots.filter((s) => s.scoreHistory.length >= 2);
+  const topStock = eligible.length > 0
+    ? eligible.reduce((best, s) => (s.signalScore > best.signalScore ? s : best))
+    : null;
+  const lines = topStock
+    ? [{ symbol: topStock.symbol, scores: topStock.scoreHistory, color: SCORE_COLORS[0] }]
+    : [];
 
   if (lines.length === 0) return null;
 
@@ -480,7 +479,7 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
 
   // viewBox = CSS pixels so font sizes are real screen pixels
   const chartSvg = (ref: React.RefObject<SVGSVGElement | null>, vw: number, vh: number) => {
-    const padL = 44, padR = 64, padT = 12, padB = 24;
+    const padL = 48, padR = 64, padT = 12, padB = 28;
     const chartW = vw - padL - padR;
     const chartH = vh - padT - padB;
 
@@ -498,12 +497,12 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
       else setHoverIdx(null);
     };
 
-    const fontY = 12;
-    const fontX = 10;
-    const fontLabel = 12;
-    const fontTip = 12;
-    const tipLineH = 18;
-    const labelH = 16;
+    const fontY = 14;
+    const fontX = 12;
+    const fontLabel = 14;
+    const fontTip = 14;
+    const tipLineH = 20;
+    const labelH = 18;
     const dotR = 3;
 
     // Resolve vertical collisions for end-of-line labels
