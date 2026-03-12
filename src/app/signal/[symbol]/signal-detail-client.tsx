@@ -131,6 +131,13 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
+      // Disable nav swipe when touching a chart (SVG or its container) so
+      // chart interactivity (tap/drag to inspect values) isn't hijacked
+      const el = e.target as HTMLElement;
+      if (el.closest('svg') || el.closest('[data-chart]')) {
+        swipeState.current = null;
+        return;
+      }
       const t = e.touches[0];
       swipeState.current = { startX: t.clientX, startY: t.clientY, locked: null, navigated: false };
     };
