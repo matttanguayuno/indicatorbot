@@ -1,16 +1,16 @@
 /**
- * POST /api/screener/sync — Run the Webull screener scraper and sync the watchlist.
+ * POST /api/screener/sync — Run the FMP screener and sync the watchlist.
  *
  * No auth required (intended for local/interactive use, same pattern as /api/poll).
  * Body (optional): { topN?: number }
  *
- * Scrapes the top N symbols from the Webull "God" screener preset,
- * deactivates all current tickers, and upserts the scraped ones as active.
+ * Screens the top N symbols via FMP (US, vol > 1M, mcap < $500M),
+ * deactivates all current tickers, and upserts the screened ones as active.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { scrapeWebullScreener } from '@/lib/scraper/webull';
+import { screenFMP } from '@/lib/screener/fmp';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,14 +28,14 @@ export async function POST(req: NextRequest) {
       topN = settings?.screenerTopN ?? 30;
     }
 
-    console.log(`[Screener Sync] Starting scrape for top ${topN} symbols`);
+    console.log(`[Screener Sync] Starting FMP screen for top ${topN} symbols`);
 
-    // Scrape
-    const scraped = await scrapeWebullScreener(topN);
+    // Screen via FMP API
+    const scraped = await screenFMP(topN);
 
     if (scraped.length === 0) {
       return NextResponse.json(
-        { error: 'Scraper returned 0 results — possible login or page issue' },
+        { error: 'FMP screener returned 0 results' },
         { status: 500 },
       );
     }

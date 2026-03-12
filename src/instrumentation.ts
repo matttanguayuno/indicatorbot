@@ -2,7 +2,7 @@
  * Next.js Instrumentation Hook
  * Runs once when the server starts. Sets up:
  * 1. Automatic server-side polling for score evolution during market hours.
- * 2. Scheduled Webull screener sync at configured times (Mountain Time).
+ * 2. Scheduled FMP screener sync at configured times (Mountain Time).
  */
 
 export async function register() {
@@ -109,16 +109,16 @@ export async function register() {
     console.log(`[Screener Sync] Triggered at ${hours}:${String(minutes).padStart(2, '0')} MT`);
 
     try {
-      const { scrapeWebullScreener } = await import('@/lib/scraper/webull');
+      const { screenFMP } = await import('@/lib/screener/fmp');
       const prisma = (await import('@/lib/db')).default;
 
       const settings = await prisma.appSettings.findFirst();
       const topN = settings?.screenerTopN ?? 30;
 
-      const scraped = await scrapeWebullScreener(topN);
+      const scraped = await screenFMP(topN);
 
       if (scraped.length === 0) {
-        console.warn('[Screener Sync] Scraper returned 0 results — skipping sync');
+        console.warn('[Screener Sync] FMP returned 0 results — skipping sync');
         return;
       }
 
