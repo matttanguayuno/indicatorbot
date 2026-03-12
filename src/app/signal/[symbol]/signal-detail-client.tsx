@@ -106,11 +106,11 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [tickerList, setTickerList] = useState<string[]>([]);
 
-  // Fetch ticker list for prev/next navigation
+  // Fetch ticker list ordered by score DESC (same as homepage dashboard)
   useEffect(() => {
-    fetch('/api/tickers')
+    fetch('/api/snapshots')
       .then(r => r.ok ? r.json() : [])
-      .then((tickers: { symbol: string }[]) => setTickerList(tickers.map(t => t.symbol)))
+      .then((snapshots: { symbol: string }[]) => setTickerList(snapshots.map(s => s.symbol)))
       .catch(() => {});
   }, []);
 
