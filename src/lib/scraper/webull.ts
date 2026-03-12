@@ -5,7 +5,7 @@
  * and scrape the top N ticker symbols from the results table.
  */
 
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
 
 export interface ScrapedTicker {
   symbol: string;
@@ -29,6 +29,7 @@ export async function scrapeWebullScreener(topN: number): Promise<ScrapedTicker[
   let browser: Browser | null = null;
 
   try {
+    const { chromium } = await import('playwright');
     browser = await chromium.launch({
       headless: true,
       args: [
