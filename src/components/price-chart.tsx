@@ -20,8 +20,8 @@ interface PriceChartProps {
 
 export function PriceChart({
   candles,
-  width = 900,
-  height = 350,
+  width: defaultW = 900,
+  height: defaultH = 350,
   className = '',
 }: PriceChartProps) {
   if (candles.length < 2) return null;
@@ -29,7 +29,25 @@ export function PriceChart({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; startZoom: [number, number] } | null>(null);
+  const [vSize, setVSize] = useState<[number, number]>([defaultW, defaultH]);
+
+  // ResizeObserver: viewBox = CSS pixels so font sizes are real screen pixels
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) setVSize([w, h]);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const width = vSize[0];
+  const height = vSize[1];
 
   // Visible candles based on zoom level
   const zStart = Math.floor(zoom[0] * (candles.length - 1));
@@ -221,10 +239,10 @@ export function PriceChart({
   })() : '';
 
   return (
+    <div ref={containerRef} className={className} style={{ width: '100%', aspectRatio: `${defaultW} / ${defaultH}` }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
-      className={className}
       preserveAspectRatio="xMidYMid meet"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -279,7 +297,7 @@ export function PriceChart({
           y={t.y + 3}
           textAnchor="end"
           fill="#9ca3af"
-          fontSize={11}
+          fontSize={12}
         >
           ${fmtPrice(t.price)}
         </text>
@@ -293,7 +311,7 @@ export function PriceChart({
           y={height - padBottom + 15}
           textAnchor="middle"
           fill="#6b7280"
-          fontSize={9}
+          fontSize={10}
         >
           {t.label}
         </text>
@@ -312,7 +330,7 @@ export function PriceChart({
         x={x(visCandles.length - 1) + 5}
         y={yPrice(closes[closes.length - 1]) + 5}
         fill={lineColor}
-        fontSize={11}
+        fontSize={12}
         fontWeight="bold"
       >
         ${fmtPrice(closes[closes.length - 1])}
@@ -325,10 +343,10 @@ export function PriceChart({
           <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
           <circle cx={hx} cy={hy} r="3.5" fill={lineColor} stroke="#111827" strokeWidth="1.5" />
           <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="3" fill="#111827" stroke="#4b5563" strokeWidth="0.5" />
-          <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fill="#e5e7eb" fontSize={11} fontWeight="600">
+          <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fill="#e5e7eb" fontSize={12} fontWeight="600">
             ${fmtPrice(closes[hIdx])}
           </text>
-          <text x={tipX + tipW / 2} y={tipY + 27} textAnchor="middle" fill="#9ca3af" fontSize={9}>
+          <text x={tipX + tipW / 2} y={tipY + 27} textAnchor="middle" fill="#9ca3af" fontSize={10}>
             {hoverTime}
           </text>
         </g>
@@ -337,5 +355,6 @@ export function PriceChart({
       {/* Full-area hit target */}
       <rect x={0} y={0} width={width} height={height} fill="transparent" />
     </svg>
+    </div>
   );
 }

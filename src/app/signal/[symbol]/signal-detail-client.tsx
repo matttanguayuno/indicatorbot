@@ -592,8 +592,23 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
 function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
+  const [vSize, setVSize] = useState<[number, number]>([600, 180]);
+
+  // ResizeObserver: viewBox = CSS pixels so font sizes are real screen pixels
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) setVSize([w, h]);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Show oldest first (history comes newest-first)
   const fullData = [...history].reverse();
@@ -604,17 +619,16 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const data = fullData.slice(zStart, Math.max(zStart + 2, zEnd + 1));
   const scores = data.map(h => h.signalScore);
 
-  // Fixed viewBox — text scales proportionally with chart, consistent across devices
-  const w = 600;
-  const h = 180;
+  const w = vSize[0];
+  const h = vSize[1];
   const padL = 36, padR = 8, padT = 12, padB = 22;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
-  const fontY = 11;
-  const fontX = 9;
-  const fontTipLg = 11;
-  const fontTipSm = 9;
+  const fontY = 12;
+  const fontX = 10;
+  const fontTipLg = 12;
+  const fontTipSm = 10;
 
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
@@ -673,7 +687,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const yTicks = [0, 25, 50, 75, 100];
 
   return (
-    <div style={{ aspectRatio: '600 / 180' }}>
+    <div ref={containerRef} style={{ aspectRatio: '600 / 180' }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}

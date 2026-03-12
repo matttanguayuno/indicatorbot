@@ -394,13 +394,27 @@ const SCORE_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#a855f7', '#e
 function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const modalRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [cSize, setCSize] = useState<[number, number]>([600, 270]);
   const [mSize, setMSize] = useState<[number, number]>([900, 500]);
 
-  // ResizeObserver for modal — viewBox matches container pixels so chart
-  // fills available space (portrait or landscape) and fonts stay consistent
+  // ResizeObserver for inline chart
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) setCSize([w, h]);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // ResizeObserver for modal
   useEffect(() => {
     if (!expanded) return;
     const el = modalContainerRef.current;
@@ -453,13 +467,9 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     xLabelIndices.push(maxLen - 1);
   }
 
-  // pixelMode: when true, viewBox = CSS pixels so font sizes = real screen pixels.
-  // Used for fullscreen modal. When false, fixed viewBox with proportional fonts (inline card).
-  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>, vw: number, vh: number, pixelMode: boolean) => {
-    const padL = pixelMode ? 44 : 32;
-    const padR = pixelMode ? 64 : 52;
-    const padT = pixelMode ? 12 : 10;
-    const padB = pixelMode ? 24 : 18;
+  // viewBox = CSS pixels so font sizes are real screen pixels
+  const chartSvg = (ref: React.RefObject<SVGSVGElement | null>, vw: number, vh: number) => {
+    const padL = 44, padR = 64, padT = 12, padB = 24;
     const chartW = vw - padL - padR;
     const chartH = vh - padT - padB;
 
@@ -477,15 +487,13 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
       else setHoverIdx(null);
     };
 
-    // Font sizes: pixelMode = CSS pixels, otherwise proportional to viewBox height
-    const fontY = pixelMode ? 12 : vh * 0.04;
-    const fontX = pixelMode ? 10 : vh * 0.035;
-    const fontLabel = pixelMode ? 12 : vh * 0.04;
-    const fontTip = pixelMode ? 12 : vh * 0.04;
-    const tipLineH = pixelMode ? 18 : vh * 0.05;
-    const labelH = pixelMode ? 16 : vh / 28;
-    const dotR = pixelMode ? 3 : 2.5;
-    const strokeW = pixelMode ? 1.5 : 1.5;
+    const fontY = 12;
+    const fontX = 10;
+    const fontLabel = 12;
+    const fontTip = 12;
+    const tipLineH = 18;
+    const labelH = 16;
+    const dotR = 3;
 
     // Resolve vertical collisions for end-of-line labels
     const labelPositions = lines.map((line) => {
@@ -538,7 +546,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               points={pts}
               fill="none"
               stroke={line.color}
-              strokeWidth={strokeW}
+              strokeWidth={1.5}
               strokeLinejoin="round"
               opacity={0.85}
             />
@@ -595,7 +603,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
         {hoverIdx != null && (() => {
           const items = lines.filter((l) => hoverIdx < l.scores.length);
           if (items.length === 0) return null;
-          const tipW = pixelMode ? 110 : vw * 0.12;
+          const tipW = 110;
           const tipH = tipLineH + items.length * tipLineH;
           let tx = xScale(hoverIdx) + 8;
           if (tx + tipW > vw - padR) tx = xScale(hoverIdx) - tipW - 8;
@@ -636,8 +644,8 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
             ⛶
           </button>
         </div>
-        <div className="flex-1 min-h-0 px-2 pb-3">
-          {chartSvg(svgRef, 900, 400, false)}
+        <div ref={containerRef} className="flex-1 min-h-0 px-2 pb-3">
+          {chartSvg(svgRef, cSize[0], cSize[1])}
         </div>
       </div>
 
@@ -661,7 +669,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
               </button>
             </div>
             <div ref={modalContainerRef} className="flex-1 min-h-0 px-3 pb-3">
-              {chartSvg(modalRef, mSize[0], mSize[1], true)}
+              {chartSvg(modalRef, mSize[0], mSize[1])}
             </div>
           </div>
         </div>

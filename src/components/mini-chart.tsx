@@ -13,8 +13,8 @@ interface MiniChartProps {
 export function MiniChart({
   data,
   timestamps,
-  width = 300,
-  height = 120,
+  width: defaultW = 300,
+  height: defaultH = 120,
   className = '',
 }: MiniChartProps) {
   if (data.length < 2) return null;
@@ -22,8 +22,26 @@ export function MiniChart({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+  const [vSize, setVSize] = useState<[number, number]>([defaultW, defaultH]);
+
+  // ResizeObserver: viewBox = CSS pixels so font sizes are real screen pixels
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) setVSize([w, h]);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const width = vSize[0];
+  const height = vSize[1];
 
   // Visible data slice based on zoom level
   const zStart = Math.floor(zoom[0] * (data.length - 1));
@@ -33,17 +51,14 @@ export function MiniChart({
 
   const hasXAxis = visTimes && visTimes.length === visData.length;
 
-  // Scale strokes/dots proportionally; keep fonts and padding constant in SVG units
-  // so they render at the same visual proportion regardless of viewBox width.
-  const scale = width / 400;
   const padLeft = 42;
   const padRight = 8;
   const padTop = 10;
   const padBottom = hasXAxis ? 18 : 6;
 
-  const fontY = 10;
-  const fontX = 8;
-  const fontTip = 10;
+  const fontY = 12;
+  const fontX = 10;
+  const fontTip = 12;
 
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
@@ -257,10 +272,10 @@ export function MiniChart({
   if (tipY < 2) tipY = hy + 6;
 
   return (
+    <div ref={containerRef} className={className} style={{ width: '100%', aspectRatio: `${defaultW} / ${defaultH}` }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
-      className={className}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
       onDoubleClick={() => setZoom([0, 1])}
@@ -276,11 +291,11 @@ export function MiniChart({
             x2={width - padRight}
             y2={t.yPos}
             stroke="#374151"
-            strokeWidth={0.5 * scale}
-            strokeDasharray={`${3 * scale},${3 * scale}`}
+            strokeWidth={0.5}
+            strokeDasharray="3,3"
           />
           <text
-            x={padLeft - 5 * scale}
+            x={padLeft - 4}
             y={t.yPos + fontY * 0.35}
             textAnchor="end"
             fill="#6b7280"
@@ -325,7 +340,7 @@ export function MiniChart({
         points={linePoints}
         fill="none"
         stroke={lineColor}
-        strokeWidth={1.5 * scale}
+        strokeWidth={1.5}
         strokeLinejoin="round"
         strokeLinecap="round"
       />
@@ -334,7 +349,7 @@ export function MiniChart({
       <circle
         cx={x(visData.length - 1)}
         cy={y(visData[visData.length - 1])}
-        r={2.5 * scale}
+        r={2.5}
         fill={lineColor}
       />
 
@@ -348,8 +363,8 @@ export function MiniChart({
             x2={hx}
             y2={padTop + chartH}
             stroke="#9ca3af"
-            strokeWidth={0.5 * scale}
-            strokeDasharray={`${2 * scale},${2 * scale}`}
+            strokeWidth={0.5}
+            strokeDasharray="2,2"
           />
           {/* Horizontal crosshair */}
           <line
@@ -358,17 +373,17 @@ export function MiniChart({
             x2={width - padRight}
             y2={hy}
             stroke="#9ca3af"
-            strokeWidth={0.5 * scale}
-            strokeDasharray={`${2 * scale},${2 * scale}`}
+            strokeWidth={0.5}
+            strokeDasharray="2,2"
           />
           {/* Dot on line */}
           <circle
             cx={hx}
             cy={hy}
-            r={3.5 * scale}
+            r={3}
             fill={lineColor}
             stroke="#111827"
-            strokeWidth={1.5 * scale}
+            strokeWidth={1.5}
           />
           {/* Tooltip box */}
           <rect
@@ -397,7 +412,7 @@ export function MiniChart({
               y={tipY + tipH * 0.76}
               textAnchor="middle"
               fill="#9ca3af"
-              fontSize={fontTip * 0.78}
+              fontSize={fontTip * 0.8}
             >
               {(() => { const d = new Date(visTimes[hIdx]); return `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`; })()}
             </text>
@@ -414,5 +429,6 @@ export function MiniChart({
         fill="transparent"
       />
     </svg>
+    </div>
   );
 }
