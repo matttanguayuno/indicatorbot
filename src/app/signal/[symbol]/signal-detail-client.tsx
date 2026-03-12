@@ -121,40 +121,46 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
   // Mobile swipe navigation between stocks
   const router = useRouter();
-  const swipeRef = useRef<{ startX: number; startY: number } | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   // Use refs for nav targets so the touch listener doesn't need to re-attach
   const prevRef = useRef(prevSymbol);
   const nextRef = useRef(nextSymbol);
   prevRef.current = prevSymbol;
   nextRef.current = nextSymbol;
+  const swipeState = useRef<{ startX: number; startY: number; locked: 'h' | 'v' | null; navigated: boolean } | null>(null);
 
   useEffect(() => {
-    const el = pageRef.current;
-    if (!el) return;
     const onTouchStart = (e: TouchEvent) => {
-      // Don't capture swipes that start on the chart SVG (it has its own touch handling)
-      if ((e.target as Element)?.closest?.('svg')) return;
       const t = e.touches[0];
-      swipeRef.current = { startX: t.clientX, startY: t.clientY };
+      swipeState.current = { startX: t.clientX, startY: t.clientY, locked: null, navigated: false };
     };
-    const onTouchEnd = (e: TouchEvent) => {
-      if (!swipeRef.current) return;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - swipeRef.current.startX;
-      const dy = t.clientY - swipeRef.current.startY;
-      swipeRef.current = null;
-      // Trigger on >40px horizontal swipe that's more horizontal than vertical
-      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+    const onTouchMove = (e: TouchEvent) => {
+      const s = swipeState.current;
+      if (!s || s.navigated) return;
+      const t = e.touches[0];
+      const dx = t.clientX - s.startX;
+      const dy = t.clientY - s.startY;
+
+      // Lock direction after 10px of movement
+      if (!s.locked && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+        s.locked = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      }
+
+      // Only act on horizontal lock; let vertical scroll happen naturally
+      if (s.locked !== 'h') return;
+
+      // Navigate after 50px horizontal swipe
+      if (Math.abs(dx) > 50) {
+        s.navigated = true;
         if (dx < 0 && nextRef.current) router.push(`/signal/${nextRef.current}`);
         if (dx > 0 && prevRef.current) router.push(`/signal/${prevRef.current}`);
       }
     };
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
     return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
     };
   }, [router]);
 
@@ -231,7 +237,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const gapUpPct = latest.gapUpPct ?? latest.pctChange1h;
 
   return (
-    <div ref={pageRef} className="pt-4 space-y-4">
+    <div className="pt-4 space-y-4">
       {/* Navigation: Back + Prev/Next */}
       <div className="flex items-center justify-between">
         <Link href="/" className="text-blue-400 text-sm hover:underline">← Back</Link>
