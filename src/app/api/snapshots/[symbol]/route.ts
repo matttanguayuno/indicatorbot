@@ -34,7 +34,7 @@ export async function GET(
     prisma.newsItem.findMany({
       where: { symbol: upperSymbol },
       orderBy: { publishedAt: 'desc' },
-      take: 10,
+      take: 50,
     }),
   ]);
 

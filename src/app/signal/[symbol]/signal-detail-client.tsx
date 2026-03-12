@@ -545,7 +545,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       {/* News */}
       {news.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-          <h2 className="text-base font-semibold text-gray-400 mb-2">Recent News</h2>
+          <h2 className="text-base font-semibold text-gray-400 mb-2">Recent News ({latest.recentNewsCount} found)</h2>
           <div className="space-y-2">
             {news.map((n) => (
               <div key={n.id} className="text-sm">
@@ -606,8 +606,22 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
 function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
+  const [cWidth, setCWidth] = useState(600);
+
+  // ResizeObserver so viewBox matches actual container width (prevents font scaling)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const cw = Math.round(entry.contentRect.width);
+      if (cw > 0) setCWidth(cw);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Show oldest first (history comes newest-first)
   const fullData = [...history].reverse();
@@ -617,16 +631,17 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const zEnd = Math.ceil(zoom[1] * (fullData.length - 1));
   const data = fullData.slice(zStart, Math.max(zStart + 2, zEnd + 1));
   const scores = data.map(h => h.signalScore);
-  const w = 600, h = 180;
-  const padL = 40, padR = 10, padT = 16, padB = 28;
+  const w = cWidth;
+  const h = Math.round(cWidth * 180 / 600);
+  const padL = 48, padR = 10, padT = 16, padB = 28;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
 
-  // Font sizes for 600-wide viewBox
-  const fontY = 11;
-  const fontX = 10;
-  const fontTipLg = 12;
-  const fontTipSm = 10;
+  // Match PriceChart font sizes (13/11/13/11)
+  const fontY = 13;
+  const fontX = 11;
+  const fontTipLg = 13;
+  const fontTipSm = 11;
 
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
@@ -685,6 +700,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   const yTicks = [0, 25, 50, 75, 100];
 
   return (
+    <div ref={containerRef} style={{ aspectRatio: '600 / 180' }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}
@@ -766,8 +782,8 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
             const timeLabel = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
             return (
               <g>
-                <rect x={tx - 36} y={padT - 14} width={72} height={30} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
-                <text x={tx} y={padT - 2} textAnchor="middle" fill="#fff" fontSize={fontTipLg} fontWeight="bold">
+                <rect x={tx - 44} y={padT - 14} width={88} height={34} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
+                <text x={tx} y={padT - 1} textAnchor="middle" fill="#fff" fontSize={fontTipLg} fontWeight="bold">
                   Score: {scores[hoverIdx]}
                 </text>
                 <text x={tx} y={padT + 10} textAnchor="middle" fill="#9ca3af" fontSize={fontTipSm}>
@@ -782,6 +798,7 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
       {/* Hit area */}
       <rect x={0} y={0} width={w} height={h} fill="transparent" />
     </svg>
+    </div>
   );
 }
 
