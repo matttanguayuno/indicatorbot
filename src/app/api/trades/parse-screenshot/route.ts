@@ -1,6 +1,6 @@
 /**
  * POST /api/trades/parse-screenshot
- * Accepts a base64 image, sends it to OpenAI gpt-4o-mini vision to extract trade details.
+ * Accepts a base64 image, sends it to OpenAI gpt-4o vision to extract trade details.
  * The image is NOT stored — only the parsed fields are returned.
  */
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const response = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       max_tokens: 300,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
           content: [
             {
               type: 'image_url',
-              image_url: { url: image, detail: 'low' },
+              image_url: { url: image, detail: 'auto' },
             },
             {
               type: 'text',
@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
 
     // If the AI flagged an error
     if (parsed.error) {
-      return NextResponse.json({ error: parsed.error }, { status: 422 });
+      console.error('AI could not parse screenshot:', content);
+      return NextResponse.json({ error: parsed.error, raw: content }, { status: 422 });
     }
 
     return NextResponse.json({

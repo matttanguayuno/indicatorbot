@@ -58,8 +58,8 @@ export function DashboardClient() {
   async function fetchSnapshots() {
     try {
       const [res, allRes] = await Promise.all([
-        fetch('/api/snapshots?history=500'),
-        fetch('/api/snapshots?history=500&threshold=0'),
+        fetch('/api/snapshots?since=today'),
+        fetch('/api/snapshots?since=today&threshold=0'),
       ]);
       if (res.ok) {
         const data = await res.json();

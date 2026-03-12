@@ -480,7 +480,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           {history.length > 1 && (
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
               <h2 className="text-base font-semibold text-gray-400 mb-2">Score Evolution</h2>
-              <ScoreHistoryChart history={history} />
+              <ScoreHistoryChart history={history} range={chartRange} />
             </div>
           )}
         </div>
@@ -590,11 +590,10 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   );
 }
 
-function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
+function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range: string }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const [vSize, setVSize] = useState<[number, number]>([600, 180]);
 
   // ResizeObserver: viewBox = CSS pixels so font sizes are real screen pixels
@@ -613,10 +612,24 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
   // Show oldest first (history comes newest-first)
   const fullData = [...history].reverse();
 
-  // Visible data slice based on zoom level
-  const zStart = Math.floor(zoom[0] * (fullData.length - 1));
-  const zEnd = Math.ceil(zoom[1] * (fullData.length - 1));
-  const data = fullData.slice(zStart, Math.max(zStart + 2, zEnd + 1));
+  // Filter data by selected range
+  const data = (() => {
+    if (fullData.length === 0) return fullData;
+    const now = new Date();
+    let cutoff: Date;
+    switch (range) {
+      case '1H': cutoff = new Date(now.getTime() - 3_600_000); break;
+      case '1D': cutoff = new Date(now.getTime() - 86_400_000); break;
+      case '1W': cutoff = new Date(now.getTime() - 7 * 86_400_000); break;
+      case '1M': cutoff = new Date(now.getTime() - 30 * 86_400_000); break;
+      case 'Q':  cutoff = new Date(now.getTime() - 90 * 86_400_000); break;
+      case '1Y': cutoff = new Date(now.getTime() - 365 * 86_400_000); break;
+      case 'YTD': cutoff = new Date(now.getFullYear(), 0, 1); break;
+      default: return fullData; // 'Max' or unknown
+    }
+    const filtered = fullData.filter(d => new Date(d.timestamp) >= cutoff);
+    return filtered.length >= 2 ? filtered : fullData.slice(-2);
+  })();
   const scores = data.map(h => h.signalScore);
 
   const w = vSize[0];
@@ -627,8 +640,8 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
 
   const fontY = 12;
   const fontX = 10;
-  const fontTipLg = 12;
-  const fontTipSm = 10;
+  const fontTipLg = 14;
+  const fontTipSm = 12;
 
   const minS = 0, maxS = 100;
   const yScale = (v: number) => padT + chartH - ((v - minS) / (maxS - minS)) * chartH;
@@ -643,6 +656,8 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
     return '#ef4444';
   }
 
+  const yTicks = [0, 25, 50, 75, 100];
+
   function handlePointer(e: React.PointerEvent) {
     const svg = svgRef.current;
     if (!svg || scores.length < 2) return;
@@ -654,38 +669,6 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
     else setHoverIdx(null);
   }
 
-  // Mouse wheel zoom
-  useEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const rect = el.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const frac = Math.max(0, Math.min(1,
-        (sx / rect.width * w - padL) / (w - padL - padR)
-      ));
-      setZoom(([s, en]) => {
-        const r = en - s;
-        const factor = e.deltaY > 0 ? 1.2 : 0.85;
-        const minRange = Math.max(0.05, 3 / (fullData.length || 1));
-        const nr = Math.min(1, Math.max(minRange, r * factor));
-        const center = s + frac * r;
-        let ns = center - frac * nr;
-        let ne = center + (1 - frac) * nr;
-        if (ns < 0) { ne = Math.min(1, ne - ns); ns = 0; }
-        if (ne > 1) { ns = Math.max(0, ns - (ne - 1)); ne = 1; }
-        return [ns, ne];
-      });
-      setHoverIdx(null);
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [fullData.length]);
-
-  // Y-axis ticks
-  const yTicks = [0, 25, 50, 75, 100];
-
   return (
     <div ref={containerRef} style={{ aspectRatio: '600 / 180' }}>
     <svg
@@ -696,7 +679,6 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
       className="select-none"
       onPointerMove={handlePointer}
       onPointerLeave={() => setHoverIdx(null)}
-      onDoubleClick={() => setZoom([0, 1])}
     >
       {/* Grid lines + Y labels */}
       {yTicks.map(t => (
@@ -764,16 +746,22 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
           />
           {/* Tooltip */}
           {(() => {
-            const tx = Math.min(Math.max(xScale(hoverIdx), padL + 40), w - padR - 40);
+            const dotX = xScale(hoverIdx);
+            const dotY = yScale(scores[hoverIdx]);
+            const tipW = 148;
+            const tipH = 38;
+            const tx = Math.min(Math.max(dotX, padL + tipW / 2), w - padR - tipW / 2);
+            let ty = dotY - tipH - 10;
+            if (ty < 2) ty = dotY + 12;
             const d = new Date(data[hoverIdx].timestamp);
             const timeLabel = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
             return (
               <g>
-                <rect x={tx - 64} y={padT - 14} width={128} height={34} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
-                <text x={tx} y={padT - 1} textAnchor="middle" fill="#fff" fontSize={fontTipLg} fontWeight="bold">
+                <rect x={tx - tipW / 2} y={ty} width={tipW} height={tipH} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
+                <text x={tx} y={ty + 15} textAnchor="middle" fill="#fff" fontSize={fontTipLg} fontWeight="bold">
                   Score: {scores[hoverIdx]}
                 </text>
-                <text x={tx} y={padT + 10} textAnchor="middle" fill="#9ca3af" fontSize={fontTipSm}>
+                <text x={tx} y={ty + 29} textAnchor="middle" fill="#9ca3af" fontSize={fontTipSm}>
                   {timeLabel} · ${data[hoverIdx].currentPrice.toFixed(2)}
                 </text>
               </g>

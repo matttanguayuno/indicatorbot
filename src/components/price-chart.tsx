@@ -219,7 +219,7 @@ export function PriceChart({
   const hIdx = Math.min(hoverIndex ?? 0, visCandles.length - 1);
   const hx = x(hIdx);
   const hy = yPrice(closes[hIdx]);
-  const tipW = 80;
+  const tipW = 110;
   const tipH = 34;
   let tipX = hx - tipW / 2;
   if (tipX < padLeft) tipX = padLeft;
@@ -231,7 +231,7 @@ export function PriceChart({
   const hoverTime = hoverIndex != null ? (() => {
     const d = new Date(visCandles[hIdx].time);
     if (multiDay) {
-      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours() % 12 || 12}:${d.getMinutes().toString().padStart(2, '0')}${d.getHours() >= 12 ? 'p' : 'a'}`;
+      return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours() % 12 || 12}:${d.getMinutes().toString().padStart(2, '0')}${d.getHours() >= 12 ? 'p' : 'a'}`;
     }
     const h = d.getHours();
     const m = d.getMinutes();
