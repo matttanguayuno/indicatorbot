@@ -123,11 +123,18 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const router = useRouter();
   const swipeRef = useRef<{ startX: number; startY: number } | null>(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  // Use refs for nav targets so the touch listener doesn't need to re-attach
+  const prevRef = useRef(prevSymbol);
+  const nextRef = useRef(nextSymbol);
+  prevRef.current = prevSymbol;
+  nextRef.current = nextSymbol;
 
   useEffect(() => {
     const el = pageRef.current;
     if (!el) return;
     const onTouchStart = (e: TouchEvent) => {
+      // Don't capture swipes that start on the chart SVG (it has its own touch handling)
+      if ((e.target as Element)?.closest?.('svg')) return;
       const t = e.touches[0];
       swipeRef.current = { startX: t.clientX, startY: t.clientY };
     };
@@ -137,10 +144,10 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       const dx = t.clientX - swipeRef.current.startX;
       const dy = t.clientY - swipeRef.current.startY;
       swipeRef.current = null;
-      // Only trigger if horizontal swipe is dominant and > 60px
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-        if (dx < 0 && nextSymbol) router.push(`/signal/${nextSymbol}`);
-        if (dx > 0 && prevSymbol) router.push(`/signal/${prevSymbol}`);
+      // Trigger on >40px horizontal swipe that's more horizontal than vertical
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0 && nextRef.current) router.push(`/signal/${nextRef.current}`);
+        if (dx > 0 && prevRef.current) router.push(`/signal/${prevRef.current}`);
       }
     };
     el.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -149,7 +156,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchend', onTouchEnd);
     };
-  }, [nextSymbol, prevSymbol, router]);
+  }, [router]);
 
   // Measure chart container so viewBox matches rendered size (prevents font scaling)
   // Depends on chartLoading so it re-runs once the chart div actually mounts
