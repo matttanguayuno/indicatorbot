@@ -615,14 +615,14 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
       {/* Fullscreen popup */}
       {expanded && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3"
           onClick={() => { setExpanded(false); setHoverIdx(null); }}
         >
           <div
-            className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-7xl flex flex-col"
+            className="bg-gray-900 border border-gray-700 rounded-xl w-full h-full flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 pt-4 pb-2">
+            <div className="flex items-center justify-between px-5 pt-3 pb-1">
               <h3 className="text-lg font-semibold text-gray-200">Score Evolution</h3>
               <button
                 onClick={() => { setExpanded(false); setHoverIdx(null); }}
@@ -631,7 +631,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
                 ✕
               </button>
             </div>
-            <div className="px-4 pb-6" style={{ height: '60vh' }}>
+            <div className="flex-1 min-h-0 px-3 pb-3">
               {chartSvg(modalRef)}
             </div>
           </div>
