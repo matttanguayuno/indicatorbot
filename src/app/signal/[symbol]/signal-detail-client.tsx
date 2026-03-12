@@ -579,24 +579,6 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         </div>
       )}
 
-      {/* Recent history */}
-      {history.length > 1 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-          <h2 className="text-base font-semibold text-gray-400 mb-2">Recent Snapshots</h2>
-          <div className="space-y-1">
-            {history.map((h) => (
-              <div key={h.id} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <ScoreBadge score={h.signalScore} />
-                  <span className="text-gray-400">${h.currentPrice.toFixed(2)}</span>
-                </div>
-                <TimeAgo date={h.timestamp} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="text-sm text-gray-600 text-center pb-4">
         Auto-refreshes every 60s · Last updated: <TimeAgo date={latest.timestamp} />
       </div>
