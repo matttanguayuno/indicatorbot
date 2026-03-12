@@ -766,10 +766,10 @@ function ScoreHistoryChart({ history }: { history: HistoryEntry[] }) {
           {(() => {
             const tx = Math.min(Math.max(xScale(hoverIdx), padL + 40), w - padR - 40);
             const d = new Date(data[hoverIdx].timestamp);
-            const timeLabel = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+            const timeLabel = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
             return (
               <g>
-                <rect x={tx - 44} y={padT - 14} width={88} height={34} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
+                <rect x={tx - 64} y={padT - 14} width={128} height={34} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
                 <text x={tx} y={padT - 1} textAnchor="middle" fill="#fff" fontSize={fontTipLg} fontWeight="bold">
                   Score: {scores[hoverIdx]}
                 </text>

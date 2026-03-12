@@ -48,9 +48,8 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Ticker not found' }, { status: 404 });
   }
 
-  await prisma.ticker.update({
+  await prisma.ticker.delete({
     where: { symbol: upper },
-    data: { active: false },
   });
 
   return NextResponse.json({ success: true });

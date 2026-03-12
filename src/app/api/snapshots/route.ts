@@ -33,10 +33,12 @@ export async function GET(req: NextRequest) {
       if (historyCount > 0) {
         const history = await prisma.signalSnapshot.findMany({
           where: { tickerId: t.id },
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: 'desc' },
           take: historyCount,
           select: { signalScore: true, currentPrice: true, timestamp: true },
         });
+        // Reverse so chart plots oldest → newest (left to right)
+        history.reverse();
         scoreHistory = history.map((h) => h.signalScore);
         priceHistory = history.map((h) => h.currentPrice);
         priceTimestamps = history.map((h) => h.timestamp.toISOString());
@@ -46,8 +48,13 @@ export async function GET(req: NextRequest) {
     })
   );
 
+  // Apply watchlist threshold filter
+  const settings = await prisma.appSettings.findFirst();
+  const watchlistThreshold = settings?.watchlistThreshold ?? 0;
+
   const results = snapshots
     .filter((s): s is NonNullable<typeof s> => s !== null)
+    .filter((s) => s.signalScore >= watchlistThreshold)
     .sort((a, b) => b.signalScore - a.signalScore)
     .slice(0, limit);
 

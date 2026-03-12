@@ -6,6 +6,7 @@ import { TickerSearch } from '@/components/ticker-search';
 interface Settings {
   id: number;
   scoreThreshold: number;
+  watchlistThreshold: number;
   alertCooldownMin: number;
   pollingIntervalSec: number;
   dataSource: string;
@@ -64,6 +65,7 @@ export function SettingsClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scoreThreshold: settings.scoreThreshold,
+          watchlistThreshold: settings.watchlistThreshold,
           alertCooldownMin: settings.alertCooldownMin,
           pollingIntervalSec: settings.pollingIntervalSec,
           dataSource: settings.dataSource,
@@ -177,9 +179,16 @@ export function SettingsClient() {
           )}
 
           <SettingInput
-            label="Score Threshold"
+            label="Alert Threshold"
             value={settings.scoreThreshold}
             onChange={(v) => setSettings({ ...settings, scoreThreshold: v })}
+            min={0}
+            max={100}
+          />
+          <SettingInput
+            label="Watchlist Threshold"
+            value={settings.watchlistThreshold}
+            onChange={(v) => setSettings({ ...settings, watchlistThreshold: v })}
             min={0}
             max={100}
           />

@@ -36,7 +36,7 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, alertCooldownMin, pollingIntervalSec, dataSource } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource } = body;
 
   const settings = await getOrCreateSettings();
 
@@ -48,6 +48,7 @@ export async function PUT(req: NextRequest) {
     where: { id: settings.id },
     data: {
       ...(scoreThreshold != null && { scoreThreshold }),
+      ...(watchlistThreshold != null && { watchlistThreshold }),
       ...(alertCooldownMin != null && { alertCooldownMin }),
       ...(pollingIntervalSec != null && { pollingIntervalSec }),
       ...(validSource != null && { dataSource: validSource }),

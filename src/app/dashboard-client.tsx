@@ -601,20 +601,25 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
         {hoverIdx != null && (() => {
           const items = lines.filter((l) => hoverIdx < l.scores.length);
           if (items.length === 0) return null;
-          const tipW = 110;
-          const tipH = tipLineH + items.length * tipLineH;
+          const tipW = 130;
+          const tipH = tipLineH + (items.length + 1) * tipLineH;
           let tx = xScale(hoverIdx) + 8;
           if (tx + tipW > vw - padR) tx = xScale(hoverIdx) - tipW - 8;
+          const hd = hoverIdx < timestamps.length ? new Date(timestamps[hoverIdx]) : null;
+          const timeStr = hd ? `${hd.getMonth() + 1}/${hd.getDate()}/${hd.getFullYear()} ${hd.getHours()}:${hd.getMinutes().toString().padStart(2, '0')}` : '';
           return (
             <g>
               <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />
+              <text x={tx + tipW / 2} y={padT + tipLineH * 0.78} textAnchor="middle" fill="#9ca3af" fontSize={fontTip - 1}>
+                {timeStr}
+              </text>
               {items.map((item, i) => (
                 <g key={item.symbol}>
-                  <circle cx={tx + 10} cy={padT + tipLineH * 0.6 + i * tipLineH} r={dotR} fill={item.color} />
-                  <text x={tx + 18} y={padT + tipLineH * 0.78 + i * tipLineH} fill="#e5e7eb" fontSize={fontTip} fontWeight="500">
+                  <circle cx={tx + 10} cy={padT + tipLineH * 0.6 + (i + 1) * tipLineH} r={dotR} fill={item.color} />
+                  <text x={tx + 18} y={padT + tipLineH * 0.78 + (i + 1) * tipLineH} fill="#e5e7eb" fontSize={fontTip} fontWeight="500">
                     {item.symbol}
                   </text>
-                  <text x={tx + tipW - 6} y={padT + tipLineH * 0.78 + i * tipLineH} textAnchor="end" fill="#9ca3af" fontSize={fontTip}>
+                  <text x={tx + tipW - 6} y={padT + tipLineH * 0.78 + (i + 1) * tipLineH} textAnchor="end" fill="#9ca3af" fontSize={fontTip}>
                     {item.scores[hoverIdx]}
                   </text>
                 </g>

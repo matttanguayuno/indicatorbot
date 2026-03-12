@@ -414,7 +414,7 @@ export function MiniChart({
               fill="#9ca3af"
               fontSize={fontTip * 0.8}
             >
-              {(() => { const d = new Date(visTimes[hIdx]); return `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`; })()}
+              {(() => { const d = new Date(visTimes[hIdx]); return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`; })()}
             </text>
           )}
         </g>

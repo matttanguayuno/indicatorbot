@@ -12,6 +12,7 @@ datasource db {
 model AppSettings {
   id                  Int      @id @default(1)
   scoreThreshold      Float    @default(65)
+  watchlistThreshold  Float    @default(0)
   alertCooldownMin    Int      @default(30)
   pollingIntervalSec  Int      @default(60)
   dataSource          String   @default("twelvedata")
@@ -34,6 +35,7 @@ model Ticker {
   snapshots SignalSnapshot[]
   alerts    Alert[]
   news      NewsItem[]
+  trades    Trade[]
 }
 
 // ---------------------------------------------------------------------------
@@ -42,7 +44,7 @@ model Ticker {
 model SignalSnapshot {
   id        Int      @id @default(autoincrement())
   tickerId  Int
-  ticker    Ticker   @relation(fields: [tickerId], references: [id])
+  ticker    Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
   symbol    String
 
   // Price
@@ -109,7 +111,7 @@ model SignalSnapshot {
 model Alert {
   id        Int      @id @default(autoincrement())
   tickerId  Int
-  ticker    Ticker   @relation(fields: [tickerId], references: [id])
+  ticker    Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
   symbol    String
 
   scoreAtAlert  Float
@@ -153,7 +155,7 @@ enum FeedbackRating {
 model NewsItem {
   id        Int      @id @default(autoincrement())
   tickerId  Int
-  ticker    Ticker   @relation(fields: [tickerId], references: [id])
+  ticker    Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
   symbol    String
 
   headline  String
@@ -165,4 +167,34 @@ model NewsItem {
 
   @@unique([symbol, headline, publishedAt])
   @@index([symbol, publishedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Trade — user-logged trades tied to signal snapshots at entry time
+// ---------------------------------------------------------------------------
+model Trade {
+  id         Int      @id @default(autoincrement())
+  tickerId   Int
+  ticker     Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
+  symbol     String
+
+  side       String   // "buy" or "sell"
+  quantity   Float
+  price      Float
+  total      Float
+
+  // Screenshot that was uploaded (stored as base64 data URL or path)
+  screenshot String?
+
+  // Link to the signal snapshot closest to trade time
+  snapshotId Int?
+  scoreAtTrade Float?
+
+  notes      String?
+  tradedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([symbol, tradedAt])
+  @@index([tradedAt])
+  @@index([scoreAtTrade])
 }
