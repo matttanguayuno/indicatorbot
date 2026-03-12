@@ -13,14 +13,15 @@ function getOpenAI() {
   return _openai;
 }
 
-const SYSTEM_PROMPT = `You are a trade screenshot parser. The user will send you a screenshot of a trade confirmation, order fill, or position from a brokerage app (e.g. Webull, Robinhood, Fidelity, TD Ameritrade, IBKR, etc).
+const SYSTEM_PROMPT = `You are a trade screenshot parser. The user will send you a screenshot from a brokerage app (e.g. Webull, Robinhood, Fidelity, TD Ameritrade, IBKR, etc). It may be a trade confirmation, order fill, OR a position/portfolio view.
 
 Extract the following fields from the image:
-- symbol: The stock ticker symbol (e.g. "AAPL", "TSLA"). Always uppercase.
-- side: "buy" or "sell"
-- quantity: Number of shares (as a number)
-- price: Price per share (as a number)
+- symbol: The stock/futures ticker symbol (e.g. "AAPL", "CLK6"). Always uppercase.
+- side: "buy" or "sell". For position views, infer from context: a long position (positive quantity) = "buy", a short position = "sell".
+- quantity: Number of shares or contracts (as a number)
+- price: Price per share/contract (as a number). Use the fill price if visible, otherwise the last/current price.
 - tradedAt: The date/time of the trade in ISO 8601 format if visible, otherwise null
+- unrealizedPnl: The unrealized or open P&L as a number if visible (positive or negative), otherwise null
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -28,11 +29,12 @@ Return ONLY valid JSON with this exact structure:
   "side": "buy",
   "quantity": 100,
   "price": 150.25,
-  "tradedAt": "2024-01-15T10:30:00Z"
+  "tradedAt": "2024-01-15T10:30:00Z",
+  "unrealizedPnl": 500.00
 }
 
 If a field is not visible or unclear, use null for that field. Never invent data.
-If the image is not a trade screenshot, return: { "error": "Could not identify trade details in this image" }`;
+If the image does not contain any trade or position information at all, return: { "error": "Could not identify trade details in this image" }`;
 
 export async function POST(req: NextRequest) {
   if (!process.env.OPENAI_API_KEY) {
@@ -113,6 +115,7 @@ export async function POST(req: NextRequest) {
       quantity: parsed.quantity != null ? Number(parsed.quantity) : null,
       price: parsed.price != null ? Number(parsed.price) : null,
       tradedAt: parsed.tradedAt ?? null,
+      unrealizedPnl: parsed.unrealizedPnl != null ? Number(parsed.unrealizedPnl) : null,
     });
   } catch (err) {
     console.error('Screenshot parse error:', err);

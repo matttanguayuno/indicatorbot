@@ -32,6 +32,7 @@ export function TradesClient() {
     quantity: number | null;
     price: number | null;
     tradedAt: string | null;
+    unrealizedPnl?: number | null;
   } | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -243,6 +244,14 @@ export function TradesClient() {
                 {parsed.price != null ? `$${parsed.price.toFixed(2)}` : '—'}
               </span>
             </div>
+            {parsed.unrealizedPnl != null && (
+              <div>
+                <span className="text-gray-500">P&L:</span>{' '}
+                <span className={parsed.unrealizedPnl >= 0 ? 'text-green-400 font-mono' : 'text-red-400 font-mono'}>
+                  {parsed.unrealizedPnl >= 0 ? '+' : ''}{parsed.unrealizedPnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                </span>
+              </div>
+            )}
             {parsed.tradedAt && (
               <div className="col-span-2">
                 <span className="text-gray-500">Date:</span>{' '}
