@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { TickerSearch } from '@/components/ticker-search';
+import { RulesClient } from '@/app/rules/rules-client';
 
 interface Settings {
   id: number;
@@ -321,6 +322,8 @@ export function SettingsClient() {
         )}
       </div>
       </div>
+
+      <RulesClient />
     </div>
   );
 }

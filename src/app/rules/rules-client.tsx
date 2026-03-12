@@ -272,7 +272,7 @@ export function RulesClient() {
     <div className="pt-4 space-y-4 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Scoring Rules</h1>
+        <h2 className="text-2xl font-bold">Scoring Rules</h2>
         <div className="flex items-center gap-2">
           {hasChanges && (
             <button
