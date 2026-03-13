@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { TickerSearch } from '@/components/ticker-search';
 import { RulesClient } from '@/app/rules/rules-client';
@@ -14,6 +14,7 @@ interface Settings {
   alertCooldownMin: number;
   pollingIntervalSec: number;
   dataSource: string;
+  screenerSource: string;
   screenerTopN: number;
   screenerSyncTimes: string;
   newsSummaryTimes: string;
@@ -83,6 +84,7 @@ export function SettingsClient() {
           alertCooldownMin: settings.alertCooldownMin,
           pollingIntervalSec: settings.pollingIntervalSec,
           dataSource: settings.dataSource,
+          screenerSource: settings.screenerSource,
           screenerTopN: settings.screenerTopN,
           screenerSyncTimes: settings.screenerSyncTimes,
           newsSummaryTimes: settings.newsSummaryTimes,
@@ -223,30 +225,34 @@ export function SettingsClient() {
             min={10}
             max={3600}
           />
-          <SettingInput
-            label="Screener Top N"
-            value={settings.screenerTopN}
-            onChange={(v) => setSettings({ ...settings, screenerTopN: v })}
-            min={1}
-            max={200}
-          />
-          <p className="text-xs text-gray-500 -mt-2">
-            Number of top movers to pull from FMP.
-          </p>
+          {settings.screenerSource !== 'webull' && (
+            <>
+              <SettingInput
+                label="Screener Top N"
+                value={settings.screenerTopN}
+                onChange={(v) => setSettings({ ...settings, screenerTopN: v })}
+                min={1}
+                max={200}
+              />
+              <p className="text-xs text-gray-500 -mt-2">
+                Number of top movers to pull from FMP.
+              </p>
 
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-300">Sync Times (MT)</label>
-            <input
-              type="text"
-              value={settings.screenerSyncTimes}
-              onChange={(e) => setSettings({ ...settings, screenerSyncTimes: e.target.value })}
-              placeholder="06:30,10:00,13:00"
-              className="w-40 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 text-right"
-            />
-          </div>
-          <p className="text-xs text-gray-500 -mt-2">
-            Comma-separated HH:MM times in Mountain Time for auto-syncing top movers.
-          </p>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-300">Sync Times (MT)</label>
+                <input
+                  type="text"
+                  value={settings.screenerSyncTimes}
+                  onChange={(e) => setSettings({ ...settings, screenerSyncTimes: e.target.value })}
+                  placeholder="06:30,10:00,13:00"
+                  className="w-40 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 text-right"
+                />
+              </div>
+              <p className="text-xs text-gray-500 -mt-2">
+                Comma-separated HH:MM times in Mountain Time for auto-syncing top movers.
+              </p>
+            </>
+          )}
 
           <div className="flex items-center justify-between">
             <label className="text-sm text-gray-300">News Summary (MT)</label>
@@ -363,34 +369,63 @@ export function SettingsClient() {
       {/* Screener Sync */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
         <h2 className="text-sm font-semibold text-gray-400 mb-3">Top Movers Sync</h2>
-        <p className="text-sm text-gray-500 mb-3">
-          Pull the top daily gainers from FMP and update your watchlist.
-        </p>
-        <button
-          onClick={async () => {
-            setSyncLoading(true);
-            setSyncStatus(null);
-            try {
-              const res = await fetch('/api/screener/sync', { method: 'POST' });
-              const data = await res.json();
-              if (res.ok) {
-                setSyncStatus(`Synced ${data.total} tickers (${data.added} new). Symbols: ${data.symbols?.join(', ')}`);
-                loadData();
-                setDismissedRemoved(false);
-              } else {
-                setSyncStatus(`Error: ${data.error}`);
-              }
-            } catch {
-              setSyncStatus('Network error');
-            } finally {
-              setSyncLoading(false);
-            }
-          }}
-          disabled={syncLoading}
-          className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-700 text-sm py-2 rounded transition-colors"
-        >
-          {syncLoading ? 'Syncing...' : 'Sync Now'}
-        </button>
+
+        {/* Source toggle */}
+        {settings && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm text-gray-300">Source:</span>
+            <div className="flex rounded overflow-hidden border border-gray-700">
+              <button
+                onClick={() => { setSettings({ ...settings, screenerSource: 'fmp' }); setSyncStatus(null); }}
+                className={`px-3 py-1 text-sm transition-colors ${settings.screenerSource === 'fmp' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+              >
+                FMP
+              </button>
+              <button
+                onClick={() => { setSettings({ ...settings, screenerSource: 'webull' }); setSyncStatus(null); }}
+                className={`px-3 py-1 text-sm transition-colors ${settings.screenerSource === 'webull' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+              >
+                Webull
+              </button>
+            </div>
+            <span className="text-xs text-gray-500">(save settings to persist)</span>
+          </div>
+        )}
+
+        {settings?.screenerSource === 'webull' ? (
+          <WebullUpload onSynced={() => { loadData(); setDismissedRemoved(false); }} />
+        ) : (
+          <>
+            <p className="text-sm text-gray-500 mb-3">
+              Pull the top daily gainers from FMP and update your watchlist.
+            </p>
+            <button
+              onClick={async () => {
+                setSyncLoading(true);
+                setSyncStatus(null);
+                try {
+                  const res = await fetch('/api/screener/sync', { method: 'POST' });
+                  const data = await res.json();
+                  if (res.ok) {
+                    setSyncStatus(`Synced ${data.total} tickers (${data.added} new). Symbols: ${data.symbols?.join(', ')}`);
+                    loadData();
+                    setDismissedRemoved(false);
+                  } else {
+                    setSyncStatus(`Error: ${data.error}`);
+                  }
+                } catch {
+                  setSyncStatus('Network error');
+                } finally {
+                  setSyncLoading(false);
+                }
+              }}
+              disabled={syncLoading}
+              className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:bg-gray-700 text-sm py-2 rounded transition-colors"
+            >
+              {syncLoading ? 'Syncing...' : 'Sync Now'}
+            </button>
+          </>
+        )}
         {syncStatus && (
           <div className="text-sm text-gray-400 mt-2 whitespace-pre-line">{syncStatus}</div>
         )}
@@ -472,6 +507,76 @@ export function SettingsClient() {
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+function WebullUpload({ onSynced }: { onSynced: () => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    setResult(null);
+    setError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/screener/parse-screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResult(`Synced ${data.total} tickers (${data.added} new): ${data.symbols?.join(', ')}`);
+        onSynced();
+      } else {
+        setError(data.error || 'Failed to parse screenshot');
+      }
+    } catch {
+      setError('Network error');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-500">
+        Upload a screenshot of the Webull top-movers table to sync your watchlist.
+      </p>
+      <label
+        className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+          uploading ? 'border-gray-700 bg-gray-800/50' : 'border-gray-700 hover:border-emerald-600 hover:bg-gray-800/30'
+        }`}
+      >
+        <span className="text-sm text-gray-400">
+          {uploading ? '⏳ Parsing screenshot…' : '📸 Click or drop a screenshot'}
+        </span>
+        <span className="text-xs text-gray-600 mt-1">PNG, JPG — Webull screener table</span>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFile(file);
+          }}
+        />
+      </label>
+      {result && <p className="text-sm text-green-400">{result}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
 }

@@ -98,6 +98,10 @@ export async function register() {
     try {
       const prisma = (await import('@/lib/db')).default;
       const settings = await prisma.appSettings.findFirst() as Record<string, unknown> | null;
+
+      // Skip auto-sync when source is webull (manual screenshot upload only)
+      if (settings?.screenerSource === 'webull') return;
+
       const rawTimes = (typeof settings?.screenerSyncTimes === 'string' ? settings.screenerSyncTimes : null) ?? DEFAULT_SYNC_TIMES;
       syncWindows = parseSyncTimes(rawTimes);
     } catch {

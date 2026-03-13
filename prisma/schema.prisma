@@ -16,6 +16,7 @@ model AppSettings {
   alertCooldownMin    Int      @default(30)
   pollingIntervalSec  Int      @default(60)
   dataSource          String   @default("twelvedata")
+  screenerSource      String   @default("fmp")
   screenerTopN        Int      @default(30)
   screenerSyncTimes   String   @default("06:30,10:00,13:00")
   newsSummaryTimes    String   @default("07:30,10:00")

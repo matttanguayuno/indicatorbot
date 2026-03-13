@@ -36,12 +36,17 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerTopN, screenerSyncTimes, newsSummaryTimes } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes } = body;
 
   const settings = await getOrCreateSettings();
 
   const validSource = typeof dataSource === 'string' && (VALID_DATA_SOURCES as readonly string[]).includes(dataSource)
     ? dataSource
+    : undefined;
+
+  const VALID_SCREENER_SOURCES = ['fmp', 'webull'] as const;
+  const validScreenerSource = typeof screenerSource === 'string' && (VALID_SCREENER_SOURCES as readonly string[]).includes(screenerSource)
+    ? screenerSource
     : undefined;
 
   const validTopN = typeof screenerTopN === 'number' && screenerTopN >= 1 && screenerTopN <= 200
@@ -78,6 +83,7 @@ export async function PUT(req: NextRequest) {
       ...(alertCooldownMin != null && { alertCooldownMin }),
       ...(pollingIntervalSec != null && { pollingIntervalSec }),
       ...(validSource != null && { dataSource: validSource }),
+      ...(validScreenerSource != null && { screenerSource: validScreenerSource }),
       ...(validTopN != null && { screenerTopN: validTopN }),
       ...(validSyncTimes != null && { screenerSyncTimes: validSyncTimes }),
       ...(validNewsTimes != null && { newsSummaryTimes: validNewsTimes }),
