@@ -43,9 +43,8 @@ export function VwapStatus({ pctFromVwap }: { pctFromVwap: number | null }) {
 
 /** News indicator dot */
 export function NewsIndicator({ count }: { count: number }) {
-  if (count === 0) return <span className="text-gray-600 text-base">—</span>;
   return (
-    <span className="text-yellow-400 text-base font-mono">
+    <span className={`text-base font-mono ${count > 0 ? 'text-yellow-400' : 'text-gray-600'}`}>
       📰 {count}
     </span>
   );
