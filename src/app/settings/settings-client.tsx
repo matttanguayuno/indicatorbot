@@ -513,6 +513,7 @@ export function SettingsClient() {
 
 function WebullUpload({ onSynced }: { onSynced: () => void }) {
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -555,12 +556,24 @@ function WebullUpload({ onSynced }: { onSynced: () => void }) {
         Upload a screenshot of the Webull top-movers table to sync your watchlist.
       </p>
       <label
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragging(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file && file.type.startsWith('image/')) handleFile(file);
+        }}
         className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-          uploading ? 'border-gray-700 bg-gray-800/50' : 'border-gray-700 hover:border-emerald-600 hover:bg-gray-800/30'
+          uploading ? 'border-gray-700 bg-gray-800/50'
+            : dragging ? 'border-emerald-500 bg-emerald-900/20'
+            : 'border-gray-700 hover:border-emerald-600 hover:bg-gray-800/30'
         }`}
       >
         <span className="text-sm text-gray-400">
-          {uploading ? '⏳ Parsing screenshot…' : '📸 Click or drop a screenshot'}
+          {uploading ? '⏳ Parsing screenshot…' : dragging ? '📥 Drop image here' : '📸 Click or drag a screenshot'}
         </span>
         <span className="text-xs text-gray-600 mt-1">PNG, JPG — Webull screener table</span>
         <input
