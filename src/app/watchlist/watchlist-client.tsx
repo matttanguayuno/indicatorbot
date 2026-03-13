@@ -554,14 +554,30 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   if (lines.length === 0) return null;
 
   const maxLen = Math.max(...lines.map((l) => l.scores.length));
-  const timestamps = snapshots[0]?.priceTimestamps ?? [];
+  // Use the longest priceTimestamps among the plotted stocks (not snapshots[0])
+  const timestamps = lines.reduce((best, line) => {
+    const s = snapshots.find(sn => sn.symbol === line.symbol);
+    return (s?.priceTimestamps.length ?? 0) > best.length ? (s?.priceTimestamps ?? []) : best;
+  }, [] as string[]);
 
   // Build time-based X-axis spanning 7:30 AM – 2:00 PM MT
   const parsedTimes = timestamps.map(t => new Date(t).getTime());
+
+  // Compute today's market open/close in Mountain Time using Intl (robust cross-timezone)
   const refDate = timestamps.length > 0 ? new Date(timestamps[0]) : new Date();
-  const mtDateStr = refDate.toLocaleDateString('en-US', { timeZone: 'America/Denver' });
-  const marketOpenMs = new Date(`${mtDateStr} 07:30:00 AM`).getTime();
-  const marketCloseMs = new Date(`${mtDateStr} 02:00:00 PM`).getTime();
+  const mtParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(refDate);
+  const mtH = +(mtParts.find(p => p.type === 'hour')?.value ?? '0') % 24;
+  const mtM = +(mtParts.find(p => p.type === 'minute')?.value ?? '0');
+  const mtS = +(mtParts.find(p => p.type === 'second')?.value ?? '0');
+  const mtMsSinceMidnight = ((mtH * 60 + mtM) * 60 + mtS) * 1000;
+  const mtMidnightMs = refDate.getTime() - mtMsSinceMidnight;
+  const marketOpenMs = mtMidnightMs + 7.5 * 3_600_000;  // 7:30 AM MT
+  const marketCloseMs = mtMidnightMs + 14 * 3_600_000;   // 2:00 PM MT
+
   const xDomainMin = parsedTimes.length > 0 ? Math.min(marketOpenMs, Math.min(...parsedTimes)) : marketOpenMs;
   const xDomainMax = parsedTimes.length > 0 ? Math.max(marketCloseMs, Math.max(...parsedTimes)) : marketCloseMs;
   const xDomainRange = xDomainMax - xDomainMin || 1;
@@ -587,13 +603,13 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
     yTicks.push(t);
   }
 
-  // X-axis: generate evenly-spaced hour labels across the trading day
+  // X-axis: generate half-hour labels from market open to close
   const xTimeTicks: number[] = [];
   {
     const halfHour = 30 * 60 * 1000;
-    let tick = Math.ceil(xDomainMin / halfHour) * halfHour;
+    let tick = marketOpenMs;
     while (tick <= xDomainMax) {
-      xTimeTicks.push(tick);
+      if (tick >= xDomainMin) xTimeTicks.push(tick);
       tick += halfHour;
     }
     while (xTimeTicks.length > 7) {
