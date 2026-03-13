@@ -67,13 +67,6 @@ export interface ApiCallLogEntry {
   detail?: string;
 }
 
-// ── In-memory buffer, flushed to DB on read ──
-declare global {
-  // eslint-disable-next-line no-var
-  var __apiCallBuffer: ApiCallLogEntry[] | undefined;
-}
-if (!globalThis.__apiCallBuffer) globalThis.__apiCallBuffer = [];
-
 // Cache the logging-enabled flag so we don't hit the DB on every call
 let _loggingEnabled: boolean | null = null;
 async function isLoggingEnabled(): Promise<boolean> {
@@ -91,45 +84,29 @@ export function setLoggingEnabledCache(enabled: boolean) {
   _loggingEnabled = enabled;
 }
 
-function logApiCall(entry: ApiCallLogEntry) {
-  if (_loggingEnabled === false) return;
-  globalThis.__apiCallBuffer!.push(entry);
-}
-
-/** Flush in-memory buffer to DB. Called on read so it's always awaited. */
-async function flushBuffer(): Promise<void> {
-  const buf = globalThis.__apiCallBuffer!;
-  if (buf.length === 0) return;
-  const toFlush = buf.splice(0, buf.length);
+async function logApiCall(entry: ApiCallLogEntry) {
+  if (!(await isLoggingEnabled())) return;
   try {
     const { prisma } = await import('@/lib/db');
-    await prisma.apiCallLog.createMany({
-      data: toFlush.map((e) => ({
-        timestamp: new Date(e.timestamp),
-        endpoint: e.endpoint,
-        symbols: Array.isArray(e.symbols) ? e.symbols.join(',') : e.symbols,
-        credits: e.credits,
-        purpose: e.purpose,
-        status: e.status,
-        detail: e.detail ?? null,
-      })),
+    const symbols = Array.isArray(entry.symbols) ? entry.symbols.join(',') : entry.symbols;
+    await prisma.apiCallLog.create({
+      data: {
+        timestamp: new Date(entry.timestamp),
+        endpoint: entry.endpoint,
+        symbols,
+        credits: entry.credits,
+        purpose: entry.purpose,
+        status: entry.status,
+        detail: entry.detail ?? null,
+      },
     });
   } catch (err) {
-    console.error('[ApiLog] Failed to flush buffer:', err);
-    // Put entries back so they aren't lost
-    buf.unshift(...toFlush);
+    console.error('[ApiLog] Failed to persist:', err);
   }
 }
 
-/** Get the API call log (newest first). Flushes buffer to DB first. */
+/** Get the API call log (newest first). */
 export async function getApiCallLog(limit = 500): Promise<ApiCallLogEntry[]> {
-  const enabled = await isLoggingEnabled();
-  if (!enabled) {
-    // Clear any buffered entries that accumulated before disable
-    globalThis.__apiCallBuffer!.length = 0;
-  } else {
-    await flushBuffer();
-  }
   const { prisma } = await import('@/lib/db');
   const rows = await prisma.apiCallLog.findMany({
     orderBy: { timestamp: 'desc' },
@@ -148,7 +125,6 @@ export async function getApiCallLog(limit = 500): Promise<ApiCallLogEntry[]> {
 
 /** Delete all log entries from the database. */
 export async function clearApiCallLog(): Promise<void> {
-  globalThis.__apiCallBuffer!.length = 0;
   const { prisma } = await import('@/lib/db');
   await prisma.apiCallLog.deleteMany();
 }
@@ -176,7 +152,7 @@ export async function getTimeSeries(
   if (Date.now() < quotaExhaustedUntil) {
     const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
     console.log(`[TwelveData] Rate-limit backoff active, skipping candle fetch (${waitSec}s remaining)`);
-    logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'skipped', detail: `Rate-limited, ${waitSec}s remaining` });
+    await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'skipped', detail: `Rate-limited, ${waitSec}s remaining` });
     return new Map();
   }
 
@@ -196,7 +172,7 @@ export async function getTimeSeries(
       if (res.status === 429) {
         quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
         console.warn(`[TwelveData] Rate limited — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
-        logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'rate-limited', detail: 'HTTP 429' });
+        await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'rate-limited', detail: 'HTTP 429' });
         return new Map();
       }
 
@@ -258,7 +234,7 @@ export async function getTimeSeries(
         }
       }
 
-      logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: symbols.length, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'ok', detail: `${result.size}/${symbols.length} symbols returned` });
+      await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: symbols.length, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'ok', detail: `${result.size}/${symbols.length} symbols returned` });
       return result;
     } catch (err) {
       console.error(`[TwelveData] Network error, attempt ${attempt}:`, err);
@@ -281,14 +257,14 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
   if (Date.now() < quotaExhaustedUntil) {
     const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
     console.log(`[TwelveData] Rate-limit backoff active, skipping ${endpoint} (${waitSec}s remaining)`);
-    logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'rate-limited', detail: `Backoff ${waitSec}s remaining` });
+    await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'rate-limited', detail: `Backoff ${waitSec}s remaining` });
     return null;
   }
 
   // Pre-check: would this call exceed our per-minute budget?
   if (wouldExceedRateLimit(1)) {
     console.log(`[TwelveData] Skipping ${endpoint} — would exceed ${CREDITS_PER_MINUTE} credits/min`);
-    logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'rate-limited', detail: `Would exceed ${CREDITS_PER_MINUTE} credits/min` });
+    await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'rate-limited', detail: `Would exceed ${CREDITS_PER_MINUTE} credits/min` });
     return null;
   }
 
@@ -305,7 +281,7 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
       if (res.status === 429) {
         quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
         console.warn(`[TwelveData] Rate limited on ${endpoint} — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
-        logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'http-429', detail: 'Rate limited — backing off 60s' });
+        await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'http-429', detail: 'Rate limited — backing off 60s' });
         return null;
       }
       if (!res.ok) {
@@ -314,7 +290,7 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
           await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
           continue;
         }
-        logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'error', detail: `HTTP ${res.status} ${res.statusText}` });
+        await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'error', detail: `HTTP ${res.status} ${res.statusText}` });
         return null;
       }
       recordCredits(1);
@@ -325,10 +301,10 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
           quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
           console.warn(`[TwelveData] Rate limited on ${endpoint} (response body) — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
         }
-        logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 1, purpose, status: 'api-error', detail: data.message });
+        await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 1, purpose, status: 'api-error', detail: data.message });
         return null;
       }
-      logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 1, purpose, status: 'ok', detail: '' });
+      await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 1, purpose, status: 'ok', detail: '' });
       return data as T;
     } catch (err) {
       console.error(`[TwelveData] Network error on ${endpoint}, attempt ${attempt}:`, err);
@@ -338,7 +314,7 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
       }
     }
   }
-  logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'error', detail: 'All retries exhausted' });
+  await logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'error', detail: 'All retries exhausted' });
   return null;
 }
 
