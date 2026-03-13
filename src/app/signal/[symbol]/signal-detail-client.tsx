@@ -347,16 +347,6 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
                 </span>
               )}
             </div>
-            <button
-              onClick={async () => {
-                await fetch(`/api/buy-entries?id=${buyEntry.id}`, { method: 'DELETE' });
-                setBuyEntry(null);
-              }}
-              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-              title="Dismiss buy entry"
-            >
-              ✕
-            </button>
           </>
         ) : (
           <button
