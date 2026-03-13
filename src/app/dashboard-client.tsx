@@ -45,10 +45,6 @@ export function DashboardClient() {
   const [marketOpen, setMarketOpen] = useState(false);
   const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({}); 
   const [feedbackMap, setFeedbackMap] = useState<Record<string, { rating: string; note: string | null; snapshotId: number }>>({}); 
-  const [summaryText, setSummaryText] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(null);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -214,106 +210,6 @@ export function DashboardClient() {
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
           <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} feedback={feedbackMap[snapshots[0].symbol] ?? null} />
           <ScoreEvolutionPanel snapshots={snapshots} />
-        </div>
-      )}
-
-      {/* AI News Summary */}
-      {(snapshots.length > 0 || allSnapshots.length > 0) && (
-        <div className="mt-4">
-          {!summaryText && (
-            <button
-              onClick={async () => {
-                setSummaryLoading(true);
-                try {
-                  const res = await fetch('/api/news/summary', { method: 'POST' });
-                  const data = await res.json();
-                  if (res.ok) {
-                    setSummaryText(data.summary);
-                    setSummaryGeneratedAt(data.generatedAt);
-                    setSummaryExpanded(true);
-                  } else {
-                    setSummaryText(data.error || 'Failed to generate summary.');
-                    setSummaryGeneratedAt(new Date().toISOString());
-                  }
-                } catch {
-                  setSummaryText('Network error — could not reach the server.');
-                  setSummaryGeneratedAt(new Date().toISOString());
-                } finally {
-                  setSummaryLoading(false);
-                }
-              }}
-              disabled={summaryLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 border border-gray-700 rounded-lg text-sm text-gray-300 transition-colors"
-            >
-              {summaryLoading ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Generating summary…
-                </>
-              ) : (
-                <>
-                  <span>📰</span>
-                  Summarize News
-                </>
-              )}
-            </button>
-          )}
-          {summaryText && (
-            <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5">
-                <button
-                  onClick={() => setSummaryExpanded(!summaryExpanded)}
-                  className="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-gray-100 transition-colors"
-                >
-                  <span className={`transition-transform ${summaryExpanded ? 'rotate-90' : ''}`}>▸</span>
-                  📰 AI News Summary
-                </button>
-                <div className="flex items-center gap-3">
-                  {summaryGeneratedAt && (
-                    <span className="text-xs text-gray-600">
-                      <TimeAgo date={summaryGeneratedAt} />
-                    </span>
-                  )}
-                  <button
-                    onClick={async () => {
-                      setSummaryLoading(true);
-                      try {
-                        const res = await fetch('/api/news/summary', { method: 'POST' });
-                        const data = await res.json();
-                        if (res.ok) {
-                          setSummaryText(data.summary);
-                          setSummaryGeneratedAt(data.generatedAt);
-                        } else {
-                          setSummaryText(data.error || 'Failed to generate summary.');
-                        }
-                      } catch {
-                        setSummaryText('Network error — could not reach the server.');
-                      } finally {
-                        setSummaryLoading(false);
-                      }
-                    }}
-                    disabled={summaryLoading}
-                    className="text-xs text-gray-500 hover:text-gray-300 disabled:text-gray-700 transition-colors"
-                    title="Regenerate summary"
-                  >
-                    {summaryLoading ? '⏳' : '🔄'}
-                  </button>
-                  <button
-                    onClick={() => { setSummaryText(null); setSummaryGeneratedAt(null); }}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                    title="Dismiss"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              {summaryExpanded && (
-                <div className="px-4 pb-3 text-sm text-gray-400 leading-relaxed whitespace-pre-line">
-                  {summaryText}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 

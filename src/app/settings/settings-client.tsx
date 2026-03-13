@@ -14,6 +14,7 @@ interface Settings {
   dataSource: string;
   screenerTopN: number;
   screenerSyncTimes: string;
+  newsSummaryTimes: string;
   twelveDataExhausted?: boolean;
   twelveDataResumesAt?: string | null;
 }
@@ -78,6 +79,7 @@ export function SettingsClient() {
           dataSource: settings.dataSource,
           screenerTopN: settings.screenerTopN,
           screenerSyncTimes: settings.screenerSyncTimes,
+          newsSummaryTimes: settings.newsSummaryTimes,
         }),
       });
       if (res.ok) setSettings(await res.json());
@@ -238,6 +240,20 @@ export function SettingsClient() {
           </div>
           <p className="text-xs text-gray-500 -mt-2">
             Comma-separated HH:MM times in Mountain Time for auto-syncing top movers.
+          </p>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300">News Summary (ET)</label>
+            <input
+              type="text"
+              value={settings.newsSummaryTimes}
+              onChange={(e) => setSettings({ ...settings, newsSummaryTimes: e.target.value })}
+              placeholder="09:30,12:00"
+              className="w-40 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 text-right"
+            />
+          </div>
+          <p className="text-xs text-gray-500 -mt-2">
+            Comma-separated HH:MM times in Eastern Time for auto-generating AI news summaries.
           </p>
 
           <button

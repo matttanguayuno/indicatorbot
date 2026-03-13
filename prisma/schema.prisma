@@ -18,6 +18,7 @@ model AppSettings {
   dataSource          String   @default("twelvedata")
   screenerTopN        Int      @default(30)
   screenerSyncTimes   String   @default("06:30,10:00,13:00")
+  newsSummaryTimes    String   @default("09:30,12:00")
   rulesJson           String?
   updatedAt           DateTime @updatedAt
 }
@@ -231,4 +232,16 @@ model Trade {
   @@index([symbol, tradedAt])
   @@index([tradedAt])
   @@index([scoreAtTrade])
+}
+
+// ---------------------------------------------------------------------------
+// News Summary — AI-generated market narrative, persisted for display
+// ---------------------------------------------------------------------------
+model NewsSummary {
+  id          Int      @id @default(autoincrement())
+  summary     String
+  symbols     String   // comma-separated list of symbols included
+  generatedAt DateTime @default(now())
+
+  @@index([generatedAt])
 }

@@ -41,6 +41,10 @@ export function WatchlistClient() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [marketOpen, setMarketOpen] = useState(false);
   const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({});
+  const [summaryText, setSummaryText] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(null);
+  const [summaryExpanded, setSummaryExpanded] = useState(true);
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -98,6 +102,17 @@ export function WatchlistClient() {
 
   useEffect(() => {
     fetchSnapshots();
+
+    // Load latest persisted summary
+    fetch('/api/news/summary')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.summary) {
+          setSummaryText(data.summary);
+          setSummaryGeneratedAt(data.generatedAt);
+        }
+      })
+      .catch(() => {});
 
     let refreshTimer: ReturnType<typeof setInterval>;
 
@@ -157,6 +172,59 @@ export function WatchlistClient() {
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
           <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} />
           <ScoreEvolutionPanel snapshots={snapshots} />
+        </div>
+      )}
+
+      {/* AI News Summary */}
+      {(summaryText || summaryLoading) && (
+        <div className="mt-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <button
+                onClick={() => setSummaryExpanded(!summaryExpanded)}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-300 hover:text-gray-100 transition-colors"
+              >
+                <span className={`transition-transform ${summaryExpanded ? 'rotate-90' : ''}`}>▸</span>
+                📰 AI News Summary
+              </button>
+              <div className="flex items-center gap-3">
+                {summaryGeneratedAt && (
+                  <span className="text-xs text-gray-600">
+                    <TimeAgo date={summaryGeneratedAt} />
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    setSummaryLoading(true);
+                    try {
+                      const res = await fetch('/api/news/summary', { method: 'POST' });
+                      const data = await res.json();
+                      if (res.ok) {
+                        setSummaryText(data.summary);
+                        setSummaryGeneratedAt(data.generatedAt);
+                      } else {
+                        setSummaryText(data.error || 'Failed to generate summary.');
+                      }
+                    } catch {
+                      setSummaryText('Network error — could not reach the server.');
+                    } finally {
+                      setSummaryLoading(false);
+                    }
+                  }}
+                  disabled={summaryLoading}
+                  className="text-xs text-gray-500 hover:text-gray-300 disabled:text-gray-700 transition-colors"
+                  title="Regenerate summary"
+                >
+                  {summaryLoading ? '⏳' : '🔄'}
+                </button>
+              </div>
+            </div>
+            {summaryExpanded && (
+              <div className="px-4 pb-3 text-sm text-gray-400 leading-relaxed whitespace-pre-line">
+                {summaryLoading ? 'Generating summary…' : summaryText}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

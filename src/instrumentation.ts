@@ -165,4 +165,65 @@ export async function register() {
   // Check every 60s if it's time for a screener sync
   console.log('[Screener Sync] Scheduler started (times from DB, weekdays)');
   setInterval(screenerTick, 60_000);
+
+  // ─── News summary scheduler ────────────────────────────────────────
+  // Auto-generate AI news summaries at configured times (Eastern Time)
+  const DEFAULT_NEWS_TIMES = '09:30,12:00';
+  let lastNewsSummaryKey = '';
+
+  async function newsSummaryTick() {
+    const nowDate = new Date();
+    const et = new Date(nowDate.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const day = et.getDay();
+
+    // Only Mon–Fri
+    if (day < 1 || day > 5) return;
+
+    const hours = et.getHours();
+    const minutes = et.getMinutes();
+
+    // Load news summary times from DB
+    let summaryWindows: { hour: number; minute: number }[];
+    try {
+      const prisma = (await import('@/lib/db')).default;
+      const settings = await prisma.appSettings.findFirst() as Record<string, unknown> | null;
+      const rawTimes = (typeof settings?.newsSummaryTimes === 'string' ? settings.newsSummaryTimes : null) ?? DEFAULT_NEWS_TIMES;
+      summaryWindows = parseSyncTimes(rawTimes);
+    } catch {
+      summaryWindows = parseSyncTimes(DEFAULT_NEWS_TIMES);
+    }
+
+    const matchingWindow = summaryWindows.find((w) => {
+      const windowMin = w.hour * 60 + w.minute;
+      const currentMin = hours * 60 + minutes;
+      return Math.abs(currentMin - windowMin) <= 2;
+    });
+
+    if (!matchingWindow) return;
+
+    const windowKey = `news-${et.getFullYear()}-${et.getMonth()}-${et.getDate()}-${matchingWindow.hour}:${matchingWindow.minute}`;
+    if (lastNewsSummaryKey === windowKey) return;
+    lastNewsSummaryKey = windowKey;
+
+    console.log(`[News Summary] Auto-generating at ${hours}:${String(minutes).padStart(2, '0')} ET`);
+
+    try {
+      // Call our own API endpoint to generate and persist the summary
+      const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : 'http://localhost:3001';
+      const res = await fetch(`${baseUrl}/api/news/summary`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        console.log(`[News Summary] Done — ${data.symbols?.length ?? 0} symbols covered`);
+      } else {
+        console.warn(`[News Summary] API returned ${res.status}`);
+      }
+    } catch (err) {
+      console.error('[News Summary] Error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  console.log('[News Summary] Scheduler started (times from DB, weekdays, ET)');
+  setInterval(newsSummaryTick, 60_000);
 }

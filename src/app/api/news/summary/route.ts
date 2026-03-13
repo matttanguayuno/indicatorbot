@@ -1,7 +1,6 @@
 /**
- * POST /api/news/summary
- * AI-generated summary of recent news for stocks above the watchlist threshold.
- * Uses GPT-4o-mini for cost-efficient summarization.
+ * GET  /api/news/summary — fetch the latest persisted summary
+ * POST /api/news/summary — generate a new AI summary for all watchlist stocks
  */
 
 import { NextResponse } from 'next/server';
@@ -26,6 +25,24 @@ Write a brief market narrative (2-3 short paragraphs) summarizing the key themes
 
 Do NOT use markdown headers or bullet points. Write in flowing paragraphs.`;
 
+// GET: return the latest stored summary
+export async function GET() {
+  const latest = await prisma.newsSummary.findFirst({
+    orderBy: { generatedAt: 'desc' },
+  });
+
+  if (!latest) {
+    return NextResponse.json({ summary: null, symbols: [], generatedAt: null });
+  }
+
+  return NextResponse.json({
+    summary: latest.summary,
+    symbols: latest.symbols.split(',').filter(Boolean),
+    generatedAt: latest.generatedAt.toISOString(),
+  });
+}
+
+// POST: generate a fresh summary and persist it
 export async function POST() {
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
@@ -34,13 +51,9 @@ export async function POST() {
     );
   }
 
-  const settings = await prisma.appSettings.findFirst();
-  const threshold = settings?.watchlistThreshold ?? 0;
-
-  // Get latest snapshot per active ticker above threshold
   const tickers = await prisma.ticker.findMany({ where: { active: true } });
 
-  const qualifying: {
+  const stocks: {
     symbol: string;
     signalScore: number;
     currentPrice: number;
@@ -60,25 +73,21 @@ export async function POST() {
         pctChange1d: true,
       },
     });
-    if (snap && snap.signalScore >= threshold) {
-      qualifying.push(snap);
-    }
+    if (snap) stocks.push(snap);
   }
 
-  if (qualifying.length === 0) {
-    return NextResponse.json({
-      summary: 'No stocks currently meet the watchlist threshold. Check back during market hours after a polling cycle runs.',
-      symbols: [],
-      generatedAt: new Date().toISOString(),
-    });
+  if (stocks.length === 0) {
+    const summary = 'No stocks in the watchlist. Add tickers in Settings or wait for a screener sync.';
+    await prisma.newsSummary.create({ data: { summary, symbols: '' } });
+    return NextResponse.json({ summary, symbols: [], generatedAt: new Date().toISOString() });
   }
 
-  // Fetch recent news for qualifying symbols (last 48h, up to 10 per ticker)
+  // Fetch recent news (last 48h, up to 10 per ticker)
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
   const newsPerSymbol: Record<string, { headline: string; source: string | null; publishedAt: Date }[]> = {};
 
   await Promise.all(
-    qualifying.map(async (q) => {
+    stocks.map(async (q) => {
       const articles = await prisma.newsItem.findMany({
         where: { symbol: q.symbol, publishedAt: { gte: cutoff } },
         orderBy: { publishedAt: 'desc' },
@@ -91,18 +100,15 @@ export async function POST() {
     }),
   );
 
-  const symbolsWithNews = Object.keys(newsPerSymbol);
+  const allSymbols = stocks.map((s) => s.symbol);
 
-  if (symbolsWithNews.length === 0) {
-    return NextResponse.json({
-      summary: `${qualifying.length} stock${qualifying.length > 1 ? 's' : ''} above threshold but no recent news articles found in the last 48 hours. The signals are driven by price action and volume rather than news catalysts.`,
-      symbols: qualifying.map((q) => q.symbol),
-      generatedAt: new Date().toISOString(),
-    });
+  if (Object.keys(newsPerSymbol).length === 0) {
+    const summary = `${stocks.length} stock${stocks.length > 1 ? 's' : ''} on the watchlist but no recent news articles found in the last 48 hours. Current signals are driven by price action and volume rather than news catalysts.`;
+    await prisma.newsSummary.create({ data: { summary, symbols: allSymbols.join(',') } });
+    return NextResponse.json({ summary, symbols: allSymbols, generatedAt: new Date().toISOString() });
   }
 
-  // Build the prompt
-  const stockSections = qualifying
+  const stockSections = stocks
     .sort((a, b) => b.signalScore - a.signalScore)
     .map((q) => {
       const articles = newsPerSymbol[q.symbol];
@@ -122,7 +128,7 @@ export async function POST() {
     })
     .join('\n\n');
 
-  const userMessage = `Here are today's top-scoring stocks and their recent news:\n\n${stockSections}`;
+  const userMessage = `Here are today's watchlist stocks and their recent news:\n\n${stockSections}`;
 
   try {
     const response = await getOpenAI().chat.completions.create({
@@ -136,12 +142,9 @@ export async function POST() {
     });
 
     const summary = response.choices[0]?.message?.content?.trim() ?? 'Unable to generate summary.';
+    await prisma.newsSummary.create({ data: { summary, symbols: allSymbols.join(',') } });
 
-    return NextResponse.json({
-      summary,
-      symbols: qualifying.map((q) => q.symbol),
-      generatedAt: new Date().toISOString(),
-    });
+    return NextResponse.json({ summary, symbols: allSymbols, generatedAt: new Date().toISOString() });
   } catch (err) {
     console.error('[News Summary] OpenAI error:', err instanceof Error ? err.message : err);
     return NextResponse.json(

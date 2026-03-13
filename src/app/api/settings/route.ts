@@ -36,7 +36,7 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerTopN, screenerSyncTimes } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerTopN, screenerSyncTimes, newsSummaryTimes } = body;
 
   const settings = await getOrCreateSettings();
 
@@ -59,6 +59,17 @@ export async function PUT(req: NextRequest) {
     if (allValid) validSyncTimes = parts.join(',');
   }
 
+  // Validate newsSummaryTimes: same format
+  let validNewsTimes: string | undefined;
+  if (typeof newsSummaryTimes === 'string') {
+    const parts = newsSummaryTimes.split(',').map(s => s.trim()).filter(Boolean);
+    const allValid = parts.length > 0 && parts.every(p => /^\d{1,2}:\d{2}$/.test(p) && (() => {
+      const [h, m] = p.split(':').map(Number);
+      return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+    })());
+    if (allValid) validNewsTimes = parts.join(',');
+  }
+
   const updated = await prisma.appSettings.update({
     where: { id: settings.id },
     data: {
@@ -69,6 +80,7 @@ export async function PUT(req: NextRequest) {
       ...(validSource != null && { dataSource: validSource }),
       ...(validTopN != null && { screenerTopN: validTopN }),
       ...(validSyncTimes != null && { screenerSyncTimes: validSyncTimes }),
+      ...(validNewsTimes != null && { newsSummaryTimes: validNewsTimes }),
     },
   });
 
