@@ -577,7 +577,7 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
         {xLabelIndices.map((i) => {
           if (i >= timestamps.length) return null;
           const d = new Date(timestamps[i]);
-          const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+          const label = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' });
           return (
             <text key={i} x={xScale(i)} y={vh - 4} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
               {label}
@@ -656,7 +656,7 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
           let tx = xScale(hoverIdx) + 8;
           if (tx + tipW > vw - padR) tx = xScale(hoverIdx) - tipW - 8;
           const hd = hoverIdx < timestamps.length ? new Date(timestamps[hoverIdx]) : null;
-          const timeStr = hd ? `${hd.getMonth() + 1}/${hd.getDate()}/${hd.getFullYear()} ${hd.getHours()}:${hd.getMinutes().toString().padStart(2, '0')}` : '';
+          const timeStr = hd ? hd.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' }) : '';
           return (
             <g>
               <rect x={tx} y={padT} width={tipW} height={tipH} rx={3} fill="#111827" stroke="#4b5563" strokeWidth={0.5} />

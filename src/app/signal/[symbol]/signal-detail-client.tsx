@@ -804,7 +804,7 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
         const step = Math.max(1, Math.floor(data.length / 6));
         if (i % step !== 0 && i !== data.length - 1) return null;
         const d = new Date(entry.timestamp);
-        const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+        const label = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' });
         return (
           <text key={i} x={xScale(i)} y={h - 4} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
             {label}
@@ -864,7 +864,7 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
             let ty = dotY - tipH - 10;
             if (ty < 2) ty = dotY + 12;
             const d = new Date(data[hoverIdx].timestamp);
-            const timeLabel = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+            const timeLabel = d.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' });
             return (
               <g>
                 <rect x={tx - tipW / 2} y={ty} width={tipW} height={tipH} rx={3} fill="#1f2937" stroke="#374151" strokeWidth={0.5} />
