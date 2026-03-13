@@ -30,9 +30,6 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Screener Sync] Starting FMP screen for top ${topN} symbols`);
 
-    // Clean up inactive tickers from previous sync
-    await prisma.ticker.deleteMany({ where: { active: false } });
-
     // Screen via FMP API
     const scraped = await screenFMP(topN);
 

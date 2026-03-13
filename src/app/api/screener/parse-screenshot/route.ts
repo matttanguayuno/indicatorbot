@@ -106,8 +106,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Sync watchlist — same logic as /api/screener/sync
-    await prisma.ticker.deleteMany({ where: { active: false } });
-
     const previouslyActive = await prisma.ticker.count({ where: { active: true } });
 
     await prisma.ticker.updateMany({ data: { active: false } });
