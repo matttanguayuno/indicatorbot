@@ -32,6 +32,8 @@ export function SettingsClient() {
   const [saving, setSaving] = useState(false);
   const [refreshingNews, setRefreshingNews] = useState(false);
   const [newsRefreshResult, setNewsRefreshResult] = useState<string | null>(null);
+  const [testPushLoading, setTestPushLoading] = useState(false);
+  const [testPushResult, setTestPushResult] = useState<string | null>(null);
   const [pollStatus, setPollStatus] = useState<string | null>(null);
   const [pollLoading, setPollLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -399,6 +401,35 @@ export function SettingsClient() {
           Get notified on your phone when a signal alert fires.
         </p>
         <PushToggle />
+        <button
+          onClick={async () => {
+            setTestPushLoading(true);
+            setTestPushResult(null);
+            try {
+              const res = await fetch('/api/push/test', { method: 'POST' });
+              if (res.ok) {
+                setTestPushResult('Test notification sent!');
+              } else {
+                const data = await res.json().catch(() => ({}));
+                setTestPushResult(data.error || 'Failed to send test notification.');
+              }
+            } catch {
+              setTestPushResult('Network error — could not reach the server.');
+            } finally {
+              setTestPushLoading(false);
+              setTimeout(() => setTestPushResult(null), 5000);
+            }
+          }}
+          disabled={testPushLoading}
+          className="w-full mt-3 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 border border-gray-700 text-sm py-2 rounded transition-colors"
+        >
+          {testPushLoading ? '⏳ Sending…' : '🔔 Send Test Notification'}
+        </button>
+        {testPushResult && (
+          <p className={`text-xs mt-2 ${testPushResult.includes('sent') ? 'text-green-400' : 'text-red-400'}`}>
+            {testPushResult}
+          </p>
+        )}
       </div>
 
       {/* Manual Poll Trigger */}
