@@ -31,6 +31,7 @@ export function SettingsClient() {
   const [pollLoading, setPollLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [dismissedRemoved, setDismissedRemoved] = useState(false);
 
   const loadData = useCallback(async () => {
     const [settingsRes, tickersRes] = await Promise.all([
@@ -244,29 +245,51 @@ export function SettingsClient() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {tickers.map((t) => (
+          {tickers.filter((t) => t.active).map((t) => (
             <span
               key={t.id}
-              className={`flex items-center gap-1 text-sm px-2.5 py-1.5 rounded ${
-                t.active ? 'bg-gray-800 text-gray-200' : 'bg-gray-800/50 text-gray-500 line-through'
-              }`}
+              className="flex items-center gap-1 text-sm px-2.5 py-1.5 rounded bg-gray-800 text-gray-200"
             >
               {t.symbol}
               {t.name && <span className="text-gray-500 ml-0.5">({t.name.slice(0, 15)})</span>}
-              {t.active && (
-                <button
-                  onClick={() => removeTicker(t.symbol)}
-                  className="text-gray-500 hover:text-red-400 ml-1"
-                >
-                  ×
-                </button>
-              )}
+              <button
+                onClick={() => removeTicker(t.symbol)}
+                className="text-gray-500 hover:text-red-400 ml-1"
+              >
+                ×
+              </button>
             </span>
           ))}
-          {tickers.length === 0 && (
+          {tickers.filter((t) => t.active).length === 0 && (
             <span className="text-gray-500 text-sm">No tickers — search above to add stocks</span>
           )}
         </div>
+
+        {!dismissedRemoved && tickers.filter((t) => !t.active).length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-500">Removed by sync — click to re-add</span>
+              <button
+                onClick={() => setDismissedRemoved(true)}
+                className="text-xs text-gray-600 hover:text-gray-400"
+              >
+                Dismiss
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tickers.filter((t) => !t.active).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => addTicker(t.symbol, t.name || '')}
+                  className="text-sm px-2.5 py-1.5 rounded bg-gray-800/50 text-gray-500 line-through hover:bg-gray-800 hover:text-gray-300 hover:no-underline transition-colors"
+                >
+                  {t.symbol}
+                  {t.name && <span className="text-gray-600 ml-0.5">({t.name.slice(0, 15)})</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Screener Sync */}
@@ -285,6 +308,7 @@ export function SettingsClient() {
               if (res.ok) {
                 setSyncStatus(`Synced ${data.total} tickers (${data.added} new). Symbols: ${data.symbols?.join(', ')}`);
                 loadData();
+                setDismissedRemoved(false);
               } else {
                 setSyncStatus(`Error: ${data.error}`);
               }
