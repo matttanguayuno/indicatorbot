@@ -356,13 +356,29 @@ async function maybeCreateAlert(
 // Grow plan = 55 credits/min, no daily cap. 12 tickers = 12 credits/min,
 // well within budget. Fetch fresh candles every cycle for up-to-date signals.
 const CANDLE_REFRESH_INTERVAL_MS = 55 * 1000; // slightly under 60s to avoid cache-hit skips from timer drift
-let cachedCandleMap = new Map<string, NormalizedCandle[]>();
-let cachedSeriesMap = new Map<string, TwelveDataTimeSeries>();
-let lastCandleFetchTime = 0;
+
+// Use globalThis so the cache is shared between the instrumentation hook
+// (which runs the pipeline) and API route handlers (which serve chart data).
+// Without this, Next.js bundles them separately and each gets its own empty Map.
+declare global {
+  // eslint-disable-next-line no-var
+  var __candleCache: Map<string, NormalizedCandle[]> | undefined;
+  // eslint-disable-next-line no-var
+  var __seriesCache: Map<string, TwelveDataTimeSeries> | undefined;
+  // eslint-disable-next-line no-var
+  var __lastCandleFetchTime: number | undefined;
+}
+if (!globalThis.__candleCache) globalThis.__candleCache = new Map();
+if (!globalThis.__seriesCache) globalThis.__seriesCache = new Map();
+if (!globalThis.__lastCandleFetchTime) globalThis.__lastCandleFetchTime = 0;
+
+let cachedCandleMap = globalThis.__candleCache;
+let cachedSeriesMap = globalThis.__seriesCache;
+let lastCandleFetchTime = globalThis.__lastCandleFetchTime;
 
 /** Expose the pipeline's cached candles so chart endpoints can serve from them (0 extra credits). */
 export function getCachedCandles(): Map<string, NormalizedCandle[]> {
-  return cachedCandleMap;
+  return globalThis.__candleCache!;
 }
 
 // ── Profile cache: /profile + /statistics cost 2 credits per symbol ──
@@ -455,10 +471,13 @@ export async function runPollingCycle(): Promise<{
             console.warn(`[Pipeline] Falling back to ${cachedCandleMap.size} cached symbols`);
           }
         } else {
-          // Update cache
+          // Update cache — write to both local vars and globalThis
           cachedCandleMap = new Map(candleMap);
           cachedSeriesMap = new Map(seriesMap);
           lastCandleFetchTime = now;
+          globalThis.__candleCache = cachedCandleMap;
+          globalThis.__seriesCache = cachedSeriesMap;
+          globalThis.__lastCandleFetchTime = lastCandleFetchTime;
         }
       } catch (err) {
         candleError = err instanceof Error ? err.message : String(err);
