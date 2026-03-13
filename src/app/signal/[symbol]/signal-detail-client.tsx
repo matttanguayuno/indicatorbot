@@ -210,8 +210,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       })
       .catch(() => {});
 
-    // Load recent alerts for this symbol
-    fetch(`/api/alerts?symbol=${encodeURIComponent(symbol)}`)
+    // Load latest 5 alerts for this symbol
+    fetch(`/api/alerts?symbol=${encodeURIComponent(symbol)}&limit=5`)
       .then(r => r.ok ? r.json() : [])
       .then(setStockAlerts)
       .catch(() => {});
