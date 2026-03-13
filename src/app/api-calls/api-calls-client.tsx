@@ -24,13 +24,15 @@ export function ApiCallsClient() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [loggingEnabled, setLoggingEnabled] = useState(true);
 
   const fetchLog = useCallback(async () => {
     try {
       const res = await fetch('/api/api-calls');
       if (res.ok) {
-        const data: LogEntry[] = await res.json();
-        setEntries(data);
+        const data = await res.json();
+        setEntries(data.entries ?? []);
+        setLoggingEnabled(data.enabled ?? true);
       }
     } catch {
       // ignore
@@ -38,6 +40,22 @@ export function ApiCallsClient() {
       setLoading(false);
     }
   }, []);
+
+  const toggleLogging = async () => {
+    const next = !loggingEnabled;
+    setLoggingEnabled(next);
+    await fetch('/api/api-calls', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: next }),
+    });
+  };
+
+  const clearLog = async () => {
+    if (!confirm('Clear all API call logs?')) return;
+    await fetch('/api/api-calls', { method: 'DELETE' });
+    setEntries([]);
+  };
 
   useEffect(() => {
     fetchLog();
@@ -67,15 +85,33 @@ export function ApiCallsClient() {
     <div className="space-y-4 pb-24">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">API Call Log</h1>
-        <label className="flex items-center gap-2 text-sm text-zinc-400">
-          <input
-            type="checkbox"
-            checked={autoRefresh}
-            onChange={(e) => setAutoRefresh(e.target.checked)}
-            className="rounded"
-          />
-          Auto-refresh
-        </label>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={clearLog}
+            className="px-3 py-1 text-sm rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+          >
+            Clear
+          </button>
+          <button
+            onClick={toggleLogging}
+            className={`px-3 py-1 text-sm rounded font-medium ${
+              loggingEnabled
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-400'
+            }`}
+          >
+            {loggingEnabled ? 'Logging On' : 'Logging Off'}
+          </button>
+          <label className="flex items-center gap-2 text-sm text-zinc-400">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="rounded"
+            />
+            Auto-refresh
+          </label>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -98,7 +134,7 @@ export function ApiCallsClient() {
       {loading ? (
         <p className="text-zinc-500 text-sm">Loading…</p>
       ) : entries.length === 0 ? (
-        <p className="text-zinc-500 text-sm">No API calls logged yet. Logs are in-memory and reset on deploy.</p>
+        <p className="text-zinc-500 text-sm">No API calls logged yet.</p>
       ) : (
         <>
         <CreditChart entries={entries} />

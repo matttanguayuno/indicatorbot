@@ -21,6 +21,7 @@ model AppSettings {
   screenerSyncTimes   String   @default("06:30,10:00,13:00")
   newsSummaryTimes    String   @default("07:30,10:00")
   sentimentMethod     String   @default("keyword")
+  apiLoggingEnabled   Boolean  @default(true)
   rulesJson           String?
   sellRulesJson       String?
   updatedAt           DateTime @updatedAt
@@ -272,4 +273,20 @@ model BuyEntry {
 
   @@index([symbol, active])
   @@index([boughtAt])
+}
+
+// ---------------------------------------------------------------------------
+// API Call Log — persistent log of Twelve Data API calls
+// ---------------------------------------------------------------------------
+model ApiCallLog {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime @default(now())
+  endpoint  String
+  symbols   String
+  credits   Int      @default(0)
+  purpose   String
+  status    String
+  detail    String?
+
+  @@index([timestamp])
 }

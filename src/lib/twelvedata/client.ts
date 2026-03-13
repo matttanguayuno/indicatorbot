@@ -56,7 +56,7 @@ export function getQuotaResumeTime(): number {
   return quotaExhaustedUntil;
 }
 
-// ── API call log (in-memory, shared via globalThis) ──
+// ── API call log (persisted to database) ──
 export interface ApiCallLogEntry {
   timestamp: string;
   endpoint: string;
@@ -67,23 +67,69 @@ export interface ApiCallLogEntry {
   detail?: string;
 }
 
-const MAX_LOG_ENTRIES = 500;
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __apiCallLog: ApiCallLogEntry[] | undefined;
+// Cache the logging-enabled flag so we don't hit the DB on every call
+let _loggingEnabled: boolean | null = null;
+async function isLoggingEnabled(): Promise<boolean> {
+  if (_loggingEnabled !== null) return _loggingEnabled;
+  try {
+    const { prisma } = await import('@/lib/db');
+    const s = await prisma.appSettings.findFirst();
+    _loggingEnabled = s?.apiLoggingEnabled ?? true;
+  } catch { _loggingEnabled = true; }
+  return _loggingEnabled;
 }
-if (!globalThis.__apiCallLog) globalThis.__apiCallLog = [];
+
+/** Call this when the setting changes to update the cache immediately. */
+export function setLoggingEnabledCache(enabled: boolean) {
+  _loggingEnabled = enabled;
+}
 
 function logApiCall(entry: ApiCallLogEntry) {
-  const log = globalThis.__apiCallLog!;
-  log.push(entry);
-  if (log.length > MAX_LOG_ENTRIES) log.splice(0, log.length - MAX_LOG_ENTRIES);
+  // Fire-and-forget DB write
+  void (async () => {
+    if (!(await isLoggingEnabled())) return;
+    try {
+      const { prisma } = await import('@/lib/db');
+      const symbols = Array.isArray(entry.symbols) ? entry.symbols.join(',') : entry.symbols;
+      await prisma.apiCallLog.create({
+        data: {
+          timestamp: new Date(entry.timestamp),
+          endpoint: entry.endpoint,
+          symbols,
+          credits: entry.credits,
+          purpose: entry.purpose,
+          status: entry.status,
+          detail: entry.detail ?? null,
+        },
+      });
+    } catch (err) {
+      console.error('[ApiLog] Failed to persist:', err);
+    }
+  })();
 }
 
 /** Get the API call log (newest first). */
-export function getApiCallLog(): ApiCallLogEntry[] {
-  return [...(globalThis.__apiCallLog ?? [])].reverse();
+export async function getApiCallLog(limit = 500): Promise<ApiCallLogEntry[]> {
+  const { prisma } = await import('@/lib/db');
+  const rows = await prisma.apiCallLog.findMany({
+    orderBy: { timestamp: 'desc' },
+    take: limit,
+  });
+  return rows.map((r) => ({
+    timestamp: r.timestamp.toISOString(),
+    endpoint: r.endpoint,
+    symbols: r.symbols,
+    credits: r.credits,
+    purpose: r.purpose,
+    status: r.status as ApiCallLogEntry['status'],
+    detail: r.detail ?? undefined,
+  }));
+}
+
+/** Delete all log entries from the database. */
+export async function clearApiCallLog(): Promise<void> {
+  const { prisma } = await import('@/lib/db');
+  await prisma.apiCallLog.deleteMany();
 }
 
 function getApiKey(): string {
