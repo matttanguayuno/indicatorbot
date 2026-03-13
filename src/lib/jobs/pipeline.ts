@@ -376,7 +376,7 @@ async function maybeCreateAlert(
 // ── Candle cache: refetch every poll cycle for real-time data ──
 // Grow plan = 55 credits/min, no daily cap. 12 tickers = 12 credits/min,
 // well within budget. Fetch fresh candles every cycle for up-to-date signals.
-const CANDLE_REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute (matches polling interval)
+const CANDLE_REFRESH_INTERVAL_MS = 55 * 1000; // slightly under 60s to avoid cache-hit skips from timer drift
 let cachedCandleMap = new Map<string, NormalizedCandle[]>();
 let cachedSeriesMap = new Map<string, TwelveDataTimeSeries>();
 let lastCandleFetchTime = 0;

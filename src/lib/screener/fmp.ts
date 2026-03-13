@@ -24,7 +24,7 @@ export async function screenFMP(topN: number): Promise<ScreenedTicker[]> {
   const apiKey = process.env.FMP_API_KEY;
   if (!apiKey) throw new Error('Missing FMP_API_KEY env var');
 
-  const url = `https://financialmodelingprep.com/stable/gainers?apikey=${encodeURIComponent(apiKey)}`;
+  const url = `https://financialmodelingprep.com/api/v3/stock_market/gainers?apikey=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url);
 
   if (!res.ok) {

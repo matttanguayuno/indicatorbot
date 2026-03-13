@@ -60,10 +60,8 @@ export async function register() {
   const intervalMs = await getPollingInterval();
   console.log(`[Server Poll] Scheduler started (interval: ${intervalMs / 1000}s, market hours only)`);
 
-  // Initial poll after 10s delay
-  setTimeout(tick, 10_000);
-
-  // Align recurring polls to the next clock minute boundary
+  // Align polls to the next clock minute boundary so Twelve Data
+  // credit usage doesn't straddle their per-minute windows.
   const now = Date.now();
   const msUntilNextMinute = 60_000 - (now % 60_000);
   setTimeout(() => {
