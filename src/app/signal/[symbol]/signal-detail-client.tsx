@@ -414,13 +414,13 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         <h2 className="text-base font-semibold text-gray-400 mb-2">Chart</h2>
 
         {/* Time Range toggles */}
-        <div className="flex flex-wrap gap-1 mb-2">
+        <div className="flex flex-wrap gap-1.5 mb-2">
           <span className="text-xs text-gray-500 mr-1 self-center">Range</span>
           {(['1H', '1D', '1W', '1M', 'Q', '1Y', 'YTD', 'Max'] as const).map((r) => (
             <button
               key={r}
               onClick={() => setChartRange(r)}
-              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 sm:px-2 sm:py-0.5 rounded text-sm sm:text-xs font-medium transition-colors ${
                 chartRange === r
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -432,7 +432,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         </div>
 
         {/* Interval toggles */}
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           <span className="text-xs text-gray-500 mr-1 self-center">Interval</span>
           {([
             ['1min', '1m'],
@@ -445,7 +445,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             <button
               key={val}
               onClick={() => setChartInterval(val)}
-              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 sm:px-2 sm:py-0.5 rounded text-sm sm:text-xs font-medium transition-colors ${
                 chartInterval === val
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
@@ -456,15 +456,15 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           ))}
         </div>
         {chartLoading ? (
-          <div className="h-[200px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
+          <div className="h-[280px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 350' }}>
+          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 450' }}>
             <PriceChart key={`${chartInterval}:${chartRange}`} candles={chartCandles} width={chartWidth} height={chartHeight} />
           </div>
         ) : history.length >= 2 ? (
-          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 350' }}>
+          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 450' }}>
             <MiniChart
               data={[...history].reverse().map(h => h.currentPrice)}
               timestamps={[...history].reverse().map(h => h.timestamp)}
