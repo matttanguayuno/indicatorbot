@@ -208,6 +208,18 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
       score: latestSnap.signalScore,
     }).catch((err) => console.error('[Sell Alert] Push error:', err));
 
+    // Create Alert record for the sell alert
+    const sellExplanation = `${label}: ${reason}\nP&L: ${priceDir}${pricePct}% ($${entry.entryPrice.toFixed(2)} → $${latestSnap.currentPrice.toFixed(2)})`;
+    await prisma.alert.create({
+      data: {
+        tickerId: entry.tickerId,
+        symbol: entry.symbol,
+        alertType: 'sell',
+        scoreAtAlert: latestSnap.signalScore,
+        explanation: sellExplanation,
+      },
+    });
+
     // Update entry with alert state
     await prisma.buyEntry.update({
       where: { id: entry.id },

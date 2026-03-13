@@ -7,6 +7,7 @@ import { ScoreBadge, TimeAgo } from '@/components/signal-badges';
 interface AlertData {
   id: number;
   symbol: string;
+  alertType: string;
   scoreAtAlert: number;
   explanation: string;
   createdAt: string;
@@ -100,6 +101,9 @@ export function AlertsClient() {
 
   useEffect(() => {
     fetchAlerts();
+    // Auto-refresh every 30s during market hours
+    const interval = setInterval(fetchAlerts, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   async function fetchAlerts() {
@@ -151,9 +155,18 @@ export function AlertsClient() {
           <SwipeableAlert key={a.id} alert={a} onDismiss={dismissAlert}>
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
               <div className="flex items-start justify-between mb-1">
-                <Link href={`/signal/${a.symbol}`} className="font-bold text-blue-400 hover:underline">
-                  {a.symbol}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/signal/${a.symbol}`} className="font-bold text-blue-400 hover:underline">
+                    {a.symbol}
+                  </Link>
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                    a.alertType === 'sell'
+                      ? 'bg-red-900/60 text-red-300'
+                      : 'bg-green-900/60 text-green-300'
+                  }`}>
+                    {a.alertType === 'sell' ? 'SELL' : 'BUY'}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
                   <ScoreBadge score={a.scoreAtAlert} />
                   {/* Desktop dismiss button */}
