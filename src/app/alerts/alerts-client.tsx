@@ -18,7 +18,7 @@ const RATINGS = [
   { value: 'GOOD', label: '👍 Good', color: 'bg-green-700' },
   { value: 'BAD', label: '👎 Bad', color: 'bg-red-700' },
   { value: 'TOO_LATE', label: '⏰ Too Late', color: 'bg-yellow-700' },
-  { value: 'FALSE_BREAKOUT', label: '💥 False BO', color: 'bg-orange-700' },
+  { value: 'FALSE_BREAKOUT', label: '💥 False Breakout', color: 'bg-orange-700' },
   { value: 'OTHER', label: '📝 Other', color: 'bg-gray-700' },
 ] as const;
 
@@ -97,7 +97,9 @@ export function AlertsClient() {
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedbackAlert, setFeedbackAlert] = useState<number | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<string | null>(null);
   const [feedbackNote, setFeedbackNote] = useState('');
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -134,18 +136,33 @@ export function AlertsClient() {
     await fetch(`/api/alerts?id=${id}`, { method: 'PATCH' }).catch(() => {});
   }, []);
 
-  async function submitFeedback(alertId: number, rating: string) {
+  function openFeedback(alertId: number, existing: AlertData['feedback']) {
+    setFeedbackAlert(feedbackAlert === alertId ? null : alertId);
+    setFeedbackRating(existing?.rating ?? null);
+    setFeedbackNote(existing?.note ?? '');
+  }
+
+  async function submitFeedback(alertId: number) {
+    if (!feedbackRating && !feedbackNote.trim()) return;
+    setFeedbackSaving(true);
     try {
       await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alertId, rating, note: feedbackNote || null }),
+        body: JSON.stringify({
+          alertId,
+          rating: feedbackRating || null,
+          note: feedbackNote.trim() || null,
+        }),
       });
       setFeedbackAlert(null);
+      setFeedbackRating(null);
       setFeedbackNote('');
       fetchAlerts();
     } catch (err) {
       console.error('Failed to submit feedback:', err);
+    } finally {
+      setFeedbackSaving(false);
     }
   }
 
@@ -195,13 +212,17 @@ export function AlertsClient() {
               <div className="flex items-center justify-between">
                 <TimeAgo date={a.createdAt} />
                 {a.feedback ? (
-                  <span className="text-sm text-gray-400">
-                    Rated: {RATINGS.find((r) => r.value === a.feedback!.rating)?.label ?? a.feedback.rating}
+                  <button
+                    onClick={() => openFeedback(a.id, a.feedback)}
+                    className="text-sm text-gray-400 hover:text-gray-200 transition-colors"
+                  >
+                    {RATINGS.find((r) => r.value === a.feedback!.rating)?.label ?? a.feedback.rating}
                     {a.feedback.note && ` — "${a.feedback.note}"`}
-                  </span>
+                    <span className="ml-1 text-gray-600">✎</span>
+                  </button>
                 ) : (
                   <button
-                    onClick={() => setFeedbackAlert(feedbackAlert === a.id ? null : a.id)}
+                    onClick={() => openFeedback(a.id, null)}
                     className="text-sm text-blue-400 hover:underline"
                   >
                     Leave feedback
@@ -215,8 +236,12 @@ export function AlertsClient() {
                     {RATINGS.map((r) => (
                       <button
                         key={r.value}
-                        onClick={() => submitFeedback(a.id, r.value)}
-                        className={`${r.color} text-white text-sm px-2.5 py-1.5 rounded hover:opacity-80 transition-opacity`}
+                        onClick={() => setFeedbackRating(feedbackRating === r.value ? null : r.value)}
+                        className={`text-sm px-2.5 py-1.5 rounded transition-all ${
+                          feedbackRating === r.value
+                            ? `${r.color} text-white ring-2 ring-white/30`
+                            : 'bg-gray-700 text-gray-300 hover:opacity-80'
+                        }`}
                       >
                         {r.label}
                       </button>
@@ -224,11 +249,27 @@ export function AlertsClient() {
                   </div>
                   <input
                     type="text"
-                    placeholder="Optional note..."
+                    placeholder="Add a note (optional)..."
                     value={feedbackNote}
                     onChange={(e) => setFeedbackNote(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 placeholder-gray-600"
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 placeholder-gray-600 mb-2"
+                    maxLength={200}
                   />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => { setFeedbackAlert(null); setFeedbackRating(null); setFeedbackNote(''); }}
+                      className="text-sm px-3 py-1 text-gray-400 hover:text-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => submitFeedback(a.id)}
+                      disabled={feedbackSaving || (!feedbackRating && !feedbackNote.trim())}
+                      className="text-sm px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded transition-colors"
+                    >
+                      {feedbackSaving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

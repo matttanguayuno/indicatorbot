@@ -135,58 +135,19 @@ async function processTicker(
       });
     }
 
-    // 3) News — fetched from Finnhub only every 10 min (not every cycle)
-    // Finnhub free tier = 60 calls/min; 30 tickers × every cycle would burn half the budget.
+    // 3) News — read from DB only. Finnhub fetching happens on a separate schedule
+    // (configured in Settings as newsSummaryTimes, triggered by instrumentation.ts).
     const newsWindowMs = rules.weights.newsCatalyst.recentWindowMinutes * 60 * 1000;
-    const needsNewsFetch = Date.now() - lastNewsFetchTime >= NEWS_REFRESH_INTERVAL_MS;
-    let recentNewsCount = cachedNewsCountMap.get(symbol) ?? 0;
-
-    if (needsNewsFetch) {
-      try {
-        const today = format(new Date(), 'yyyy-MM-dd');
-        const twoDaysAgo = format(subDays(new Date(), 2), 'yyyy-MM-dd');
-        const rawNews = await getCompanyNews(symbol, twoDaysAgo, today);
-        const newsItems = rawNews ? mapNews(symbol, rawNews) : [];
-
-        for (const item of newsItems.slice(0, 20)) {
-          await prisma.newsItem.upsert({
-            where: {
-              symbol_headline_publishedAt: {
-                symbol: item.symbol,
-                headline: item.headline,
-                publishedAt: item.publishedAt,
-              },
-            },
-            update: {},
-            create: {
-              tickerId,
-              symbol: item.symbol,
-              headline: item.headline,
-              source: item.source,
-              url: item.url,
-              summary: item.summary,
-              publishedAt: item.publishedAt,
-            },
-          });
-        }
-
-        recentNewsCount = newsItems.filter(
-          (n) => Date.now() - n.publishedAt.getTime() < newsWindowMs
-        ).length;
-        cachedNewsCountMap.set(symbol, recentNewsCount);
-      } catch (err) {
-        // Non-fatal — score still computes without news
-        console.warn(`[Pipeline] News fetch failed for ${symbol}:`, err instanceof Error ? err.message : err);
-        const dbNews = await prisma.newsItem.findMany({
-          where: {
-            symbol,
-            publishedAt: { gte: new Date(Date.now() - newsWindowMs) },
-          },
-          take: 20,
-        });
-        recentNewsCount = dbNews.length;
-        cachedNewsCountMap.set(symbol, recentNewsCount);
-      }
+    let recentNewsCount = 0;
+    try {
+      recentNewsCount = await prisma.newsItem.count({
+        where: {
+          symbol,
+          publishedAt: { gte: new Date(Date.now() - newsWindowMs) },
+        },
+      });
+    } catch {
+      // Non-fatal
     }
 
     // 4) Compute indicators
@@ -404,13 +365,6 @@ export function getCachedCandles(): Map<string, NormalizedCandle[]> {
   return cachedCandleMap;
 }
 
-// ── News cache: fetch from Finnhub every 10 min, not every cycle ──
-// Finnhub free tier = 60 calls/min. With 30 tickers fetching news every cycle
-// that alone is 30 calls/min — half the budget. News doesn't change every minute.
-const NEWS_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-let lastNewsFetchTime = 0;
-const cachedNewsCountMap = new Map<string, number>();
-
 // ── Profile cache: /profile + /statistics cost 2 credits per symbol ──
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const profileCache = new Map<string, { profile: NormalizedProfile; fetchedAt: number }>();
@@ -527,18 +481,12 @@ export async function runPollingCycle(): Promise<{
 
   const results: ProcessResult[] = [];
   // Process sequentially to respect API rate limits
-  const needsNewsFetch = Date.now() - lastNewsFetchTime >= NEWS_REFRESH_INTERVAL_MS;
   for (const ticker of tickers) {
     const candles = candleMap.get(ticker.symbol) ?? null;
     const series = seriesMap.get(ticker.symbol) ?? null;
     const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, series, dataSource, rules);
     results.push(result);
   }
-  if (needsNewsFetch) {
-    lastNewsFetchTime = Date.now();
-    console.log(`[Pipeline] News refreshed for ${tickers.length} tickers (next refresh in ${NEWS_REFRESH_INTERVAL_MS / 60000}min)`);
-  }
-
   const succeeded = results.filter((r) => r.success).length;
   const failed = results.filter((r) => !r.success).length;
 
@@ -565,4 +513,51 @@ export async function runPollingCycle(): Promise<{
       ? 'Twelve Data rate-limited — using Finnhub as fallback temporarily (no candle data)'
       : candleError,
   };
+}
+
+/**
+ * Fetch news from Finnhub for all active tickers and store in NewsItem table.
+ * Called by the instrumentation scheduler at configured newsSummaryTimes,
+ * NOT every pipeline cycle.
+ */
+export async function refreshNews(): Promise<{ fetched: number; symbols: number }> {
+  const tickers = await prisma.ticker.findMany({ where: { active: true } });
+  let totalFetched = 0;
+
+  for (const ticker of tickers) {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const twoDaysAgo = format(subDays(new Date(), 2), 'yyyy-MM-dd');
+      const rawNews = await getCompanyNews(ticker.symbol, twoDaysAgo, today);
+      const newsItems = rawNews ? mapNews(ticker.symbol, rawNews) : [];
+
+      for (const item of newsItems.slice(0, 20)) {
+        await prisma.newsItem.upsert({
+          where: {
+            symbol_headline_publishedAt: {
+              symbol: item.symbol,
+              headline: item.headline,
+              publishedAt: item.publishedAt,
+            },
+          },
+          update: {},
+          create: {
+            tickerId: ticker.id,
+            symbol: item.symbol,
+            headline: item.headline,
+            source: item.source,
+            url: item.url,
+            summary: item.summary,
+            publishedAt: item.publishedAt,
+          },
+        });
+      }
+      totalFetched += newsItems.length;
+    } catch (err) {
+      console.warn(`[News] Failed to fetch news for ${ticker.symbol}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  console.log(`[News] Fetched ${totalFetched} articles for ${tickers.length} tickers`);
+  return { fetched: totalFetched, symbols: tickers.length };
 }

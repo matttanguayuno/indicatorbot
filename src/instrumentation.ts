@@ -208,6 +208,12 @@ export async function register() {
     console.log(`[News Summary] Auto-generating at ${hours}:${String(minutes).padStart(2, '0')} MT`);
 
     try {
+      // First, refresh news from Finnhub for all tickers
+      const { refreshNews } = await import('@/lib/jobs');
+      const newsResult = await refreshNews();
+      console.log(`[News] Fetched ${newsResult.fetched} articles for ${newsResult.symbols} tickers`);
+
+      // Then generate the AI summary from the freshly-fetched articles
       const { generateNewsSummary } = await import('@/lib/news/summary');
       const data = await generateNewsSummary();
       console.log(`[News Summary] Done — ${data.symbols?.length ?? 0} symbols covered`);

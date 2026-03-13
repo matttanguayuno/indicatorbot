@@ -12,11 +12,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { alertId, rating, note } = body;
 
-  if (!alertId || !rating) {
-    return NextResponse.json({ error: 'alertId and rating are required' }, { status: 400 });
+  if (!alertId) {
+    return NextResponse.json({ error: 'alertId is required' }, { status: 400 });
   }
 
-  if (!VALID_RATINGS.includes(rating)) {
+  if (!rating && !note) {
+    return NextResponse.json({ error: 'rating or note is required' }, { status: 400 });
+  }
+
+  if (rating && !VALID_RATINGS.includes(rating)) {
     return NextResponse.json(
       { error: `rating must be one of: ${VALID_RATINGS.join(', ')}` },
       { status: 400 }
@@ -29,10 +33,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
   }
 
+  // Build update/create data — preserve existing rating if only note is being set
+  const existing = await prisma.feedback.findUnique({ where: { alertId } });
+  const finalRating = rating ?? existing?.rating ?? 'OTHER';
+  const finalNote = note !== undefined ? (note || null) : (existing?.note ?? null);
+
   const feedback = await prisma.feedback.upsert({
     where: { alertId },
-    update: { rating, note: note ?? null },
-    create: { alertId, rating, note: note ?? null },
+    update: { rating: finalRating, note: finalNote },
+    create: { alertId, rating: finalRating, note: finalNote },
   });
 
   return NextResponse.json(feedback);
