@@ -1,1 +1,1 @@
-export { runPollingCycle } from './pipeline';
+export { runPollingCycle, getCachedCandles } from './pipeline';

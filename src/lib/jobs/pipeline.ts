@@ -393,6 +393,11 @@ let cachedCandleMap = new Map<string, NormalizedCandle[]>();
 let cachedSeriesMap = new Map<string, TwelveDataTimeSeries>();
 let lastCandleFetchTime = 0;
 
+/** Expose the pipeline's cached candles so chart endpoints can serve from them (0 extra credits). */
+export function getCachedCandles(): Map<string, NormalizedCandle[]> {
+  return cachedCandleMap;
+}
+
 // ── Profile cache: /profile + /statistics cost 2 credits per symbol ──
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const profileCache = new Map<string, { profile: NormalizedProfile; fetchedAt: number }>();
@@ -460,7 +465,7 @@ export async function runPollingCycle(): Promise<{
         const symbols = tickers.map((t: { symbol: string }) => t.symbol);
         // Grow plan: send all symbols in one batch (cost = 1 credit per symbol).
         console.log(`[Pipeline] Fetching Twelve Data candles for: ${symbols.join(', ')}`);
-        const result = await getTimeSeries(symbols, '1min', 90);
+        const result = await getTimeSeries(symbols, '1min', 390);
         console.log(`[Pipeline] Twelve Data returned data for: ${[...result.keys()].join(', ') || '(none)'}`);
         for (const [sym, series] of result) {
           const mapped = mapTwelveDataCandles(series);

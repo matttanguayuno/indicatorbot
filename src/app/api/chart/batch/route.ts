@@ -1,6 +1,6 @@
 /**
- * POST /api/chart/batch — fetch 1D candle data for multiple symbols in a single
- * Twelve Data API call instead of N individual calls.
+ * POST /api/chart/batch — serve 1D chart candles from the pipeline's
+ * in-memory cache.  Zero extra Twelve Data credits consumed.
  *
  * Body: { symbols: string[] }
  * Returns: Record<symbol, { candles: ChartCandle[], source: string }>
@@ -8,8 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { getTimeSeries } from '@/lib/twelvedata/client';
-import { mapTwelveDataCandles } from '@/lib/twelvedata/mappers';
+import { getCachedCandles } from '@/lib/jobs';
 
 interface ChartCandle {
   time: string;
@@ -19,14 +18,6 @@ interface ChartCandle {
   close: number;
   volume: number;
 }
-
-interface CachedChart {
-  data: ChartCandle[];
-  fetchedAt: number;
-}
-
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min cache for batch
-const batchCache = new Map<string, CachedChart>();
 
 /** Filter candles to today's regular market hours (9:30-4:00 ET). */
 function filterTodayMarketHours(candles: ChartCandle[]): ChartCandle[] {
@@ -69,64 +60,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({});
   }
 
-  const now = Date.now();
+  const pipelineCandles = getCachedCandles();
   const result: Record<string, { candles: ChartCandle[]; source: string }> = {};
 
-  // Separate cached vs uncached symbols
-  const uncachedSymbols: string[] = [];
   for (const sym of symbols) {
-    const cached = batchCache.get(sym);
-    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
-      result[sym] = { candles: cached.data, source: 'cache' };
+    const cached = pipelineCandles.get(sym);
+    if (cached && cached.length > 0) {
+      let candles: ChartCandle[] = cached.map((c) => ({
+        time: c.timestamp.toISOString(),
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }));
+      candles = filterTodayMarketHours(candles);
+      result[sym] = { candles, source: 'pipeline-cache' };
     } else {
-      uncachedSymbols.push(sym);
-    }
-  }
-
-  if (uncachedSymbols.length > 0) {
-    // Single batch Twelve Data call for all uncached symbols
-    try {
-      const seriesMap = await getTimeSeries(uncachedSymbols, '1min', 390);
-
-      for (const sym of uncachedSymbols) {
-        const series = seriesMap.get(sym);
-        if (series) {
-          const normalized = mapTwelveDataCandles(series);
-          let candles: ChartCandle[] = normalized.map((c) => ({
-            time: c.timestamp.toISOString(),
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close,
-            volume: c.volume,
-          }));
-          candles = filterTodayMarketHours(candles);
-          batchCache.set(sym, { data: candles, fetchedAt: now });
-          result[sym] = { candles, source: 'twelvedata' };
-        } else {
-          // Twelve Data didn't return this symbol — try snapshot fallback
-          let candles = await snapshotFallback(sym);
-          candles = filterTodayMarketHours(candles);
-          result[sym] = { candles, source: 'snapshot' };
-        }
-      }
-    } catch (err) {
-      console.error('[Chart Batch] Twelve Data error:', err instanceof Error ? err.message : err);
-      // Fallback all uncached to snapshots
-      for (const sym of uncachedSymbols) {
-        if (!result[sym]) {
-          let candles = await snapshotFallback(sym);
-          candles = filterTodayMarketHours(candles);
-          result[sym] = { candles, source: 'snapshot' };
-        }
-      }
-    }
-  }
-
-  // Evict stale cache entries
-  if (batchCache.size > 100) {
-    for (const [key, entry] of batchCache) {
-      if (now - entry.fetchedAt > CACHE_TTL_MS * 2) batchCache.delete(key);
+      // Pipeline hasn't cached this symbol yet — fall back to DB snapshots
+      let candles = await snapshotFallback(sym);
+      candles = filterTodayMarketHours(candles);
+      result[sym] = { candles, source: 'snapshot' };
     }
   }
 
