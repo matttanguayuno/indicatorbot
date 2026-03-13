@@ -105,6 +105,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [loading, setLoading] = useState(true);
   const chartContainerRef = useRef<HTMLDivElement>(null); // kept for layout
   const [tickerList, setTickerList] = useState<string[]>([]);
+  const [buyEntry, setBuyEntry] = useState<{ id: number; entryPrice: number; scoreAtEntry: number; boughtAt: string } | null>(null);
+  const [buyLoading, setBuyLoading] = useState(false);
   const searchParams = useSearchParams();
   const from = searchParams.get('from') ?? 'opportunities';
 
@@ -199,6 +201,14 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     }
     load();
 
+    // Load active buy entry for this symbol
+    fetch(`/api/buy-entries?symbol=${encodeURIComponent(symbol)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((entries: { id: number; entryPrice: number; scoreAtEntry: number; boughtAt: string }[]) => {
+        setBuyEntry(entries.length > 0 ? entries[0] : null);
+      })
+      .catch(() => {});
+
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
   }, [symbol]);
@@ -277,6 +287,58 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           )}
         </div>
         <ScoreBadge score={latest.signalScore} />
+      </div>
+
+      {/* Buy Entry */}
+      <div className="flex items-center gap-3">
+        {buyEntry ? (
+          <>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-900/40 border border-green-700/50 rounded-lg text-sm">
+              <span className="text-green-400 font-semibold">Bought</span>
+              <span className="text-gray-300">${buyEntry.entryPrice.toFixed(2)}</span>
+              <span className="text-gray-500">score {buyEntry.scoreAtEntry}</span>
+              <span className="text-gray-600"><TimeAgo date={buyEntry.boughtAt} /></span>
+              {latest && (
+                <span className={`font-medium ${latest.currentPrice >= buyEntry.entryPrice ? 'text-green-400' : 'text-red-400'}`}>
+                  {((latest.currentPrice - buyEntry.entryPrice) / buyEntry.entryPrice * 100).toFixed(1)}%
+                </span>
+              )}
+            </div>
+            <button
+              onClick={async () => {
+                await fetch(`/api/buy-entries?id=${buyEntry.id}`, { method: 'DELETE' });
+                setBuyEntry(null);
+              }}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              title="Dismiss buy entry"
+            >
+              ✕
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={async () => {
+              setBuyLoading(true);
+              try {
+                const res = await fetch('/api/buy-entries', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ symbol }),
+                });
+                if (res.ok) {
+                  const entry = await res.json();
+                  setBuyEntry(entry);
+                }
+              } finally {
+                setBuyLoading(false);
+              }
+            }}
+            disabled={buyLoading}
+            className="px-4 py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-700 rounded-lg text-sm font-semibold transition-colors"
+          >
+            {buyLoading ? '⏳' : '💰 I Bought This'}
+          </button>
+        )}
       </div>
 
       {/* Badges */}

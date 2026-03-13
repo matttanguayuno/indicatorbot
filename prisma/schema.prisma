@@ -39,6 +39,7 @@ model Ticker {
   alerts    Alert[]
   news      NewsItem[]
   trades    Trade[]
+  buyEntries BuyEntry[]
 }
 
 // ---------------------------------------------------------------------------
@@ -244,4 +245,23 @@ model NewsSummary {
   generatedAt DateTime @default(now())
 
   @@index([generatedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Buy Entry — one-click "I bought" marker for sell-alert tracking
+// ---------------------------------------------------------------------------
+model BuyEntry {
+  id            Int      @id @default(autoincrement())
+  tickerId      Int
+  ticker        Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
+  symbol        String
+  entryPrice    Float
+  scoreAtEntry  Float
+  snapshotId    Int?
+  active        Boolean  @default(true)   // false once sold / dismissed
+  boughtAt      DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([symbol, active])
+  @@index([boughtAt])
 }
