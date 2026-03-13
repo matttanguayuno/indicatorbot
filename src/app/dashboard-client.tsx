@@ -10,6 +10,7 @@ import {
   TimeAgo,
 } from '@/components/signal-badges';
 import { MiniChart } from '@/components/mini-chart';
+import { SignalFeedbackInline } from '@/components/signal-feedback';
 
 interface Snapshot {
   id: number;
@@ -43,6 +44,7 @@ export function DashboardClient() {
   const [polling, setPolling] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
   const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({}); 
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, { rating: string; note: string | null; snapshotId: number }>>({}); 
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -65,6 +67,14 @@ export function DashboardClient() {
         const data = await res.json();
         setSnapshots(data);
         setLastRefresh(new Date());
+        // Fetch feedback for these symbols
+        const symbols = data.map((s: Snapshot) => s.symbol).join(',');
+        if (symbols) {
+          fetch(`/api/feedback/signal?symbols=${encodeURIComponent(symbols)}`)
+            .then(r => r.ok ? r.json() : {})
+            .then(fb => setFeedbackMap(fb))
+            .catch(() => {});
+        }
       }
       if (allRes.ok) {
         const allData = await allRes.json();
@@ -198,7 +208,7 @@ export function DashboardClient() {
       {/* Hero section — top-scoring stock + score evolution */}
       {snapshots.length > 0 && (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
-          <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} />
+          <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} feedback={feedbackMap[snapshots[0].symbol] ?? null} />
           <ScoreEvolutionPanel snapshots={snapshots} />
         </div>
       )}
@@ -282,7 +292,16 @@ export function DashboardClient() {
                 )}
                 <NewsIndicator count={s.recentNewsCount} />
               </div>
-              <span className="shrink-0"><TimeAgo date={s.timestamp} /></span>
+              <div className="flex items-center gap-2 shrink-0">
+                <SignalFeedbackInline
+                  snapshotId={s.id}
+                  symbol={s.symbol}
+                  existingRating={feedbackMap[s.symbol]?.rating}
+                  existingNote={feedbackMap[s.symbol]?.note}
+                  onSaved={(rating, note) => setFeedbackMap(prev => ({ ...prev, [s.symbol]: { rating, note, snapshotId: s.id } }))}
+                />
+                <TimeAgo date={s.timestamp} />
+              </div>
             </div>
           </Link>
         ))}
@@ -291,7 +310,7 @@ export function DashboardClient() {
   );
 }
 
-function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { closes: number[]; times: string[] } }) {
+function HeroCard({ s, chartData: candleData, feedback }: { s: Snapshot; chartData: { closes: number[]; times: string[] }; feedback: { rating: string; note: string | null; snapshotId: number } | null }) {
   const hasCandleData = s.pctChange5m != null && s.pctChangeIntraday != null;
   const chartData = candleData.closes.length >= 2 ? candleData.closes : s.priceHistory;
   const chartTimes = candleData.times.length >= 2 ? candleData.times : (s.priceTimestamps?.length >= 2 ? s.priceTimestamps : undefined);
@@ -395,6 +414,16 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
         {s.explanation && (
           <p className="text-base text-gray-400 mt-2 line-clamp-2">{s.explanation}</p>
         )}
+
+        {/* Feedback */}
+        <div className="mt-2">
+          <SignalFeedbackInline
+            snapshotId={s.id}
+            symbol={s.symbol}
+            existingRating={feedback?.rating}
+            existingNote={feedback?.note}
+          />
+        </div>
       </div>
     </Link>
   );

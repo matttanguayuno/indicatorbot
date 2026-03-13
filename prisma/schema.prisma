@@ -107,6 +107,27 @@ model SignalSnapshot {
 }
 
 // ---------------------------------------------------------------------------
+// Signal Feedback — user assessment of a signal snapshot (good/bad trade?)
+// ---------------------------------------------------------------------------
+model SignalFeedback {
+  id         Int      @id @default(autoincrement())
+  snapshotId Int      @unique
+  symbol     String
+  rating     SignalRating
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([symbol, createdAt])
+}
+
+enum SignalRating {
+  GOOD
+  BAD
+  SKIP
+}
+
+// ---------------------------------------------------------------------------
 // Alert — generated when a ticker crosses the score threshold
 // ---------------------------------------------------------------------------
 model Alert {

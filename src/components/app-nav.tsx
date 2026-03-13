@@ -6,9 +6,8 @@ import { usePathname } from 'next/navigation';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: '📊' },
-  { href: '/alerts', label: 'Alerts', icon: '🔔' },
-  { href: '/watchlist', label: 'Watchlist', icon: '👁️' },
   { href: '/trades', label: 'Trades', icon: '💹' },
+  { href: '/rules', label: 'Rules', icon: '📐' },
   { href: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
@@ -51,7 +50,7 @@ export function AppNav() {
       </nav>
 
       {/* Mobile bottom nav — hidden on desktop */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-50 lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-50 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         <div className="flex justify-around">
           {navItems.map((item) => {
             const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
