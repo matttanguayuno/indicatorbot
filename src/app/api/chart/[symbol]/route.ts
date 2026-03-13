@@ -251,6 +251,16 @@ export async function GET(
     source = 'snapshot-history';
   }
 
+  // For 1D / 1H ranges, filter to regular market hours only (9:30 AM – 4:00 PM ET)
+  // so all stocks share the same X-axis timeline.
+  if (range === '1D' || range === '1H') {
+    candles = candles.filter((c) => {
+      const et = new Date(new Date(c.time).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const mins = et.getHours() * 60 + et.getMinutes();
+      return mins >= 570 && mins < 960; // 9:30 = 570, 16:00 = 960
+    });
+  }
+
   if (candles.length === 0) {
     return NextResponse.json(
       { symbol: upper, candles: [], error: 'No data available', interval, range, source: 'none' },
