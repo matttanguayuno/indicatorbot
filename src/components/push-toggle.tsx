@@ -13,25 +13,36 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return arr.buffer as ArrayBuffer;
 }
 
-type PushState = 'loading' | 'unsupported' | 'prompt' | 'denied' | 'subscribed' | 'unsubscribed';
+type PushState = 'loading' | 'unsupported' | 'needs-install' | 'prompt' | 'denied' | 'subscribed' | 'unsubscribed';
+
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandaloneMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true;
+}
 
 export function PushToggle() {
   const [state, setState] = useState<PushState>('loading');
   const [busy, setBusy] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(true);
 
   const checkState = useCallback(async () => {
+    // iOS Safari (not standalone): Push API doesn't exist, but it WILL once installed
+    if (isIOS() && !isStandaloneMode()) {
+      setState('needs-install');
+      return;
+    }
+
     // Check if browser supports push
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setState('unsupported');
       return;
     }
-
-    // Check if running as installed PWA (iOS requirement)
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsStandalone(standalone);
 
     // Check notification permission
     if (Notification.permission === 'denied') {
@@ -138,6 +149,16 @@ export function PushToggle() {
     );
   }
 
+  if (state === 'needs-install') {
+    return (
+      <div className="text-sm text-yellow-400/80 bg-yellow-400/10 rounded-lg px-3 py-2">
+        📱 To enable push notifications on iPhone, first <strong>Add to Home Screen</strong>:
+        tap the <strong>Share</strong> button (square with arrow) → <strong>&quot;Add to Home Screen&quot;</strong>.
+        Then open the app from your Home Screen and enable notifications here.
+      </div>
+    );
+  }
+
   if (state === 'denied') {
     return (
       <div className="text-sm text-red-400">
@@ -148,13 +169,6 @@ export function PushToggle() {
 
   return (
     <div className="space-y-2">
-      {!isStandalone && (
-        <div className="text-sm text-yellow-400/80 bg-yellow-400/10 rounded-lg px-3 py-2">
-          📱 On iPhone, you must <strong>Add to Home Screen</strong> first for push notifications to work.
-          Tap the Share button → &quot;Add to Home Screen&quot;.
-        </div>
-      )}
-
       {state === 'subscribed' ? (
         <div className="flex items-center gap-3">
           <span className="text-sm text-green-400">✓ Notifications enabled</span>
