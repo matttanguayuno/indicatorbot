@@ -3,7 +3,7 @@
  * Includes the associated alert data (symbol, score, type, explanation).
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 
 export async function GET() {
@@ -23,4 +23,16 @@ export async function GET() {
   });
 
   return NextResponse.json(feedback);
+}
+
+export async function DELETE(req: NextRequest) {
+  const idStr = req.nextUrl.searchParams.get('id');
+  const id = idStr ? parseInt(idStr, 10) : NaN;
+
+  if (isNaN(id)) {
+    return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  }
+
+  await prisma.feedback.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

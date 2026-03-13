@@ -33,6 +33,8 @@ export function FeedbackHistoryClient() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterRating>('ALL');
 
+  const [deleting, setDeleting] = useState<number | null>(null);
+
   useEffect(() => {
     fetch('/api/feedback/history')
       .then((r) => (r.ok ? r.json() : []))
@@ -40,6 +42,20 @@ export function FeedbackHistoryClient() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  async function deleteFeedback(id: number) {
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/feedback/history?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setEntries((prev) => prev.filter((e) => e.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to delete feedback:', err);
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   const filtered = filter === 'ALL' ? entries : entries.filter((e) => e.rating === filter);
 
@@ -147,9 +163,19 @@ export function FeedbackHistoryClient() {
                 <span>
                   Alert: <TimeAgo date={entry.alert.createdAt} />
                 </span>
-                <span>
-                  Feedback: <TimeAgo date={entry.createdAt} />
-                </span>
+                <div className="flex items-center gap-3">
+                  <span>
+                    Feedback: <TimeAgo date={entry.createdAt} />
+                  </span>
+                  <button
+                    onClick={() => deleteFeedback(entry.id)}
+                    disabled={deleting === entry.id}
+                    className="text-red-500/60 hover:text-red-400 transition-colors"
+                    title="Delete feedback"
+                  >
+                    {deleting === entry.id ? '...' : '✕'}
+                  </button>
+                </div>
               </div>
             </div>
           );

@@ -12,6 +12,11 @@ const navItems = [
   { href: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
+// Extra items shown only on desktop sidebar
+const desktopExtraItems = [
+  { href: '/feedback', label: 'Feedback', icon: '📋', insertBefore: '/settings' },
+];
+
 export function AppNav() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -30,7 +35,16 @@ export function AppNav() {
             {collapsed ? '▸' : '◂'}
           </button>
         </div>
-        {navItems.map((item) => {
+        {(() => {
+          // Build desktop nav with extra items inserted
+          const items = [...navItems];
+          for (const extra of desktopExtraItems) {
+            const idx = items.findIndex((i) => i.href === extra.insertBefore);
+            if (idx >= 0) items.splice(idx, 0, extra);
+            else items.push(extra);
+          }
+          return items;
+        })().map((item) => {
           const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
           return (
             <Link
