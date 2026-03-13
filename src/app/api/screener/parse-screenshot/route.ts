@@ -141,8 +141,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error('[Screener Parse] Error:', err);
+    const message = err instanceof Error ? err.message : 'Failed to parse screenshot';
     return NextResponse.json(
-      { error: 'Failed to parse screenshot' },
+      { error: message },
       { status: 500 },
     );
   }
