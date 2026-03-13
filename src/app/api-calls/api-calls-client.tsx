@@ -114,17 +114,34 @@ export function ApiCallsClient() {
               </tr>
             </thead>
             <tbody>
-              {[...entries].reverse().map((e, i) => (
-                <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-900/50">
-                  <td className="py-1.5 pr-3 font-mono text-xs whitespace-nowrap">{formatTime(e.timestamp)}</td>
-                  <td className="py-1.5 pr-3 font-mono text-xs">{e.endpoint}</td>
-                  <td className="py-1.5 pr-3 text-xs max-w-[200px] truncate">{e.symbols}</td>
-                  <td className="py-1.5 pr-3 text-xs">{e.credits}</td>
-                  <td className="py-1.5 pr-3 text-xs text-zinc-400">{e.purpose}</td>
-                  <td className={`py-1.5 pr-3 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
-                  <td className="py-1.5 text-xs text-zinc-500 max-w-[200px] truncate">{e.detail}</td>
-                </tr>
-              ))}
+              {(() => {
+                const reversed = [...entries].reverse();
+                // Count calls per minute (HH:MM key)
+                const minuteCounts = new Map<string, number>();
+                for (const e of reversed) {
+                  const key = formatTime(e.timestamp).slice(0, 5); // "HH:MM"
+                  minuteCounts.set(key, (minuteCounts.get(key) || 0) + 1);
+                }
+                return reversed.map((e, i) => {
+                  const minuteKey = formatTime(e.timestamp).slice(0, 5);
+                  const count = minuteCounts.get(minuteKey) || 0;
+                  const isBusy = count >= 2;
+                  return (
+                    <tr key={i} className={`border-b border-zinc-800/50 ${isBusy ? 'bg-amber-900/25' : 'hover:bg-zinc-900/50'}`}>
+                      <td className="py-1.5 pr-3 font-mono text-xs whitespace-nowrap">
+                        {formatTime(e.timestamp)}
+                        {isBusy && <span className="ml-1.5 text-amber-400 font-semibold" title={`${count} calls this minute`}>×{count}</span>}
+                      </td>
+                      <td className="py-1.5 pr-3 font-mono text-xs">{e.endpoint}</td>
+                      <td className="py-1.5 pr-3 text-xs max-w-[200px] truncate">{e.symbols}</td>
+                      <td className="py-1.5 pr-3 text-xs">{e.credits}</td>
+                      <td className="py-1.5 pr-3 text-xs text-zinc-400">{e.purpose}</td>
+                      <td className={`py-1.5 pr-3 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
+                      <td className="py-1.5 text-xs text-zinc-500 max-w-[200px] truncate">{e.detail}</td>
+                    </tr>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
