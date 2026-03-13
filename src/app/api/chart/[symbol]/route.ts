@@ -251,11 +251,15 @@ export async function GET(
     source = 'snapshot-history';
   }
 
-  // For 1D / 1H ranges, filter to regular market hours only (9:30 AM – 4:00 PM ET)
-  // so all stocks share the same X-axis timeline.
+  // For 1D / 1H ranges, filter to today's regular market hours only (9:30 AM – 4:00 PM ET)
+  // so all stocks share the same X-axis timeline and don't show previous days.
   if (range === '1D' || range === '1H') {
+    const todayET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const todayDate = `${todayET.getFullYear()}-${String(todayET.getMonth() + 1).padStart(2, '0')}-${String(todayET.getDate()).padStart(2, '0')}`;
     candles = candles.filter((c) => {
       const et = new Date(new Date(c.time).toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const dateStr = `${et.getFullYear()}-${String(et.getMonth() + 1).padStart(2, '0')}-${String(et.getDate()).padStart(2, '0')}`;
+      if (dateStr !== todayDate) return false;
       const mins = et.getHours() * 60 + et.getMinutes();
       return mins >= 570 && mins < 960; // 9:30 = 570, 16:00 = 960
     });
