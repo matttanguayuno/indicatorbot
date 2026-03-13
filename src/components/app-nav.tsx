@@ -15,6 +15,7 @@ const navItems = [
 // Extra items shown only on desktop sidebar
 const desktopExtraItems = [
   { href: '/feedback', label: 'Feedback', icon: '📋', insertBefore: '/settings' },
+  { href: '/api-calls', label: 'API Calls', icon: '🔧', insertBefore: '/settings' },
 ];
 
 export function AppNav() {

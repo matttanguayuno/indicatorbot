@@ -56,6 +56,36 @@ export function getQuotaResumeTime(): number {
   return quotaExhaustedUntil;
 }
 
+// ── API call log (in-memory, shared via globalThis) ──
+export interface ApiCallLogEntry {
+  timestamp: string;
+  endpoint: string;
+  symbols: string | string[];
+  credits: number;
+  purpose: string;
+  status: 'ok' | 'error' | 'rate-limited' | 'http-429' | 'api-error' | 'skipped';
+  detail?: string;
+}
+
+const MAX_LOG_ENTRIES = 500;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __apiCallLog: ApiCallLogEntry[] | undefined;
+}
+if (!globalThis.__apiCallLog) globalThis.__apiCallLog = [];
+
+function logApiCall(entry: ApiCallLogEntry) {
+  const log = globalThis.__apiCallLog!;
+  log.push(entry);
+  if (log.length > MAX_LOG_ENTRIES) log.splice(0, log.length - MAX_LOG_ENTRIES);
+}
+
+/** Get the API call log (newest first). */
+export function getApiCallLog(): ApiCallLogEntry[] {
+  return [...(globalThis.__apiCallLog ?? [])].reverse();
+}
+
 function getApiKey(): string {
   const key = process.env.TWELVEDATA_API_KEY;
   if (!key) {
@@ -79,6 +109,7 @@ export async function getTimeSeries(
   if (Date.now() < quotaExhaustedUntil) {
     const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
     console.log(`[TwelveData] Rate-limit backoff active, skipping candle fetch (${waitSec}s remaining)`);
+    logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'skipped', detail: `Rate-limited, ${waitSec}s remaining` });
     return new Map();
   }
 
@@ -98,6 +129,7 @@ export async function getTimeSeries(
       if (res.status === 429) {
         quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
         console.warn(`[TwelveData] Rate limited — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
+        logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'rate-limited', detail: 'HTTP 429' });
         return new Map();
       }
 
@@ -159,6 +191,7 @@ export async function getTimeSeries(
         }
       }
 
+      logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: symbols.length, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'ok', detail: `${result.size}/${symbols.length} symbols returned` });
       return result;
     } catch (err) {
       console.error(`[TwelveData] Network error, attempt ${attempt}:`, err);
@@ -175,17 +208,20 @@ export async function getTimeSeries(
 /**
  * Generic fetch helper with retry for Twelve Data endpoints.
  */
-async function twelveDataFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T | null> {
+async function twelveDataFetch<T>(endpoint: string, params: Record<string, string> = {}, purpose = ''): Promise<T | null> {
+  const symbol = params.symbol || '';
   // Skip if we're in rate-limit backoff
   if (Date.now() < quotaExhaustedUntil) {
     const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
     console.log(`[TwelveData] Rate-limit backoff active, skipping ${endpoint} (${waitSec}s remaining)`);
+    logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'rate-limited', detail: `Backoff ${waitSec}s remaining` });
     return null;
   }
 
   // Pre-check: would this call exceed our per-minute budget?
   if (wouldExceedRateLimit(1)) {
     console.log(`[TwelveData] Skipping ${endpoint} — would exceed ${CREDITS_PER_MINUTE} credits/min`);
+    logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'rate-limited', detail: `Would exceed ${CREDITS_PER_MINUTE} credits/min` });
     return null;
   }
 
@@ -202,6 +238,7 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
       if (res.status === 429) {
         quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
         console.warn(`[TwelveData] Rate limited on ${endpoint} — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
+        logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'http-429', detail: 'Rate limited — backing off 60s' });
         return null;
       }
       if (!res.ok) {
@@ -210,6 +247,7 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
           await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
           continue;
         }
+        logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'error', detail: `HTTP ${res.status} ${res.statusText}` });
         return null;
       }
       recordCredits(1);
@@ -220,8 +258,10 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
           quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
           console.warn(`[TwelveData] Rate limited on ${endpoint} (response body) — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
         }
+        logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 1, purpose, status: 'api-error', detail: data.message });
         return null;
       }
+      logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 1, purpose, status: 'ok', detail: '' });
       return data as T;
     } catch (err) {
       console.error(`[TwelveData] Network error on ${endpoint}, attempt ${attempt}:`, err);
@@ -231,6 +271,7 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
       }
     }
   }
+  logApiCall({ timestamp: new Date().toISOString(), endpoint, symbols: symbol, credits: 0, purpose, status: 'error', detail: 'All retries exhausted' });
   return null;
 }
 
@@ -238,21 +279,21 @@ async function twelveDataFetch<T>(endpoint: string, params: Record<string, strin
  * Fetch real-time quote for a symbol. 1 credit per call.
  */
 export async function getQuote(symbol: string): Promise<TwelveDataQuote | null> {
-  return twelveDataFetch<TwelveDataQuote>('/quote', { symbol });
+  return twelveDataFetch<TwelveDataQuote>('/quote', { symbol }, 'Quote');
 }
 
 /**
  * Fetch company profile. 1 credit per call.
  */
 export async function getProfile(symbol: string): Promise<TwelveDataProfile | null> {
-  return twelveDataFetch<TwelveDataProfile>('/profile', { symbol });
+  return twelveDataFetch<TwelveDataProfile>('/profile', { symbol }, 'Company profile');
 }
 
 /**
  * Fetch stock statistics (shares outstanding, float, short interest). 1 credit per call.
  */
 export async function getStatistics(symbol: string): Promise<TwelveDataStatistics | null> {
-  return twelveDataFetch<TwelveDataStatistics>('/statistics', { symbol });
+  return twelveDataFetch<TwelveDataStatistics>('/statistics', { symbol }, 'Statistics');
 }
 
 /**
@@ -262,5 +303,5 @@ export async function searchSymbols(query: string): Promise<TwelveDataSymbolSear
   return twelveDataFetch<TwelveDataSymbolSearchResult>('/symbol_search', {
     symbol: query,
     show_plan: 'false',
-  });
+  }, 'Symbol search (free)');
 }
