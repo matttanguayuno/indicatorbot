@@ -151,6 +151,17 @@ enum FeedbackRating {
 }
 
 // ---------------------------------------------------------------------------
+// Push Subscription — Web Push notification endpoints
+// ---------------------------------------------------------------------------
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
 // News Item — cached news articles for a ticker
 // ---------------------------------------------------------------------------
 model NewsItem {

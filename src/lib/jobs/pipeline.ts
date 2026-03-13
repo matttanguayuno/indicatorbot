@@ -7,6 +7,7 @@
  */
 
 import prisma from '@/lib/db';
+import { sendPushToAll } from '@/lib/push';
 import {
   getQuote as getFHQuote,
   getCompanyProfile,
@@ -371,6 +372,15 @@ async function maybeCreateAlert(
   });
 
   console.log(`[Alert] Created alert for ${symbol} (score: ${score})`);
+
+  // Send push notification
+  const shortExplanation = explanation.length > 100 ? explanation.slice(0, 97) + '...' : explanation;
+  await sendPushToAll({
+    title: `🚀 ${symbol} — Score ${Math.round(score)}`,
+    body: shortExplanation,
+    symbol,
+    score,
+  }).catch((err) => console.error('[Push] Error sending notification:', err));
 }
 
 // ── Candle cache: refetch every poll cycle for real-time data ──

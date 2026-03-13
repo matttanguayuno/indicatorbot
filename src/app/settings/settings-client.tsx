@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { TickerSearch } from '@/components/ticker-search';
 import { RulesClient } from '@/app/rules/rules-client';
+import { PushToggle } from '@/components/push-toggle';
 
 interface Settings {
   id: number;
@@ -326,6 +327,15 @@ export function SettingsClient() {
         {syncStatus && (
           <div className="text-sm text-gray-400 mt-2 whitespace-pre-line">{syncStatus}</div>
         )}
+      </div>
+
+      {/* Push Notifications */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <h2 className="text-sm font-semibold text-gray-400 mb-3">Push Notifications</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Get notified on your phone when a signal alert fires.
+        </p>
+        <PushToggle />
       </div>
 
       {/* Manual Poll Trigger */}
