@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { ALERT_CONFIG, POLLING_CONFIG } from '@/lib/config';
 import { isQuotaExhausted, getQuotaResumeTime } from '@/lib/twelvedata';
+import { applySentiment } from '@/lib/news/sentiment';
 
 async function getOrCreateSettings() {
   let settings = await prisma.appSettings.findFirst();
@@ -95,6 +96,18 @@ export async function PUT(req: NextRequest) {
       ...(validSentimentMethod != null && { sentimentMethod: validSentimentMethod }),
     },
   });
+
+  // If sentiment method changed, clear old scores and re-run
+  if (validSentimentMethod && validSentimentMethod !== settings.sentimentMethod) {
+    if (validSentimentMethod !== 'off') {
+      // Null out existing sentiment so everything gets re-scored with the new method
+      await prisma.newsItem.updateMany({ data: { sentiment: null } });
+      // Fire-and-forget — don't block the response
+      applySentiment().catch((err) =>
+        console.error('[Settings] Sentiment re-score failed:', err instanceof Error ? err.message : err)
+      );
+    }
+  }
 
   return NextResponse.json(updated);
 }

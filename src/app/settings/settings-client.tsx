@@ -43,6 +43,7 @@ export function SettingsClient() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncLoading, setSyncLoading] = useState(false);
   const [dismissedRemoved, setDismissedRemoved] = useState(false);
+  const [saveConfirm, setSaveConfirm] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const [settingsRes, tickersRes] = await Promise.all([
@@ -92,6 +93,8 @@ export function SettingsClient() {
         }),
       });
       if (res.ok) setSettings(await res.json());
+      setSaveConfirm('Settings saved');
+      setTimeout(() => setSaveConfirm(null), 3000);
     } catch (err) {
       console.error('Failed to save settings:', err);
     } finally {
@@ -116,6 +119,8 @@ export function SettingsClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sentimentMethod: method }),
       });
+      setSaveConfirm(method === 'off' ? 'Sentiment scoring disabled' : `Sentiment switched to ${method} — rescoring news…`);
+      setTimeout(() => setSaveConfirm(null), 4000);
     } catch { /* ignore */ }
   }
 
@@ -318,6 +323,9 @@ export function SettingsClient() {
           >
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
+          {saveConfirm && (
+            <p className="text-xs text-green-400 text-center">{saveConfirm}</p>
+          )}
 
           <button
             onClick={async () => {
