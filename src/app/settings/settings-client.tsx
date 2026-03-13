@@ -219,7 +219,7 @@ export function SettingsClient() {
             max={200}
           />
           <p className="text-xs text-gray-500 -mt-2">
-            Number of stocks to pull from the FMP screener. Syncs at 6:30 AM, 10 AM, 1 PM MT.
+            Number of top movers to pull from FMP. Auto-syncs at 6:30 AM, 10 AM, 1 PM MT.
           </p>
 
           <button
@@ -271,9 +271,9 @@ export function SettingsClient() {
 
       {/* Screener Sync */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h2 className="text-sm font-semibold text-gray-400 mb-3">Screener Sync</h2>
+        <h2 className="text-sm font-semibold text-gray-400 mb-3">Top Movers Sync</h2>
         <p className="text-sm text-gray-500 mb-3">
-          Run the FMP screener and replace your watchlist with the top results.
+          Pull the top daily gainers from FMP and update your watchlist.
         </p>
         <button
           onClick={async () => {

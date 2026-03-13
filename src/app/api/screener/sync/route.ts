@@ -1,11 +1,11 @@
 /**
- * POST /api/screener/sync — Run the FMP screener and sync the watchlist.
+ * POST /api/screener/sync — Fetch top daily movers from FMP and sync the watchlist.
  *
  * No auth required (intended for local/interactive use, same pattern as /api/poll).
  * Body (optional): { topN?: number }
  *
- * Screens the top N symbols via FMP (US, vol > 1M, mcap < $500M),
- * deactivates all current tickers, and upserts the screened ones as active.
+ * Fetches the top N gainers via FMP,
+ * deactivates all current tickers, and upserts the results as active.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
