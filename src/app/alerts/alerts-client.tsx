@@ -99,14 +99,7 @@ export function AlertsClient() {
   const [feedbackAlert, setFeedbackAlert] = useState<number | null>(null);
   const [feedbackNote, setFeedbackNote] = useState('');
 
-  useEffect(() => {
-    fetchAlerts();
-    // Auto-refresh every 30s during market hours
-    const interval = setInterval(fetchAlerts, 30_000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchAlerts() {
+  const fetchAlerts = useCallback(async () => {
     try {
       const res = await fetch('/api/alerts');
       if (res.ok) setAlerts(await res.json());
@@ -115,7 +108,26 @@ export function AlertsClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchAlerts();
+    // Auto-refresh every 30s
+    const interval = setInterval(fetchAlerts, 30_000);
+
+    // Also refresh immediately when a push notification arrives
+    const onMessage = () => { fetchAlerts(); };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', onMessage);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onMessage);
+      }
+    };
+  }, [fetchAlerts]);
 
   const dismissAlert = useCallback(async (id: number) => {
     setAlerts(prev => prev.filter(a => a.id !== id));

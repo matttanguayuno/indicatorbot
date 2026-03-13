@@ -12,9 +12,13 @@ export async function GET(req: NextRequest) {
     parseInt(req.nextUrl.searchParams.get('limit') ?? '50', 10),
     200
   );
+  const symbolFilter = req.nextUrl.searchParams.get('symbol');
+
+  const where: Record<string, unknown> = { acknowledged: false };
+  if (symbolFilter) where.symbol = symbolFilter.toUpperCase();
 
   const alerts = await prisma.alert.findMany({
-    where: { acknowledged: false },
+    where,
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: { feedback: true },

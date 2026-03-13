@@ -21,7 +21,14 @@ self.addEventListener('push', (event) => {
     data: { url: symbol ? `/signal/${symbol}` : '/alerts' },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(() => {
+      // Notify open pages so they can refresh immediately
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => client.postMessage({ type: 'push-received', symbol, score }));
+      });
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

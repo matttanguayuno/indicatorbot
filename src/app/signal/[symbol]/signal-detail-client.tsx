@@ -107,6 +107,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [tickerList, setTickerList] = useState<string[]>([]);
   const [buyEntry, setBuyEntry] = useState<{ id: number; entryPrice: number; scoreAtEntry: number; peakScoreSinceEntry: number; lastSellAlertLevel: number; boughtAt: string } | null>(null);
   const [buyLoading, setBuyLoading] = useState(false);
+  const [stockAlerts, setStockAlerts] = useState<{ id: number; alertType: string; scoreAtAlert: number; explanation: string; createdAt: string }[]>([]);
   const searchParams = useSearchParams();
   const from = searchParams.get('from') ?? 'opportunities';
 
@@ -209,6 +210,12 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       })
       .catch(() => {});
 
+    // Load recent alerts for this symbol
+    fetch(`/api/alerts?symbol=${encodeURIComponent(symbol)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setStockAlerts)
+      .catch(() => {});
+
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
   }, [symbol]);
@@ -289,6 +296,27 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         <ScoreBadge score={latest.signalScore} />
       </div>
 
+      {/* Alerts for this stock */}
+      {stockAlerts.length > 0 && (
+        <div className="space-y-1.5">
+          {stockAlerts.map((a) => (
+            <div key={a.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border ${
+              a.alertType === 'sell'
+                ? 'bg-red-900/30 border-red-800/50'
+                : 'bg-green-900/30 border-green-800/50'
+            }`}>
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                a.alertType === 'sell' ? 'bg-red-900/60 text-red-300' : 'bg-green-900/60 text-green-300'
+              }`}>
+                {a.alertType === 'sell' ? 'SELL' : 'BUY'}
+              </span>
+              <span className="text-gray-300 flex-1 truncate">{a.explanation}</span>
+              <TimeAgo date={a.createdAt} />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Buy Entry */}
       <div className="flex items-center gap-3 flex-wrap">
         {buyEntry ? (
@@ -351,7 +379,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             disabled={buyLoading}
             className="px-4 py-1.5 bg-green-700 hover:bg-green-600 disabled:bg-gray-700 rounded-lg text-sm font-semibold transition-colors"
           >
-            {buyLoading ? '⏳' : '💰 I Bought This'}
+            {buyLoading ? '⏳' : '💰 Buy'}
           </button>
         )}
       </div>
