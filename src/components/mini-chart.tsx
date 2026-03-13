@@ -319,7 +319,8 @@ export function MiniChart({
         }
         return indices.map((i) => {
           const d = new Date(visTimes![i]);
-          const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+          const mt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Denver' }));
+          const label = `${mt.getHours()}:${mt.getMinutes().toString().padStart(2, '0')}`;
           return (
             <text
               key={i}
@@ -417,7 +418,7 @@ export function MiniChart({
               fill="#9ca3af"
               fontSize={fontTip * 0.8}
             >
-              {(() => { const d = new Date(visTimes[hIdx]); return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`; })()}
+              {(() => { const d = new Date(visTimes[hIdx]); const mt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Denver' })); return `${mt.getHours()}:${mt.getMinutes().toString().padStart(2, '0')}`; })()}
             </text>
           )}
         </g>

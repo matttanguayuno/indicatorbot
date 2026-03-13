@@ -19,10 +19,38 @@ export function mapTwelveDataCandles(series: TwelveDataTimeSeries): NormalizedCa
       low: parseFloat(v.low),
       open: parseFloat(v.open),
       volume: parseInt(v.volume, 10) || 0,
-      timestamp: new Date(v.datetime.replace(' ', 'T')),
+      timestamp: parseExchangeDatetime(v.datetime),
     }))
     .filter((c) => !isNaN(c.close) && c.close > 0)
     .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+}
+
+/**
+ * Parse a Twelve Data datetime string (in exchange timezone, ET for US stocks)
+ * and return a proper UTC Date.
+ *
+ * Twelve Data returns e.g. "2026-03-13 09:30:00" meaning 9:30 AM ET.
+ * We must convert to real UTC (13:30Z during EDT, 14:30Z during EST).
+ */
+function parseExchangeDatetime(datetime: string): Date {
+  const parts = datetime.split(/[- :T]/).map(Number);
+  const [year, month, day, hours = 0, minutes = 0, seconds = 0] = parts;
+
+  // Put ET values into UTC fields
+  const naive = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+
+  // Determine ET→UTC offset (4h for EDT, 5h for EST) by checking what
+  // UTC noon looks like in New York on this date.
+  const noon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  const etNoonParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(noon);
+  const etHour = parseInt(etNoonParts.find((p) => p.type === 'hour')!.value);
+  const offsetHours = 12 - etHour; // 4 for EDT, 5 for EST
+
+  return new Date(naive.getTime() + offsetHours * 3600000);
 }
 
 /**

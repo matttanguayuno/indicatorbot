@@ -113,10 +113,12 @@ export function PriceChart({
 
   function fmtTimeLabel(d: Date): string {
     if (multiDay) {
-      return `${d.getMonth() + 1}/${d.getDate()}`;
+      const mt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Denver' }));
+      return `${mt.getMonth() + 1}/${mt.getDate()}`;
     }
-    const h = d.getHours();
-    const m = d.getMinutes();
+    const mt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Denver' }));
+    const h = mt.getHours();
+    const m = mt.getMinutes();
     return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
   }
 
@@ -230,11 +232,12 @@ export function PriceChart({
   // Hover time label
   const hoverTime = hoverIndex != null ? (() => {
     const d = new Date(visCandles[hIdx].time);
+    const mt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Denver' }));
     if (multiDay) {
-      return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours() % 12 || 12}:${d.getMinutes().toString().padStart(2, '0')}${d.getHours() >= 12 ? 'p' : 'a'}`;
+      return `${mt.getMonth() + 1}/${mt.getDate()}/${mt.getFullYear()} ${mt.getHours() % 12 || 12}:${mt.getMinutes().toString().padStart(2, '0')}${mt.getHours() >= 12 ? 'p' : 'a'}`;
     }
-    const h = d.getHours();
-    const m = d.getMinutes();
+    const h = mt.getHours();
+    const m = mt.getMinutes();
     return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
   })() : '';
 
