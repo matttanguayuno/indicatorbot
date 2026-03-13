@@ -28,6 +28,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -46,7 +47,7 @@ export default function RootLayout({
       >
         <div className="flex min-h-screen">
           <AppNav />
-          <main className="flex-1 pb-20 lg:pb-4 px-4 lg:px-8 xl:px-12 w-full">
+          <main className="flex-1 pb-24 lg:pb-4 px-4 lg:px-8 xl:px-12 w-full">
             {children}
           </main>
         </div>
