@@ -9,6 +9,7 @@
 import prisma from '@/lib/db';
 import { sendPushToAll } from '@/lib/push';
 import { checkSellAlerts } from '@/lib/sell-alerts';
+import { applySentiment } from '@/lib/news/sentiment';
 import {
   getQuote as getFHQuote,
   getCompanyProfile,
@@ -576,6 +577,9 @@ export async function refreshNews(): Promise<{ fetched: number; symbols: number 
       console.warn(`[News] Failed to fetch news for ${ticker.symbol}:`, err instanceof Error ? err.message : err);
     }
   }
+
+  // Apply sentiment classification to new articles
+  await applySentiment();
 
   console.log(`[News] Fetched ${totalFetched} articles for ${tickers.length} tickers`);
   return { fetched: totalFetched, symbols: tickers.length };

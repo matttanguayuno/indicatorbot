@@ -20,6 +20,7 @@ model AppSettings {
   screenerTopN        Int      @default(30)
   screenerSyncTimes   String   @default("06:30,10:00,13:00")
   newsSummaryTimes    String   @default("07:30,10:00")
+  sentimentMethod     String   @default("keyword")
   rulesJson           String?
   sellRulesJson       String?
   updatedAt           DateTime @updatedAt
@@ -201,6 +202,7 @@ model NewsItem {
   source    String?
   url       String?
   summary   String?
+  sentiment String?
   publishedAt DateTime
   fetchedAt   DateTime @default(now())
 

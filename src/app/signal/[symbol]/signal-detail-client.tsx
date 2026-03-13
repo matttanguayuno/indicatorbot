@@ -76,6 +76,7 @@ interface NewsEntry {
   headline: string;
   source: string | null;
   url: string | null;
+  sentiment: string | null;
   publishedAt: string;
 }
 
@@ -660,22 +661,33 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           <h2 className="text-base font-semibold text-gray-400 mb-2">Recent News ({latest.recentNewsCount} found)</h2>
           <div className="space-y-2">
             {news.map((n) => (
-              <div key={n.id} className="text-sm">
-                {n.url ? (
-                  <a
-                    href={n.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline"
-                  >
-                    {n.headline}
-                  </a>
-                ) : (
-                  <span>{n.headline}</span>
+              <div key={n.id} className="text-sm flex items-start gap-2">
+                {n.sentiment && (
+                  <span className={`mt-0.5 shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                    n.sentiment === 'bullish' ? 'bg-green-900/50 text-green-400' :
+                    n.sentiment === 'bearish' ? 'bg-red-900/50 text-red-400' :
+                    'bg-gray-800 text-gray-500'
+                  }`}>
+                    {n.sentiment === 'bullish' ? '▲' : n.sentiment === 'bearish' ? '▼' : '—'}
+                  </span>
                 )}
-                <div className="text-sm text-gray-500">
-                  {n.source ? `${n.source} · ` : ''}
-                  <TimeAgo date={n.publishedAt} />
+                <div>
+                  {n.url ? (
+                    <a
+                      href={n.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:underline"
+                    >
+                      {n.headline}
+                    </a>
+                  ) : (
+                    <span>{n.headline}</span>
+                  )}
+                  <div className="text-sm text-gray-500">
+                    {n.source ? `${n.source} · ` : ''}
+                    <TimeAgo date={n.publishedAt} />
+                  </div>
                 </div>
               </div>
             ))}

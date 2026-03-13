@@ -18,6 +18,7 @@ interface Settings {
   screenerTopN: number;
   screenerSyncTimes: string;
   newsSummaryTimes: string;
+  sentimentMethod: string;
   twelveDataExhausted?: boolean;
   twelveDataResumesAt?: string | null;
 }
@@ -104,6 +105,16 @@ export function SettingsClient() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ screenerSource: source }),
+      });
+    } catch { /* ignore */ }
+  }
+
+  async function saveSentimentMethod(method: string) {
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentimentMethod: method }),
       });
     } catch { /* ignore */ }
   }
@@ -276,6 +287,28 @@ export function SettingsClient() {
           </div>
           <p className="text-xs text-gray-500 -mt-2">
             Comma-separated HH:MM times in Mountain Time for auto-generating AI news summaries.
+          </p>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300">News Sentiment</label>
+            <div className="flex rounded overflow-hidden border border-gray-700">
+              {(['keyword', 'ai', 'off'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setSettings({ ...settings, sentimentMethod: m }); saveSentimentMethod(m); }}
+                  className={`px-3 py-1 text-sm transition-colors ${
+                    settings.sentimentMethod === m
+                      ? 'bg-emerald-700 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {m === 'keyword' ? 'Keyword' : m === 'ai' ? 'AI' : 'Off'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 -mt-2">
+            Keyword = free pattern matching. AI = GPT-4o-mini per news cycle. Off = no scoring.
           </p>
 
           <button

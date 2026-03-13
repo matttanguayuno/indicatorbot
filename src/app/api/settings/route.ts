@@ -36,7 +36,7 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes, sentimentMethod } = body;
 
   const settings = await getOrCreateSettings();
 
@@ -75,6 +75,11 @@ export async function PUT(req: NextRequest) {
     if (allValid) validNewsTimes = parts.join(',');
   }
 
+  const VALID_SENTIMENT_METHODS = ['keyword', 'ai', 'off'] as const;
+  const validSentimentMethod = typeof sentimentMethod === 'string' && (VALID_SENTIMENT_METHODS as readonly string[]).includes(sentimentMethod)
+    ? sentimentMethod
+    : undefined;
+
   const updated = await prisma.appSettings.update({
     where: { id: settings.id },
     data: {
@@ -87,6 +92,7 @@ export async function PUT(req: NextRequest) {
       ...(validTopN != null && { screenerTopN: validTopN }),
       ...(validSyncTimes != null && { screenerSyncTimes: validSyncTimes }),
       ...(validNewsTimes != null && { newsSummaryTimes: validNewsTimes }),
+      ...(validSentimentMethod != null && { sentimentMethod: validSentimentMethod }),
     },
   });
 
