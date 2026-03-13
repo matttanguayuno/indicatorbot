@@ -13,6 +13,7 @@ interface Settings {
   pollingIntervalSec: number;
   dataSource: string;
   screenerTopN: number;
+  screenerSyncTimes: string;
   twelveDataExhausted?: boolean;
   twelveDataResumesAt?: string | null;
 }
@@ -76,6 +77,7 @@ export function SettingsClient() {
           pollingIntervalSec: settings.pollingIntervalSec,
           dataSource: settings.dataSource,
           screenerTopN: settings.screenerTopN,
+          screenerSyncTimes: settings.screenerSyncTimes,
         }),
       });
       if (res.ok) setSettings(await res.json());
@@ -221,7 +223,21 @@ export function SettingsClient() {
             max={200}
           />
           <p className="text-xs text-gray-500 -mt-2">
-            Number of top movers to pull from FMP. Auto-syncs at 6:30 AM, 10 AM, 1 PM MT.
+            Number of top movers to pull from FMP.
+          </p>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300">Sync Times (MT)</label>
+            <input
+              type="text"
+              value={settings.screenerSyncTimes}
+              onChange={(e) => setSettings({ ...settings, screenerSyncTimes: e.target.value })}
+              placeholder="06:30,10:00,13:00"
+              className="w-40 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-200 text-right"
+            />
+          </div>
+          <p className="text-xs text-gray-500 -mt-2">
+            Comma-separated HH:MM times in Mountain Time for auto-syncing top movers.
           </p>
 
           <button

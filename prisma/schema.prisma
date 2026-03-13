@@ -17,6 +17,7 @@ model AppSettings {
   pollingIntervalSec  Int      @default(60)
   dataSource          String   @default("twelvedata")
   screenerTopN        Int      @default(30)
+  screenerSyncTimes   String   @default("06:30,10:00,13:00")
   rulesJson           String?
   updatedAt           DateTime @updatedAt
 }

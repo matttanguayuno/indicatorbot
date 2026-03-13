@@ -591,7 +591,7 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
             ⛶
           </button>
         </div>
-        <div ref={containerRef} className="flex-1 min-h-0 px-2 pb-3">
+        <div ref={containerRef} className="flex-1 min-h-[250px] px-2 pb-3">
           {chartSvg(svgRef, cSize[0], cSize[1])}
         </div>
       </div>

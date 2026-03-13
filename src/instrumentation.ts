@@ -70,12 +70,15 @@ export async function register() {
   }, msUntilNextMinute);
 
   // ─── Screener sync scheduler ─────────────────────────────────────────
-  // Sync windows: 6:30 AM, 10:00 AM, 1:00 PM Mountain Time (America/Denver)
-  const SYNC_WINDOWS_MT = [
-    { hour: 6, minute: 30 },
-    { hour: 10, minute: 0 },
-    { hour: 13, minute: 0 },
-  ];
+  // Sync windows loaded from DB (Mountain Time, America/Denver)
+  const DEFAULT_SYNC_TIMES = '06:30,10:00,13:00';
+
+  function parseSyncTimes(raw: string): { hour: number; minute: number }[] {
+    return raw.split(',').map(s => s.trim()).filter(Boolean).map(s => {
+      const [h, m] = s.split(':').map(Number);
+      return { hour: h, minute: m };
+    }).filter(w => !isNaN(w.hour) && !isNaN(w.minute));
+  }
 
   let lastSyncDate = ''; // "YYYY-MM-DD-HH:MM" to prevent duplicate triggers
 
@@ -90,8 +93,19 @@ export async function register() {
     const hours = mt.getHours();
     const minutes = mt.getMinutes();
 
+    // Load sync windows from DB each tick so changes take effect without restart
+    let syncWindows: { hour: number; minute: number }[];
+    try {
+      const prisma = (await import('@/lib/db')).default;
+      const settings = await prisma.appSettings.findFirst() as Record<string, unknown> | null;
+      const rawTimes = (typeof settings?.screenerSyncTimes === 'string' ? settings.screenerSyncTimes : null) ?? DEFAULT_SYNC_TIMES;
+      syncWindows = parseSyncTimes(rawTimes);
+    } catch {
+      syncWindows = parseSyncTimes(DEFAULT_SYNC_TIMES);
+    }
+
     // Check if we're within ±2 minutes of any sync window
-    const matchingWindow = SYNC_WINDOWS_MT.find((w) => {
+    const matchingWindow = syncWindows.find((w) => {
       const windowMin = w.hour * 60 + w.minute;
       const currentMin = hours * 60 + minutes;
       return Math.abs(currentMin - windowMin) <= 2;
@@ -149,6 +163,6 @@ export async function register() {
   }
 
   // Check every 60s if it's time for a screener sync
-  console.log('[Screener Sync] Scheduler started (6:30 AM, 10:00 AM, 1:00 PM MT, weekdays)');
+  console.log('[Screener Sync] Scheduler started (times from DB, weekdays)');
   setInterval(screenerTick, 60_000);
 }
