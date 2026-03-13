@@ -82,12 +82,6 @@ export async function getTimeSeries(
     return new Map();
   }
 
-  // Pre-check: would this batch exceed our per-minute budget?
-  if (wouldExceedRateLimit(symbols.length)) {
-    console.log(`[TwelveData] Skipping candle fetch for ${symbols.length} symbols — would exceed ${CREDITS_PER_MINUTE} credits/min`);
-    return new Map();
-  }
-
   const apiKey = getApiKey();
   const url = new URL(`${BASE_URL}/time_series`);
   url.searchParams.set('apikey', apiKey);
