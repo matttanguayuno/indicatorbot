@@ -30,6 +30,8 @@ export function SettingsClient() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [tickers, setTickers] = useState<TickerData[]>([]);
   const [saving, setSaving] = useState(false);
+  const [refreshingNews, setRefreshingNews] = useState(false);
+  const [newsRefreshResult, setNewsRefreshResult] = useState<string | null>(null);
   const [pollStatus, setPollStatus] = useState<string | null>(null);
   const [pollLoading, setPollLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -263,6 +265,35 @@ export function SettingsClient() {
           >
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
+
+          <button
+            onClick={async () => {
+              setRefreshingNews(true);
+              try {
+                const res = await fetch('/api/news/summary', { method: 'POST' });
+                if (res.ok) {
+                  setNewsRefreshResult('News summary generated successfully.');
+                } else {
+                  const data = await res.json().catch(() => ({}));
+                  setNewsRefreshResult(data.error || 'Failed to generate summary.');
+                }
+              } catch {
+                setNewsRefreshResult('Network error — could not reach the server.');
+              } finally {
+                setRefreshingNews(false);
+                setTimeout(() => setNewsRefreshResult(null), 5000);
+              }
+            }}
+            disabled={refreshingNews}
+            className="w-full bg-gray-800 hover:bg-gray-700 disabled:bg-gray-800 disabled:text-gray-500 border border-gray-700 text-sm py-2 rounded transition-colors"
+          >
+            {refreshingNews ? '⏳ Generating…' : '📰 Refresh News Summary Now'}
+          </button>
+          {newsRefreshResult && (
+            <p className={`text-xs ${newsRefreshResult.includes('success') ? 'text-green-400' : 'text-red-400'}`}>
+              {newsRefreshResult}
+            </p>
+          )}
         </div>
       )}
 
