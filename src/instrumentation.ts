@@ -167,20 +167,20 @@ export async function register() {
   setInterval(screenerTick, 60_000);
 
   // ─── News summary scheduler ────────────────────────────────────────
-  // Auto-generate AI news summaries at configured times (Eastern Time)
-  const DEFAULT_NEWS_TIMES = '09:30,12:00';
+  // Auto-generate AI news summaries at configured times (Mountain Time)
+  const DEFAULT_NEWS_TIMES = '07:30,10:00';
   let lastNewsSummaryKey = '';
 
   async function newsSummaryTick() {
     const nowDate = new Date();
-    const et = new Date(nowDate.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const day = et.getDay();
+    const mt = new Date(nowDate.toLocaleString('en-US', { timeZone: 'America/Denver' }));
+    const day = mt.getDay();
 
     // Only Mon–Fri
     if (day < 1 || day > 5) return;
 
-    const hours = et.getHours();
-    const minutes = et.getMinutes();
+    const hours = mt.getHours();
+    const minutes = mt.getMinutes();
 
     // Load news summary times from DB
     let summaryWindows: { hour: number; minute: number }[];
@@ -201,29 +201,21 @@ export async function register() {
 
     if (!matchingWindow) return;
 
-    const windowKey = `news-${et.getFullYear()}-${et.getMonth()}-${et.getDate()}-${matchingWindow.hour}:${matchingWindow.minute}`;
+    const windowKey = `news-${mt.getFullYear()}-${mt.getMonth()}-${mt.getDate()}-${matchingWindow.hour}:${matchingWindow.minute}`;
     if (lastNewsSummaryKey === windowKey) return;
     lastNewsSummaryKey = windowKey;
 
-    console.log(`[News Summary] Auto-generating at ${hours}:${String(minutes).padStart(2, '0')} ET`);
+    console.log(`[News Summary] Auto-generating at ${hours}:${String(minutes).padStart(2, '0')} MT`);
 
     try {
-      // Call our own API endpoint to generate and persist the summary
-      const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3001';
-      const res = await fetch(`${baseUrl}/api/news/summary`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        console.log(`[News Summary] Done — ${data.symbols?.length ?? 0} symbols covered`);
-      } else {
-        console.warn(`[News Summary] API returned ${res.status}`);
-      }
+      const { generateNewsSummary } = await import('@/lib/news/summary');
+      const data = await generateNewsSummary();
+      console.log(`[News Summary] Done — ${data.symbols?.length ?? 0} symbols covered`);
     } catch (err) {
       console.error('[News Summary] Error:', err instanceof Error ? err.message : err);
     }
   }
 
-  console.log('[News Summary] Scheduler started (times from DB, weekdays, ET)');
+  console.log('[News Summary] Scheduler started (times from DB, weekdays, MT)');
   setInterval(newsSummaryTick, 60_000);
 }

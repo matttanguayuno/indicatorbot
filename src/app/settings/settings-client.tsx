@@ -247,7 +247,7 @@ export function SettingsClient() {
           </p>
 
           <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-300">News Summary (ET)</label>
+            <label className="text-sm text-gray-300">News Summary (MT)</label>
             <input
               type="text"
               value={settings.newsSummaryTimes}
@@ -257,7 +257,7 @@ export function SettingsClient() {
             />
           </div>
           <p className="text-xs text-gray-500 -mt-2">
-            Comma-separated HH:MM times in Eastern Time for auto-generating AI news summaries.
+            Comma-separated HH:MM times in Mountain Time for auto-generating AI news summaries.
           </p>
 
           <button

@@ -135,11 +135,11 @@ async function processTicker(
       });
     }
 
-    // 3) News — Finnhub fetches fresh news; Twelve Data uses DB records
+    // 3) News — always fetched from Finnhub (free tier supports /company-news)
     const newsWindowMs = rules.weights.newsCatalyst.recentWindowMinutes * 60 * 1000;
     let recentNewsCount = 0;
 
-    if (dataSource === 'finnhub') {
+    try {
       const today = format(new Date(), 'yyyy-MM-dd');
       const twoDaysAgo = format(subDays(new Date(), 2), 'yyyy-MM-dd');
       const rawNews = await getCompanyNews(symbol, twoDaysAgo, today);
@@ -170,8 +170,9 @@ async function processTicker(
       recentNewsCount = newsItems.filter(
         (n) => Date.now() - n.publishedAt.getTime() < newsWindowMs
       ).length;
-    } else {
-      // Twelve Data has no news API — use existing DB records
+    } catch (err) {
+      // Non-fatal — score still computes without news
+      console.warn(`[Pipeline] News fetch failed for ${symbol}:`, err instanceof Error ? err.message : err);
       const dbNews = await prisma.newsItem.findMany({
         where: {
           symbol,
@@ -470,6 +471,17 @@ export async function runPollingCycle(): Promise<{
         console.log(`[Pipeline] Fetched candles for ${candleMap.size}/${symbols.length} symbols`);
         if (candleMap.size === 0) {
           candleError = `Twelve Data returned 0 candles for ${symbols.length} symbols (API key may be invalid or rate-limited)`;
+          // Fall back to cached candles so scores stay stable
+          if (cachedCandleMap.size > 0) {
+            for (const [sym, candles] of cachedCandleMap) {
+              candleMap.set(sym, candles);
+            }
+            for (const [sym, s] of cachedSeriesMap) {
+              seriesMap.set(sym, s);
+            }
+            candleError += ' (using cached candles)';
+            console.warn(`[Pipeline] Falling back to ${cachedCandleMap.size} cached symbols`);
+          }
         } else {
           // Update cache
           cachedCandleMap = new Map(candleMap);

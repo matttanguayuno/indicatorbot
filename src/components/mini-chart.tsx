@@ -313,7 +313,10 @@ export function MiniChart({
         const step = Math.max(1, Math.floor(n / targetLabels));
         const indices: number[] = [];
         for (let i = 0; i < n; i += step) indices.push(i);
-        if (indices[indices.length - 1] !== n - 1) indices.push(n - 1);
+        // Only add the last point if it's far enough from the previous label
+        if (indices[indices.length - 1] !== n - 1 && (n - 1 - indices[indices.length - 1]) > step * 0.5) {
+          indices.push(n - 1);
+        }
         return indices.map((i) => {
           const d = new Date(visTimes![i]);
           const label = `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
