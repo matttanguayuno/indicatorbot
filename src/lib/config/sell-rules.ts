@@ -9,21 +9,29 @@ export interface SellRules {
   cooldownMin: number;
   lookbackMin: number;
   maxSnapshots: number;
+  suppressor: {
+    minRvol: number;
+  };
   level3: {
     drop5min: number;
+    drop3min: number;
     vwapBelow: number;
     rvolBelow: number;
+    minConfirmations: number;
   };
   level2: {
     drop5min: number;
     drop3min: number;
     dropFromEntry: number;
     dropFromEntryConfirm3min: number;
+    vwapBelow: number;
+    minConfirmations: number;
   };
   level1: {
     drop3min: number;
     dropFromPeakPct: number;
     dropFromPeakAbs: number;
+    minWeakness: number;
   };
 }
 
@@ -32,21 +40,29 @@ export function getDefaultSellRules(): SellRules {
     cooldownMin: 5,
     lookbackMin: 6,
     maxSnapshots: 10,
+    suppressor: {
+      minRvol: 1.0,
+    },
     level3: {
       drop5min: 15,
-      vwapBelow: -1,
+      drop3min: 12,
+      vwapBelow: -0.75,
       rvolBelow: 0.8,
+      minConfirmations: 3,
     },
     level2: {
-      drop5min: 10,
+      drop5min: 12,
       drop3min: 10,
       dropFromEntry: 10,
       dropFromEntryConfirm3min: 3,
+      vwapBelow: -0.3,
+      minConfirmations: 2,
     },
     level1: {
-      drop3min: 5,
-      dropFromPeakPct: 8,
-      dropFromPeakAbs: 4,
+      drop3min: 6,
+      dropFromPeakPct: 10,
+      dropFromPeakAbs: 5,
+      minWeakness: 1,
     },
   };
 }

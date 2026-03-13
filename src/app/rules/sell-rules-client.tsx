@@ -6,21 +6,29 @@ interface SellRules {
   cooldownMin: number;
   lookbackMin: number;
   maxSnapshots: number;
+  suppressor: {
+    minRvol: number;
+  };
   level3: {
     drop5min: number;
+    drop3min: number;
     vwapBelow: number;
     rvolBelow: number;
+    minConfirmations: number;
   };
   level2: {
     drop5min: number;
     drop3min: number;
     dropFromEntry: number;
     dropFromEntryConfirm3min: number;
+    vwapBelow: number;
+    minConfirmations: number;
   };
   level1: {
     drop3min: number;
     dropFromPeakPct: number;
     dropFromPeakAbs: number;
+    minWeakness: number;
   };
 }
 
@@ -51,31 +59,43 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    title: 'Level 3 — EXIT NOW',
-    icon: '🚨',
+    title: 'Trend Suppressor',
+    icon: '🛡️',
     fields: [
-      { label: '5-min Score Drop', path: ['level3', 'drop5min'], unit: 'pts', step: 1, min: 5, max: 50, description: 'Score drop in 5 min to trigger exit alert' },
-      { label: 'VWAP Below Threshold', path: ['level3', 'vwapBelow'], unit: '%', step: 0.5, max: 0, description: 'Confirming signal: % below VWAP (e.g. -1)' },
-      { label: 'RVOL Below Threshold', path: ['level3', 'rvolBelow'], step: 0.1, min: 0, max: 3, description: 'Confirming signal: relative volume drying up' },
+      { label: 'Min RVOL for Strong Uptrend', path: ['suppressor', 'minRvol'], step: 0.1, min: 0.1, max: 5, description: 'RVOL threshold — above VWAP + nearHigh + breakout + this RVOL = STRONG_UP (all alerts suppressed)' },
     ],
   },
   {
-    title: 'Level 2 — Hard Sell',
+    title: 'Level 3 — Structure Failed',
     icon: '🔴',
     fields: [
-      { label: '5-min Score Drop', path: ['level2', 'drop5min'], unit: 'pts', step: 1, min: 3, max: 50, description: 'Score drop in 5 min to trigger hard sell' },
-      { label: '3-min Score Drop', path: ['level2', 'drop3min'], unit: 'pts', step: 1, min: 3, max: 50, description: 'Score drop in 3 min to trigger hard sell' },
-      { label: 'Drop From Entry', path: ['level2', 'dropFromEntry'], unit: 'pts', step: 1, min: 3, max: 50, description: 'Score points below entry price to trigger' },
-      { label: 'Entry Confirm (3-min)', path: ['level2', 'dropFromEntryConfirm3min'], unit: 'pts', step: 1, min: 1, max: 20, description: 'Additional 3-min drop needed to confirm entry-based sell' },
+      { label: '5-min Score Drop', path: ['level3', 'drop5min'], unit: 'pts', step: 1, min: 5, max: 50, description: 'Score drop in 5 min to arm L3 alert' },
+      { label: '3-min Score Drop', path: ['level3', 'drop3min'], unit: 'pts', step: 1, min: 5, max: 50, description: 'Score drop in 3 min to arm L3 alert' },
+      { label: 'VWAP Below Threshold', path: ['level3', 'vwapBelow'], unit: '%', step: 0.25, max: 0, description: 'Deep below VWAP confirmation threshold (e.g. -0.75)' },
+      { label: 'RVOL Below Threshold', path: ['level3', 'rvolBelow'], step: 0.1, min: 0, max: 3, description: 'Volume drying up confirmation threshold' },
+      { label: 'Min Confirmations', path: ['level3', 'minConfirmations'], step: 1, min: 1, max: 8, description: 'Price confirmations required to fire L3 (BROKEN trend only)' },
     ],
   },
   {
-    title: 'Level 1 — Soft Warning',
+    title: 'Level 2 — Trend Weakening',
+    icon: '🟠',
+    fields: [
+      { label: '5-min Score Drop', path: ['level2', 'drop5min'], unit: 'pts', step: 1, min: 3, max: 50, description: 'Score drop in 5 min to arm L2 alert' },
+      { label: '3-min Score Drop', path: ['level2', 'drop3min'], unit: 'pts', step: 1, min: 3, max: 50, description: 'Score drop in 3 min to arm L2 alert' },
+      { label: 'Drop From Entry', path: ['level2', 'dropFromEntry'], unit: 'pts', step: 1, min: 3, max: 50, description: 'Score points below entry to arm L2' },
+      { label: 'Entry Confirm (3-min)', path: ['level2', 'dropFromEntryConfirm3min'], unit: 'pts', step: 1, min: 1, max: 20, description: 'Additional 3-min drop needed to confirm entry-based sell' },
+      { label: 'VWAP Below Threshold', path: ['level2', 'vwapBelow'], unit: '%', step: 0.1, max: 0, description: 'Below VWAP threshold for BROKEN trend detection (e.g. -0.3)' },
+      { label: 'Min Confirmations', path: ['level2', 'minConfirmations'], step: 1, min: 1, max: 8, description: 'Price confirmations required to fire L2 (BROKEN trend only)' },
+    ],
+  },
+  {
+    title: 'Level 1 — Momentum Cooling',
     icon: '⚠️',
     fields: [
-      { label: '3-min Score Drop', path: ['level1', 'drop3min'], unit: 'pts', step: 1, min: 1, max: 30, description: 'Score drop in 3 min to trigger warning' },
-      { label: 'Peak Drop %', path: ['level1', 'dropFromPeakPct'], unit: '%', step: 1, min: 1, max: 50, description: '% score drop from peak to trigger warning' },
+      { label: '3-min Score Drop', path: ['level1', 'drop3min'], unit: 'pts', step: 1, min: 1, max: 30, description: 'Score drop in 3 min to arm warning' },
+      { label: 'Peak Drop %', path: ['level1', 'dropFromPeakPct'], unit: '%', step: 1, min: 1, max: 50, description: '% score drop from peak to arm warning' },
       { label: 'Peak Drop Minimum', path: ['level1', 'dropFromPeakAbs'], unit: 'pts', step: 1, min: 1, max: 30, description: 'Absolute pts drop from peak (combined with %)' },
+      { label: 'Min Weakness Signals', path: ['level1', 'minWeakness'], step: 1, min: 0, max: 3, description: 'Weakness signals required (lost nearHigh, low RVOL, below VWAP)' },
     ],
   },
 ];
@@ -227,7 +247,7 @@ export function SellRulesClient() {
       </div>
 
       <p className="text-sm text-gray-500">
-        Configure when sell alerts fire for active buy entries. Three severity levels are checked after each polling cycle.
+        Configure when sell alerts fire for active buy entries. Score drops ARM alerts, price action CONFIRMS them. Trend state gates severity: STRONG_UP suppresses all, PULLBACK allows L1, BROKEN allows L2/L3.
       </p>
 
       {/* Sections */}

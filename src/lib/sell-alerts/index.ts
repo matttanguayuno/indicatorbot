@@ -1,16 +1,24 @@
 /**
  * Sell Alert Engine — evaluates active buy entries against latest snapshots.
+ *
+ * Core principle: Score drops ARM the alert, price action CONFIRMS it.
+ *
+ * Trend states gate which levels can fire:
+ *   STRONG_UP → suppresses all sell alerts
+ *   PULLBACK  → only Level 1 can fire (with weakness confirmation)
+ *   BROKEN    → Level 1, 2, and 3 can fire
+ *
  * Three severity levels:
- *   1 = Soft warning (momentum cooling)
- *   2 = Hard sell / trim (conditions weakening)
- *   3 = Exit fast / kill switch (rapid deterioration + confirming signals)
+ *   1 = Momentum Cooling  (⚠️)
+ *   2 = Trend Weakening   (🟠)
+ *   3 = Structure Failed   (🔴)
  */
 
 import prisma from '@/lib/db';
 import { sendPushToAll } from '@/lib/push';
 import { getSellRules, type SellRules } from '@/lib/config';
 
-interface SnapshotData {
+interface RecentSnapshot {
   signalScore: number;
   currentPrice: number;
   pctFromVwap: number | null;
@@ -18,12 +26,96 @@ interface SnapshotData {
   rvol: number | null;
   isBreakout: boolean;
   nearHigh: boolean;
+  timestamp: Date;
 }
+
+type TrendState = 'STRONG_UP' | 'PULLBACK' | 'BROKEN';
 
 interface SellAlertResult {
   symbol: string;
   level: number;
   reason: string;
+}
+
+/**
+ * Determine trend state from recent snapshots.
+ */
+function getTrendState(latest: RecentSnapshot, snapshots: RecentSnapshot[], rules: SellRules): TrendState {
+  const aboveVwap = latest.pctFromVwap !== null && latest.pctFromVwap > 0;
+  const hasRvol = latest.rvol !== null && latest.rvol >= rules.suppressor.minRvol;
+
+  // STRONG_UP: above VWAP + nearHigh + breakout + healthy volume
+  if (aboveVwap && latest.nearHigh && latest.isBreakout && hasRvol) {
+    return 'STRONG_UP';
+  }
+
+  // BROKEN: below VWAP meaningfully + lost breakout + nearHigh false for 2+ consecutive snaps
+  const belowVwap = latest.pctFromVwap !== null && latest.pctFromVwap < rules.level2.vwapBelow;
+  const nearHighFalseCount = snapshots.slice(0, 3).filter(s => !s.nearHigh).length;
+
+  if (belowVwap && !latest.isBreakout && nearHighFalseCount >= 2) {
+    return 'BROKEN';
+  }
+
+  return 'PULLBACK';
+}
+
+/**
+ * Count price-action confirmations that the trade is deteriorating.
+ */
+function countConfirmations(
+  latest: RecentSnapshot,
+  snapshots: RecentSnapshot[],
+  entryScore: number,
+  rules: SellRules,
+): { count: number; details: string[] } {
+  const details: string[] = [];
+
+  // 1. Below VWAP
+  if (latest.pctFromVwap !== null && latest.pctFromVwap < 0) {
+    details.push('below VWAP');
+  }
+
+  // 2. Breakout lost
+  if (!latest.isBreakout) {
+    details.push('breakout lost');
+  }
+
+  // 3. Near high false for 2+ consecutive snapshots
+  const nearHighFalseCount = snapshots.slice(0, 3).filter(s => !s.nearHigh).length;
+  if (nearHighFalseCount >= 2) {
+    details.push('lost near-high');
+  }
+
+  // 4. Lower low printed (price declining across recent snapshots)
+  if (snapshots.length >= 3) {
+    const prices = snapshots.slice(0, 3).map(s => s.currentPrice);
+    if (prices[0] < prices[1] && prices[1] < prices[2]) {
+      details.push('lower lows');
+    }
+  }
+
+  // 5. Sell volume spike
+  if (latest.volumeSpikeRatio !== null && latest.volumeSpikeRatio > 2.0) {
+    details.push('volume spike');
+  }
+
+  // 6. Score well below entry
+  if (latest.signalScore < entryScore - 15) {
+    details.push('score collapsed vs entry');
+  }
+
+  // 7. RVOL drying up
+  if (latest.rvol !== null && latest.rvol < rules.level3.rvolBelow) {
+    details.push('volume drying up');
+  }
+
+  // 8. Deep below VWAP
+  if (latest.pctFromVwap !== null && latest.pctFromVwap < rules.level3.vwapBelow) {
+    details.push('deep below VWAP');
+  }
+
+  return { count: details.length, details };
 }
 
 /**
@@ -37,23 +129,28 @@ function evaluateSellAlert(
     lastSellAlertLevel: number;
     boughtAt: Date;
   },
-  recentScores: { score: number; timestamp: Date }[],
-  latest: SnapshotData,
+  snapshots: RecentSnapshot[],
   rules: SellRules,
 ): { level: number; reason: string } {
-  if (recentScores.length < 2) return { level: 0, reason: '' };
+  if (snapshots.length < 2) return { level: 0, reason: '' };
 
+  const latest = snapshots[0];
   const currentScore = latest.signalScore;
   const peakScore = Math.max(entry.peakScoreSinceEntry, entry.scoreAtEntry);
 
-  // Calculate score drop over recent snapshots (3-5 min windows)
-  // Snapshots are ordered newest-first
-  const now = recentScores[0].timestamp.getTime();
-  const scores3min = recentScores.filter(s => now - s.timestamp.getTime() <= 3 * 60 * 1000);
-  const scores5min = recentScores.filter(s => now - s.timestamp.getTime() <= 5 * 60 * 1000);
+  // ── Determine trend state ──
+  const trend = getTrendState(latest, snapshots, rules);
 
-  const maxScore3min = scores3min.length > 0 ? Math.max(...scores3min.map(s => s.score)) : currentScore;
-  const maxScore5min = scores5min.length > 0 ? Math.max(...scores5min.map(s => s.score)) : currentScore;
+  // STRONG_UP suppresses all sell alerts
+  if (trend === 'STRONG_UP') return { level: 0, reason: '' };
+
+  // ── Calculate score drops (ARM the alert) ──
+  const now = snapshots[0].timestamp.getTime();
+  const scores3min = snapshots.filter(s => now - s.timestamp.getTime() <= 3 * 60 * 1000);
+  const scores5min = snapshots.filter(s => now - s.timestamp.getTime() <= 5 * 60 * 1000);
+
+  const maxScore3min = scores3min.length > 0 ? Math.max(...scores3min.map(s => s.signalScore)) : currentScore;
+  const maxScore5min = scores5min.length > 0 ? Math.max(...scores5min.map(s => s.signalScore)) : currentScore;
 
   const drop3min = maxScore3min - currentScore;
   const drop5min = maxScore5min - currentScore;
@@ -61,71 +158,69 @@ function evaluateSellAlert(
   const dropFromPeakPct = peakScore > 0 ? (dropFromPeak / peakScore) * 100 : 0;
   const dropFromEntry = entry.scoreAtEntry - currentScore;
 
-  // ── Level 3: Exit Fast / Kill Switch ──
-  // Score drops significantly in under 5 minutes
-  // + confirming signals: losing VWAP, volume drying up, failed breakout
-  if (drop5min >= rules.level3.drop5min) {
-    const confirmations: string[] = [];
-    if (latest.pctFromVwap !== null && latest.pctFromVwap < rules.level3.vwapBelow) {
-      confirmations.push('below VWAP');
+  // ── Count price confirmations (CONFIRM the alert) ──
+  const { count: confirmCount, details } = countConfirmations(latest, snapshots, entry.scoreAtEntry, rules);
+  const confStr = details.length > 0 ? ` (${details.join(', ')})` : '';
+
+  // ── Level 3: Structure Failed (BROKEN trend only) ──
+  if (trend === 'BROKEN') {
+    const scoreArmed = drop5min >= rules.level3.drop5min || drop3min >= rules.level3.drop3min;
+    if (scoreArmed && confirmCount >= rules.level3.minConfirmations) {
+      const window = drop3min >= rules.level3.drop3min ? '3min' : '5min';
+      const dropVal = drop3min >= rules.level3.drop3min ? drop3min : drop5min;
+      return {
+        level: 3,
+        reason: `Score dropped ${dropVal.toFixed(0)} pts in ${window}, ${confirmCount} confirmations${confStr}`,
+      };
     }
-    if (latest.rvol !== null && latest.rvol < rules.level3.rvolBelow) {
-      confirmations.push('volume drying up');
+  }
+
+  // ── Level 2: Trend Weakening (BROKEN trend only) ──
+  if (trend === 'BROKEN') {
+    const scoreArmed =
+      drop5min >= rules.level2.drop5min ||
+      drop3min >= rules.level2.drop3min ||
+      (dropFromEntry >= rules.level2.dropFromEntry && drop3min >= rules.level2.dropFromEntryConfirm3min);
+
+    if (scoreArmed && confirmCount >= rules.level2.minConfirmations) {
+      const reason = dropFromEntry >= rules.level2.dropFromEntry
+        ? `Score fell ${dropFromEntry.toFixed(0)} pts below entry (${entry.scoreAtEntry.toFixed(0)} → ${currentScore.toFixed(0)}), ${confirmCount} confirmations${confStr}`
+        : `Score dropped ${(drop3min >= rules.level2.drop3min ? drop3min : drop5min).toFixed(0)} pts, ${confirmCount} confirmations${confStr}`;
+      return { level: 2, reason };
     }
-    if (!latest.isBreakout && !latest.nearHigh) {
-      confirmations.push('lost breakout');
+  }
+
+  // ── Level 1: Momentum Cooling (PULLBACK or BROKEN) ──
+  const l1ScoreArmed =
+    drop3min >= rules.level1.drop3min ||
+    (dropFromPeakPct >= rules.level1.dropFromPeakPct && dropFromPeak >= rules.level1.dropFromPeakAbs);
+
+  if (l1ScoreArmed) {
+    // Need at least minWeakness confirmations
+    const weaknessCount = [
+      !latest.nearHigh,
+      latest.rvol !== null && latest.rvol < rules.suppressor.minRvol,
+      latest.pctFromVwap !== null && latest.pctFromVwap < 0,
+    ].filter(Boolean).length;
+
+    if (weaknessCount >= rules.level1.minWeakness) {
+      const triggerReason = drop3min >= rules.level1.drop3min
+        ? `Score dipped ${drop3min.toFixed(0)} pts in 3min (${maxScore3min.toFixed(0)} → ${currentScore.toFixed(0)})`
+        : `Score down ${dropFromPeakPct.toFixed(0)}% from peak (${peakScore.toFixed(0)} → ${currentScore.toFixed(0)})`;
+      return {
+        level: 1,
+        reason: triggerReason,
+      };
     }
-
-    const conf = confirmations.length > 0 ? ` (${confirmations.join(', ')})` : '';
-    return {
-      level: 3,
-      reason: `Score crashed ${drop5min.toFixed(0)} pts in 5min${conf}`,
-    };
-  }
-
-  // ── Level 2: Hard Sell / Trim ──
-  // Score drops significantly in 3-5 minutes
-  // OR score falls below entry and keeps falling
-  if (drop5min >= rules.level2.drop5min || drop3min >= rules.level2.drop3min) {
-    const window = drop3min >= rules.level2.drop3min ? '3min' : '5min';
-    const dropVal = drop3min >= rules.level2.drop3min ? drop3min : drop5min;
-    return {
-      level: 2,
-      reason: `Score dropped ${dropVal.toFixed(0)} pts in ${window} (entry: ${entry.scoreAtEntry.toFixed(0)}, now: ${currentScore.toFixed(0)})`,
-    };
-  }
-
-  if (dropFromEntry >= rules.level2.dropFromEntry && drop3min >= rules.level2.dropFromEntryConfirm3min) {
-    return {
-      level: 2,
-      reason: `Score fell ${dropFromEntry.toFixed(0)} pts below entry (${entry.scoreAtEntry.toFixed(0)} → ${currentScore.toFixed(0)}) and still falling`,
-    };
-  }
-
-  // ── Level 1: Soft Warning ──
-  // Score drops in 3 minutes
-  // OR score loses % from peak after entry
-  if (drop3min >= rules.level1.drop3min) {
-    return {
-      level: 1,
-      reason: `Score dipped ${drop3min.toFixed(0)} pts in 3min (${maxScore3min.toFixed(0)} → ${currentScore.toFixed(0)})`,
-    };
-  }
-
-  if (dropFromPeakPct >= rules.level1.dropFromPeakPct && dropFromPeak >= rules.level1.dropFromPeakAbs) {
-    return {
-      level: 1,
-      reason: `Score down ${dropFromPeakPct.toFixed(0)}% from peak (${peakScore.toFixed(0)} → ${currentScore.toFixed(0)})`,
-    };
   }
 
   return { level: 0, reason: '' };
 }
 
 const LEVEL_LABELS: Record<number, { emoji: string; label: string }> = {
-  1: { emoji: '⚠️', label: 'Soft Warning' },
-  2: { emoji: '🔴', label: 'Hard Sell' },
-  3: { emoji: '🚨', label: 'EXIT NOW' },
+  1: { emoji: '⚠️', label: 'Momentum Cooling' },
+  2: { emoji: '🟠', label: 'Trend Weakening' },
+  3: { emoji: '🔴', label: 'Structure Failed' },
 };
 
 /**
@@ -144,7 +239,7 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
 
   for (const entry of activeEntries) {
     // Get recent snapshots for this symbol
-    const recentSnapshots = await prisma.signalSnapshot.findMany({
+    const recentSnapshots: RecentSnapshot[] = await prisma.signalSnapshot.findMany({
       where: {
         symbol: entry.symbol,
         timestamp: { gte: new Date(Date.now() - rules.lookbackMin * 60 * 1000) },
@@ -177,15 +272,9 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
     }
 
     // Evaluate sell alert level
-    const recentScores = recentSnapshots.map(s => ({
-      score: s.signalScore,
-      timestamp: s.timestamp,
-    }));
-
     const { level, reason } = evaluateSellAlert(
       { ...entry, peakScoreSinceEntry: newPeak },
-      recentScores,
-      latestSnap,
+      recentSnapshots,
       rules,
     );
 
