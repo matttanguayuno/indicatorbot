@@ -1,7 +1,7 @@
 /**
  * Next.js Instrumentation Hook
  * Runs once when the server starts. Sets up:
- * 1. Automatic server-side polling for score evolution during market hours.
+ * 1. Automatic server-side polling for score evolution (24/7 for pre/post-market).
  * 2. Scheduled FMP screener sync at configured times (Mountain Time).
  */
 
@@ -38,7 +38,6 @@ export async function register() {
   let polling = false;
 
   async function tick() {
-    if (!isMarketOpen()) return;
     if (polling) return;
 
     polling = true;
@@ -58,7 +57,7 @@ export async function register() {
   // Start the scheduler aligned to clock minutes so API credit usage
   // is predictable and doesn't straddle Twelve Data's per-minute windows.
   const intervalMs = await getPollingInterval();
-  console.log(`[Server Poll] Scheduler started (interval: ${intervalMs / 1000}s, market hours only)`);
+  console.log(`[Server Poll] Scheduler started (interval: ${intervalMs / 1000}s, 24/7)`);
 
   // Align polls to the next clock minute boundary so Twelve Data
   // credit usage doesn't straddle their per-minute windows.
