@@ -509,7 +509,8 @@ function ScoreEvolutionPanel({ snapshots }: { snapshots: Snapshot[] }) {
   const xLabelIndices: number[] = [];
   const xStep = Math.max(1, Math.floor(maxLen / 5));
   for (let i = 0; i < maxLen; i += xStep) xLabelIndices.push(i);
-  if (xLabelIndices.length > 0 && xLabelIndices[xLabelIndices.length - 1] !== maxLen - 1) {
+  if (xLabelIndices.length > 0 && xLabelIndices[xLabelIndices.length - 1] !== maxLen - 1
+      && (maxLen - 1 - xLabelIndices[xLabelIndices.length - 1]) >= xStep * 0.5) {
     xLabelIndices.push(maxLen - 1);
   }
 

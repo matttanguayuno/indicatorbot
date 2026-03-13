@@ -802,7 +802,9 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
       {data.map((entry, i) => {
         // Show max ~6 labels evenly
         const step = Math.max(1, Math.floor(data.length / 6));
-        if (i % step !== 0 && i !== data.length - 1) return null;
+        const isLast = i === data.length - 1;
+        const prevLabel = Math.floor(i / step) * step;
+        if (i % step !== 0 && !(isLast && (i - prevLabel) >= step * 0.5)) return null;
         const d = new Date(entry.timestamp);
         const label = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' });
         return (
