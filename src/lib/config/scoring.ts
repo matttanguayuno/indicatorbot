@@ -84,7 +84,7 @@ export const ALERT_CONFIG = {
 
 export const POLLING_CONFIG = {
   intervalSeconds: 60,
-  batchSize: 10,
+  batchSize: 55, // Grow plan: 55 credits/min. Candle batch = 1 credit/symbol, quotes derived from candles = 0.
 } as const;
 
 export const DEFAULT_WATCHLIST = [
