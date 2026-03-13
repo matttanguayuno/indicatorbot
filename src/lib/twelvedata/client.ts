@@ -67,6 +67,13 @@ export interface ApiCallLogEntry {
   detail?: string;
 }
 
+// ── In-memory buffer, flushed to DB on read ──
+declare global {
+  // eslint-disable-next-line no-var
+  var __apiCallBuffer: ApiCallLogEntry[] | undefined;
+}
+if (!globalThis.__apiCallBuffer) globalThis.__apiCallBuffer = [];
+
 // Cache the logging-enabled flag so we don't hit the DB on every call
 let _loggingEnabled: boolean | null = null;
 async function isLoggingEnabled(): Promise<boolean> {
@@ -85,31 +92,44 @@ export function setLoggingEnabledCache(enabled: boolean) {
 }
 
 function logApiCall(entry: ApiCallLogEntry) {
-  // Fire-and-forget DB write
-  void (async () => {
-    if (!(await isLoggingEnabled())) return;
-    try {
-      const { prisma } = await import('@/lib/db');
-      const symbols = Array.isArray(entry.symbols) ? entry.symbols.join(',') : entry.symbols;
-      await prisma.apiCallLog.create({
-        data: {
-          timestamp: new Date(entry.timestamp),
-          endpoint: entry.endpoint,
-          symbols,
-          credits: entry.credits,
-          purpose: entry.purpose,
-          status: entry.status,
-          detail: entry.detail ?? null,
-        },
-      });
-    } catch (err) {
-      console.error('[ApiLog] Failed to persist:', err);
-    }
-  })();
+  if (_loggingEnabled === false) return;
+  globalThis.__apiCallBuffer!.push(entry);
 }
 
-/** Get the API call log (newest first). */
+/** Flush in-memory buffer to DB. Called on read so it's always awaited. */
+async function flushBuffer(): Promise<void> {
+  const buf = globalThis.__apiCallBuffer!;
+  if (buf.length === 0) return;
+  const toFlush = buf.splice(0, buf.length);
+  try {
+    const { prisma } = await import('@/lib/db');
+    await prisma.apiCallLog.createMany({
+      data: toFlush.map((e) => ({
+        timestamp: new Date(e.timestamp),
+        endpoint: e.endpoint,
+        symbols: Array.isArray(e.symbols) ? e.symbols.join(',') : e.symbols,
+        credits: e.credits,
+        purpose: e.purpose,
+        status: e.status,
+        detail: e.detail ?? null,
+      })),
+    });
+  } catch (err) {
+    console.error('[ApiLog] Failed to flush buffer:', err);
+    // Put entries back so they aren't lost
+    buf.unshift(...toFlush);
+  }
+}
+
+/** Get the API call log (newest first). Flushes buffer to DB first. */
 export async function getApiCallLog(limit = 500): Promise<ApiCallLogEntry[]> {
+  const enabled = await isLoggingEnabled();
+  if (!enabled) {
+    // Clear any buffered entries that accumulated before disable
+    globalThis.__apiCallBuffer!.length = 0;
+  } else {
+    await flushBuffer();
+  }
   const { prisma } = await import('@/lib/db');
   const rows = await prisma.apiCallLog.findMany({
     orderBy: { timestamp: 'desc' },
@@ -128,6 +148,7 @@ export async function getApiCallLog(limit = 500): Promise<ApiCallLogEntry[]> {
 
 /** Delete all log entries from the database. */
 export async function clearApiCallLog(): Promise<void> {
+  globalThis.__apiCallBuffer!.length = 0;
   const { prisma } = await import('@/lib/db');
   await prisma.apiCallLog.deleteMany();
 }
