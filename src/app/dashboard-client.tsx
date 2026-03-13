@@ -218,7 +218,7 @@ export function DashboardClient() {
         {snapshots.slice(1).map((s) => (
           <Link
             key={s.id}
-            href={`/signal/${s.symbol}`}
+            href={`/signal/${s.symbol}?from=opportunities`}
             className="block bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition-colors overflow-hidden"
           >
             {/* Card header */}
@@ -317,7 +317,7 @@ function HeroCard({ s, chartData: candleData, feedback }: { s: Snapshot; chartDa
 
   return (
     <Link
-      href={`/signal/${s.symbol}`}
+      href={`/signal/${s.symbol}?from=opportunities`}
       className="flex flex-col bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition-colors overflow-hidden"
     >
       {/* Hero header */}

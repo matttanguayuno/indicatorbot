@@ -233,7 +233,7 @@ export function WatchlistClient() {
         {snapshots.slice(1).map((s) => (
           <Link
             key={s.id}
-            href={`/signal/${s.symbol}`}
+            href={`/signal/${s.symbol}?from=watchlist`}
             className="block bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition-colors overflow-hidden"
           >
             {/* Card header */}
@@ -323,7 +323,7 @@ function HeroCard({ s, chartData: candleData }: { s: Snapshot; chartData: { clos
 
   return (
     <Link
-      href={`/signal/${s.symbol}`}
+      href={`/signal/${s.symbol}?from=watchlist`}
       className="flex flex-col bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-600 transition-colors overflow-hidden"
     >
       <div className="flex items-center justify-between px-5 pt-4 pb-2">

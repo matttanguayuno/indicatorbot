@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
 import { RadarChart } from '@/components/radar-chart';
 import { Sparkline } from '@/components/sparkline';
@@ -105,14 +105,17 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [loading, setLoading] = useState(true);
   const chartContainerRef = useRef<HTMLDivElement>(null); // kept for layout
   const [tickerList, setTickerList] = useState<string[]>([]);
+  const searchParams = useSearchParams();
+  const from = searchParams.get('from') ?? 'opportunities';
 
-  // Fetch ticker list ordered by score DESC (same as homepage dashboard)
+  // Fetch ticker list matching the source page context
   useEffect(() => {
-    fetch('/api/snapshots')
+    const url = from === 'watchlist' ? '/api/snapshots?threshold=0' : '/api/snapshots';
+    fetch(url)
       .then(r => r.ok ? r.json() : [])
       .then((snapshots: { symbol: string }[]) => setTickerList(snapshots.map(s => s.symbol)))
       .catch(() => {});
-  }, []);
+  }, [from]);
 
   const currentIdx = tickerList.indexOf(symbol);
   const prevSymbol = currentIdx > 0 ? tickerList[currentIdx - 1] : null;
@@ -124,8 +127,10 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   // Use refs for nav targets so the touch listener doesn't need to re-attach
   const prevRef = useRef(prevSymbol);
   const nextRef = useRef(nextSymbol);
+  const fromRef = useRef(from);
   prevRef.current = prevSymbol;
   nextRef.current = nextSymbol;
+  fromRef.current = from;
   const swipeState = useRef<{ startX: number; startY: number; locked: 'h' | 'v' | null; navigated: boolean } | null>(null);
 
   useEffect(() => {
@@ -158,8 +163,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       // Navigate after 50px horizontal swipe
       if (Math.abs(dx) > 50) {
         s.navigated = true;
-        if (dx < 0 && nextRef.current) router.push(`/signal/${nextRef.current}`);
-        if (dx > 0 && prevRef.current) router.push(`/signal/${prevRef.current}`);
+        if (dx < 0 && nextRef.current) router.push(`/signal/${nextRef.current}?from=${fromRef.current}`);
+        if (dx > 0 && prevRef.current) router.push(`/signal/${prevRef.current}?from=${fromRef.current}`);
       }
     };
     document.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -238,10 +243,10 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     <div className="pt-4 space-y-4">
       {/* Navigation: Back + Prev/Next */}
       <div className="flex items-center justify-between">
-        <Link href="/" className="text-blue-400 text-sm hover:underline">← Back</Link>
+        <Link href={from === 'watchlist' ? '/watchlist' : '/'} className="text-blue-400 text-sm hover:underline">← {from === 'watchlist' ? 'Watchlist' : 'Back'}</Link>
         <div className="flex items-center gap-2">
           {prevSymbol ? (
-            <Link href={`/signal/${prevSymbol}`} className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+            <Link href={`/signal/${prevSymbol}?from=${from}`} className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
               ← {prevSymbol}
             </Link>
           ) : (
@@ -251,7 +256,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             <span className="text-xs text-gray-500">{currentIdx + 1}/{tickerList.length}</span>
           )}
           {nextSymbol ? (
-            <Link href={`/signal/${nextSymbol}`} className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
+            <Link href={`/signal/${nextSymbol}?from=${from}`} className="px-2.5 py-1 rounded text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors">
               {nextSymbol} →
             </Link>
           ) : (
