@@ -161,7 +161,7 @@ model Alert {
 model Feedback {
   id       Int     @id @default(autoincrement())
   alertId  Int     @unique
-  alert    Alert   @relation(fields: [alertId], references: [id])
+  alert    Alert   @relation(fields: [alertId], references: [id], onDelete: Cascade)
 
   rating   FeedbackRating
   note     String?

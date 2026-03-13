@@ -98,6 +98,16 @@ export function SettingsClient() {
     }
   }
 
+  async function saveScreenerSource(source: string) {
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ screenerSource: source }),
+      });
+    } catch { /* ignore */ }
+  }
+
   async function addTicker(symbol: string, name: string) {
     try {
       const res = await fetch('/api/tickers', {
@@ -344,7 +354,13 @@ export function SettingsClient() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-500">Removed by sync — click to re-add</span>
               <button
-                onClick={() => setDismissedRemoved(true)}
+                onClick={async () => {
+                  const inactiveSymbols = tickers.filter((t) => !t.active).map((t) => t.symbol);
+                  await Promise.all(inactiveSymbols.map((s) =>
+                    fetch(`/api/tickers?symbol=${encodeURIComponent(s)}`, { method: 'DELETE' }).catch(() => {})
+                  ));
+                  loadData();
+                }}
                 className="text-xs text-gray-600 hover:text-gray-400"
               >
                 Dismiss
@@ -376,19 +392,18 @@ export function SettingsClient() {
             <span className="text-sm text-gray-300">Source:</span>
             <div className="flex rounded overflow-hidden border border-gray-700">
               <button
-                onClick={() => { setSettings({ ...settings, screenerSource: 'fmp' }); setSyncStatus(null); }}
+                onClick={() => { setSettings({ ...settings, screenerSource: 'fmp' }); setSyncStatus(null); saveScreenerSource('fmp'); }}
                 className={`px-3 py-1 text-sm transition-colors ${settings.screenerSource === 'fmp' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
               >
                 FMP
               </button>
               <button
-                onClick={() => { setSettings({ ...settings, screenerSource: 'webull' }); setSyncStatus(null); }}
+                onClick={() => { setSettings({ ...settings, screenerSource: 'webull' }); setSyncStatus(null); saveScreenerSource('webull'); }}
                 className={`px-3 py-1 text-sm transition-colors ${settings.screenerSource === 'webull' ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
               >
                 Webull
               </button>
             </div>
-            <span className="text-xs text-gray-500">(save settings to persist)</span>
           </div>
         )}
 
