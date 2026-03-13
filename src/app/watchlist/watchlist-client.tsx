@@ -45,6 +45,9 @@ export function WatchlistClient() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<string | null>(null);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [dragging, setDragging] = useState(false);
+  const [dropStatus, setDropStatus] = useState<{ type: 'loading' | 'success' | 'error'; message: string } | null>(null);
+  const dragCounter = useRef(0);
 
   function isMarketOpen(): boolean {
     const now = new Date();
@@ -166,8 +169,69 @@ export function WatchlistClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function handleDrop(file: File) {
+    setDropStatus({ type: 'loading', message: 'Parsing screenshot…' });
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch('/api/screener/parse-screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDropStatus({ type: 'success', message: `Synced ${data.total} tickers (${data.added} new): ${data.symbols?.join(', ')}` });
+        setLoading(true);
+        await fetchSnapshots();
+      } else {
+        setDropStatus({ type: 'error', message: data.error || 'Failed to parse screenshot' });
+      }
+    } catch {
+      setDropStatus({ type: 'error', message: 'Network error' });
+    }
+    setTimeout(() => setDropStatus(null), 6000);
+  }
+
   return (
-    <div className="pt-4">
+    <div
+      className="pt-4 relative"
+      onDragEnter={(e) => { e.preventDefault(); dragCounter.current++; setDragging(true); }}
+      onDragOver={(e) => { e.preventDefault(); }}
+      onDragLeave={(e) => { e.preventDefault(); dragCounter.current--; if (dragCounter.current <= 0) { dragCounter.current = 0; setDragging(false); } }}
+      onDrop={(e) => {
+        e.preventDefault();
+        dragCounter.current = 0;
+        setDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.type.startsWith('image/')) handleDrop(file);
+      }}
+    >
+      {/* Drag overlay */}
+      {dragging && (
+        <div className="fixed inset-0 z-50 bg-emerald-900/40 border-4 border-dashed border-emerald-400 flex items-center justify-center pointer-events-none">
+          <div className="bg-gray-900/90 rounded-xl px-8 py-6 text-center">
+            <span className="text-3xl">📥</span>
+            <p className="text-lg font-semibold text-emerald-300 mt-2">Drop Webull screenshot to sync watchlist</p>
+          </div>
+        </div>
+      )}
+
+      {/* Drop status toast */}
+      {dropStatus && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm ${
+          dropStatus.type === 'loading' ? 'bg-blue-900/40 border border-blue-700 text-blue-300'
+            : dropStatus.type === 'success' ? 'bg-green-900/40 border border-green-700 text-green-300'
+            : 'bg-red-900/40 border border-red-700 text-red-300'
+        }`}>
+          {dropStatus.type === 'loading' && '⏳ '}{dropStatus.message}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Watchlist</h1>
         <div className="flex items-center gap-2">
