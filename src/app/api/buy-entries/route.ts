@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       symbol: upper,
       entryPrice: snap.currentPrice,
       scoreAtEntry: snap.signalScore,
+      peakScoreSinceEntry: snap.signalScore,
       snapshotId: snap.id,
     },
   });

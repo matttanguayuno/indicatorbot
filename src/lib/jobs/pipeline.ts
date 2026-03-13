@@ -8,6 +8,7 @@
 
 import prisma from '@/lib/db';
 import { sendPushToAll } from '@/lib/push';
+import { checkSellAlerts } from '@/lib/sell-alerts';
 import {
   getQuote as getFHQuote,
   getCompanyProfile,
@@ -507,6 +508,16 @@ export async function runPollingCycle(): Promise<{
   const failed = results.filter((r) => !r.success).length;
 
   console.log(`[Pipeline] Done: ${succeeded} succeeded, ${failed} failed`);
+
+  // 8) Check sell alerts for active buy entries
+  try {
+    const sellAlerts = await checkSellAlerts();
+    if (sellAlerts.length > 0) {
+      console.log(`[Pipeline] ${sellAlerts.length} sell alert(s) triggered`);
+    }
+  } catch (err) {
+    console.error('[Pipeline] Sell alert check failed:', err instanceof Error ? err.message : err);
+  }
 
   return {
     processed: tickers.length,

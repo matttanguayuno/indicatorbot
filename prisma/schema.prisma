@@ -251,16 +251,19 @@ model NewsSummary {
 // Buy Entry — one-click "I bought" marker for sell-alert tracking
 // ---------------------------------------------------------------------------
 model BuyEntry {
-  id            Int      @id @default(autoincrement())
-  tickerId      Int
-  ticker        Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
-  symbol        String
-  entryPrice    Float
-  scoreAtEntry  Float
-  snapshotId    Int?
-  active        Boolean  @default(true)   // false once sold / dismissed
-  boughtAt      DateTime @default(now())
-  createdAt     DateTime @default(now())
+  id                  Int       @id @default(autoincrement())
+  tickerId            Int
+  ticker              Ticker    @relation(fields: [tickerId], references: [id], onDelete: Cascade)
+  symbol              String
+  entryPrice          Float
+  scoreAtEntry        Float
+  peakScoreSinceEntry Float     @default(0)   // highest score seen since entry
+  lastSellAlertLevel  Int       @default(0)   // 0=none, 1=soft, 2=hard, 3=exit
+  lastSellAlertAt     DateTime?               // when the last sell alert was sent
+  snapshotId          Int?
+  active              Boolean   @default(true)   // false once sold / dismissed
+  boughtAt            DateTime  @default(now())
+  createdAt           DateTime  @default(now())
 
   @@index([symbol, active])
   @@index([boughtAt])

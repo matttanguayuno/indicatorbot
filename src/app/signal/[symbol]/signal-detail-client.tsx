@@ -105,7 +105,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [loading, setLoading] = useState(true);
   const chartContainerRef = useRef<HTMLDivElement>(null); // kept for layout
   const [tickerList, setTickerList] = useState<string[]>([]);
-  const [buyEntry, setBuyEntry] = useState<{ id: number; entryPrice: number; scoreAtEntry: number; boughtAt: string } | null>(null);
+  const [buyEntry, setBuyEntry] = useState<{ id: number; entryPrice: number; scoreAtEntry: number; peakScoreSinceEntry: number; lastSellAlertLevel: number; boughtAt: string } | null>(null);
   const [buyLoading, setBuyLoading] = useState(false);
   const searchParams = useSearchParams();
   const from = searchParams.get('from') ?? 'opportunities';
@@ -204,7 +204,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     // Load active buy entry for this symbol
     fetch(`/api/buy-entries?symbol=${encodeURIComponent(symbol)}`)
       .then(r => r.ok ? r.json() : [])
-      .then((entries: { id: number; entryPrice: number; scoreAtEntry: number; boughtAt: string }[]) => {
+      .then((entries: { id: number; entryPrice: number; scoreAtEntry: number; peakScoreSinceEntry: number; lastSellAlertLevel: number; boughtAt: string }[]) => {
         setBuyEntry(entries.length > 0 ? entries[0] : null);
       })
       .catch(() => {});
@@ -290,13 +290,28 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       </div>
 
       {/* Buy Entry */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         {buyEntry ? (
           <>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-900/40 border border-green-700/50 rounded-lg text-sm">
-              <span className="text-green-400 font-semibold">Bought</span>
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border ${
+              buyEntry.lastSellAlertLevel >= 3 ? 'bg-red-900/60 border-red-600' :
+              buyEntry.lastSellAlertLevel >= 2 ? 'bg-red-900/40 border-red-700/50' :
+              buyEntry.lastSellAlertLevel >= 1 ? 'bg-yellow-900/40 border-yellow-700/50' :
+              'bg-green-900/40 border-green-700/50'
+            }`}>
+              {buyEntry.lastSellAlertLevel >= 3 && <span title="EXIT NOW">🚨</span>}
+              {buyEntry.lastSellAlertLevel === 2 && <span title="Hard Sell">🔴</span>}
+              {buyEntry.lastSellAlertLevel === 1 && <span title="Soft Warning">⚠️</span>}
+              <span className={
+                buyEntry.lastSellAlertLevel >= 2 ? 'text-red-400 font-semibold' :
+                buyEntry.lastSellAlertLevel === 1 ? 'text-yellow-400 font-semibold' :
+                'text-green-400 font-semibold'
+              }>Bought</span>
               <span className="text-gray-300">${buyEntry.entryPrice.toFixed(2)}</span>
               <span className="text-gray-500">score {buyEntry.scoreAtEntry}</span>
+              {buyEntry.peakScoreSinceEntry > buyEntry.scoreAtEntry && (
+                <span className="text-gray-500">peak {buyEntry.peakScoreSinceEntry.toFixed(0)}</span>
+              )}
               <span className="text-gray-600"><TimeAgo date={buyEntry.boughtAt} /></span>
               {latest && (
                 <span className={`font-medium ${latest.currentPrice >= buyEntry.entryPrice ? 'text-green-400' : 'text-red-400'}`}>
