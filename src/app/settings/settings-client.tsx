@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { TickerSearch } from '@/components/ticker-search';
 import { RulesClient } from '@/app/rules/rules-client';
+import { SellRulesClient } from '@/app/rules/sell-rules-client';
 import { PushToggle } from '@/components/push-toggle';
 
 interface Settings {
@@ -453,6 +454,8 @@ export function SettingsClient() {
       </div>
 
       <RulesClient />
+
+      <SellRulesClient />
 
       {/* Feedback History link */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">

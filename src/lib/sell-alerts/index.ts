@@ -8,6 +8,7 @@
 
 import prisma from '@/lib/db';
 import { sendPushToAll } from '@/lib/push';
+import { getSellRules, type SellRules } from '@/lib/config';
 
 interface SnapshotData {
   signalScore: number;
@@ -25,9 +26,6 @@ interface SellAlertResult {
   reason: string;
 }
 
-// Minimum cooldown between sell alerts for the same entry (minutes)
-const SELL_ALERT_COOLDOWN_MIN = 5;
-
 /**
  * Evaluate a single buy entry against recent snapshots.
  * Returns the alert level (0 = no alert) and reason.
@@ -41,6 +39,7 @@ function evaluateSellAlert(
   },
   recentScores: { score: number; timestamp: Date }[],
   latest: SnapshotData,
+  rules: SellRules,
 ): { level: number; reason: string } {
   if (recentScores.length < 2) return { level: 0, reason: '' };
 
@@ -63,14 +62,14 @@ function evaluateSellAlert(
   const dropFromEntry = entry.scoreAtEntry - currentScore;
 
   // ── Level 3: Exit Fast / Kill Switch ──
-  // Score drops 15-20+ points in under 5 minutes
+  // Score drops significantly in under 5 minutes
   // + confirming signals: losing VWAP, volume drying up, failed breakout
-  if (drop5min >= 15) {
+  if (drop5min >= rules.level3.drop5min) {
     const confirmations: string[] = [];
-    if (latest.pctFromVwap !== null && latest.pctFromVwap < -1) {
+    if (latest.pctFromVwap !== null && latest.pctFromVwap < rules.level3.vwapBelow) {
       confirmations.push('below VWAP');
     }
-    if (latest.rvol !== null && latest.rvol < 0.8) {
+    if (latest.rvol !== null && latest.rvol < rules.level3.rvolBelow) {
       confirmations.push('volume drying up');
     }
     if (!latest.isBreakout && !latest.nearHigh) {
@@ -85,18 +84,18 @@ function evaluateSellAlert(
   }
 
   // ── Level 2: Hard Sell / Trim ──
-  // Score drops 10-15 points in 3-5 minutes
+  // Score drops significantly in 3-5 minutes
   // OR score falls below entry and keeps falling
-  if (drop5min >= 10 || drop3min >= 10) {
-    const window = drop3min >= 10 ? '3min' : '5min';
-    const dropVal = drop3min >= 10 ? drop3min : drop5min;
+  if (drop5min >= rules.level2.drop5min || drop3min >= rules.level2.drop3min) {
+    const window = drop3min >= rules.level2.drop3min ? '3min' : '5min';
+    const dropVal = drop3min >= rules.level2.drop3min ? drop3min : drop5min;
     return {
       level: 2,
       reason: `Score dropped ${dropVal.toFixed(0)} pts in ${window} (entry: ${entry.scoreAtEntry.toFixed(0)}, now: ${currentScore.toFixed(0)})`,
     };
   }
 
-  if (dropFromEntry >= 10 && drop3min >= 3) {
+  if (dropFromEntry >= rules.level2.dropFromEntry && drop3min >= rules.level2.dropFromEntryConfirm3min) {
     return {
       level: 2,
       reason: `Score fell ${dropFromEntry.toFixed(0)} pts below entry (${entry.scoreAtEntry.toFixed(0)} → ${currentScore.toFixed(0)}) and still falling`,
@@ -104,16 +103,16 @@ function evaluateSellAlert(
   }
 
   // ── Level 1: Soft Warning ──
-  // Score drops 5-8 points in 3 minutes
-  // OR score loses 8-10% from peak after entry
-  if (drop3min >= 5) {
+  // Score drops in 3 minutes
+  // OR score loses % from peak after entry
+  if (drop3min >= rules.level1.drop3min) {
     return {
       level: 1,
       reason: `Score dipped ${drop3min.toFixed(0)} pts in 3min (${maxScore3min.toFixed(0)} → ${currentScore.toFixed(0)})`,
     };
   }
 
-  if (dropFromPeakPct >= 8 && dropFromPeak >= 4) {
+  if (dropFromPeakPct >= rules.level1.dropFromPeakPct && dropFromPeak >= rules.level1.dropFromPeakAbs) {
     return {
       level: 1,
       reason: `Score down ${dropFromPeakPct.toFixed(0)}% from peak (${peakScore.toFixed(0)} → ${currentScore.toFixed(0)})`,
@@ -140,17 +139,18 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
 
   if (activeEntries.length === 0) return [];
 
+  const rules = await getSellRules();
   const results: SellAlertResult[] = [];
 
   for (const entry of activeEntries) {
-    // Get recent snapshots for this symbol (last 6 minutes)
+    // Get recent snapshots for this symbol
     const recentSnapshots = await prisma.signalSnapshot.findMany({
       where: {
         symbol: entry.symbol,
-        timestamp: { gte: new Date(Date.now() - 6 * 60 * 1000) },
+        timestamp: { gte: new Date(Date.now() - rules.lookbackMin * 60 * 1000) },
       },
       orderBy: { timestamp: 'desc' },
-      take: 10,
+      take: rules.maxSnapshots,
       select: {
         signalScore: true,
         currentPrice: true,
@@ -186,13 +186,14 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
       { ...entry, peakScoreSinceEntry: newPeak },
       recentScores,
       latestSnap,
+      rules,
     );
 
     if (level === 0) continue;
 
     // Only alert if level is higher than last alert, or cooldown has expired
     const cooldownExpired = !entry.lastSellAlertAt ||
-      Date.now() - entry.lastSellAlertAt.getTime() > SELL_ALERT_COOLDOWN_MIN * 60 * 1000;
+      Date.now() - entry.lastSellAlertAt.getTime() > rules.cooldownMin * 60 * 1000;
 
     if (level <= entry.lastSellAlertLevel && !cooldownExpired) continue;
 
