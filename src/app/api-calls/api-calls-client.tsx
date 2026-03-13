@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
 interface LogEntry {
   timestamp: string;
@@ -100,6 +100,8 @@ export function ApiCallsClient() {
       ) : entries.length === 0 ? (
         <p className="text-zinc-500 text-sm">No API calls logged yet. Logs are in-memory and reset on deploy.</p>
       ) : (
+        <>
+        <CreditChart entries={entries} />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -145,7 +147,77 @@ export function ApiCallsClient() {
             </tbody>
           </table>
         </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function CreditChart({ entries }: { entries: LogEntry[] }) {
+  const data = useMemo(() => {
+    // Bucket credits by minute (HH:MM in MT)
+    const buckets = new Map<string, number>();
+    for (const e of entries) {
+      const d = new Date(e.timestamp);
+      const key = d.toLocaleTimeString('en-US', {
+        timeZone: 'America/Denver',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      buckets.set(key, (buckets.get(key) || 0) + e.credits);
+    }
+    // Sort chronologically
+    return [...buckets.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([minute, credits]) => ({ minute, credits }));
+  }, [entries]);
+
+  if (data.length < 2) return null;
+
+  const maxCredits = Math.max(...data.map((d) => d.credits), 1);
+  const LIMIT = 55;
+  const chartH = 140;
+  const barW = Math.max(6, Math.min(24, Math.floor(600 / data.length) - 2));
+  const gap = 2;
+  const chartW = data.length * (barW + gap);
+  const labelEvery = Math.max(1, Math.ceil(data.length / 12));
+
+  return (
+    <div className="bg-zinc-900 rounded-lg p-4">
+      <h2 className="text-sm font-semibold text-zinc-400 mb-3">Credits Per Minute</h2>
+      <div className="overflow-x-auto">
+        <svg width={chartW + 40} height={chartH + 28} className="min-w-full">
+          {/* 55-credit limit line */}
+          {maxCredits >= LIMIT * 0.5 && (() => {
+            const y = chartH - (LIMIT / Math.max(maxCredits, LIMIT)) * chartH;
+            return (
+              <>
+                <line x1={0} y1={y} x2={chartW + 40} y2={y} stroke="#ef4444" strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
+                <text x={chartW + 38} y={y - 3} fill="#ef4444" fontSize={9} textAnchor="end" opacity={0.7}>55</text>
+              </>
+            );
+          })()}
+          {/* Bars */}
+          {data.map((d, i) => {
+            const h = (d.credits / Math.max(maxCredits, LIMIT)) * chartH;
+            const x = i * (barW + gap);
+            const y = chartH - h;
+            const color = d.credits >= LIMIT ? '#ef4444' : d.credits >= 40 ? '#f59e0b' : '#22c55e';
+            return (
+              <g key={i}>
+                <title>{d.minute}: {d.credits} credits</title>
+                <rect x={x} y={y} width={barW} height={h} rx={1} fill={color} opacity={0.85} />
+                {i % labelEvery === 0 && (
+                  <text x={x + barW / 2} y={chartH + 14} fill="#71717a" fontSize={9} textAnchor="middle">
+                    {d.minute}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 }
