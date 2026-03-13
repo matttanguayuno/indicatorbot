@@ -229,7 +229,7 @@ export async function GET(
   let candles: ChartCandle[] = [];
   let source = 'snapshot-history';
 
-  // Short ranges (1H, 1D): use DB snapshot history — no API credits needed.
+  // Short ranges (1H, 1D): prefer DB snapshot history — no API credits needed.
   // The polling pipeline writes a price point every ~60s so DB data is live.
   const shortRange = range === '1H' || range === '1D';
 
@@ -237,8 +237,9 @@ export async function GET(
     candles = await fetchSnapshotHistory(upper, interval, range);
   }
 
-  // Longer ranges or empty snapshot result: fetch from Twelve Data API (cached 15 min)
-  if (candles.length === 0 && !shortRange) {
+  // Fall back to Twelve Data API when snapshot history is insufficient (<2 points)
+  // or for longer ranges that don't use snapshots at all.
+  if (candles.length < 2) {
     candles = await fetchTwelveDataCandles(upper, interval, range);
     source = 'twelvedata';
   }

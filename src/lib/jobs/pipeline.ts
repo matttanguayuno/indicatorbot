@@ -446,8 +446,7 @@ export async function runPollingCycle(): Promise<{
     } else {
       try {
         const symbols = tickers.map((t: { symbol: string }) => t.symbol);
-        // Grow plan: send all symbols in one batch (cost = 1 credit per symbol regardless).
-        // Single request avoids inter-batch delay and reduces HTTP overhead.
+        // Grow plan: send all symbols in one batch (cost = 1 credit per symbol).
         console.log(`[Pipeline] Fetching Twelve Data candles for: ${symbols.join(', ')}`);
         const result = await getTimeSeries(symbols, '1min', 90);
         console.log(`[Pipeline] Twelve Data returned data for: ${[...result.keys()].join(', ') || '(none)'}`);
