@@ -801,6 +801,7 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
       {expanded && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))' }}
           onClick={() => { setExpanded(false); setHoverIdx(null); }}
         >
           <div
@@ -811,7 +812,7 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
               <h3 className="text-lg font-semibold text-gray-200">Score Evolution</h3>
               <button
                 onClick={() => { setExpanded(false); setHoverIdx(null); }}
-                className="text-gray-400 hover:text-gray-200 text-xl transition-colors"
+                className="text-gray-400 hover:text-gray-200 text-2xl transition-colors p-1"
               >
                 ✕
               </button>
