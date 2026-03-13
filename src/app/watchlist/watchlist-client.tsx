@@ -84,8 +84,25 @@ export function WatchlistClient() {
           body: JSON.stringify({ symbols }),
         });
         if (res.ok) {
-          const data: Record<string, { candles: { close: number; time: string }[] }> = await res.json();
+          const data: Record<string, { candles: { close: number; time: string }[]; source?: string }> = await res.json();
           if (!cancelled) {
+            // Debug: log chart data per symbol
+            for (const sym of symbols) {
+              const entry = data[sym];
+              if (entry?.candles?.length) {
+                const first = entry.candles[0].time;
+                const last = entry.candles[entry.candles.length - 1].time;
+                const firstMT = new Date(first).toLocaleTimeString('en-US', { timeZone: 'America/Denver', hour12: false });
+                const lastMT = new Date(last).toLocaleTimeString('en-US', { timeZone: 'America/Denver', hour12: false });
+                console.log(`[Chart] ${sym}: ${entry.candles.length} candles, ${firstMT} → ${lastMT} MT, source: ${entry.source ?? 'unknown'}`);
+                // Extra detail for sparse data (< 30 candles)
+                if (entry.candles.length < 30) {
+                  console.log(`[Chart] ${sym} all timestamps:`, entry.candles.map(c => new Date(c.time).toLocaleTimeString('en-US', { timeZone: 'America/Denver', hour12: false })));
+                }
+              } else {
+                console.warn(`[Chart] ${sym}: 0 candles, source: ${entry?.source ?? 'unknown'}`);
+              }
+            }
             const map: Record<string, { closes: number[]; times: string[] }> = {};
             for (const sym of symbols) {
               const entry = data[sym];
