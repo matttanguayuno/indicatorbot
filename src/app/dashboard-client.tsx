@@ -491,6 +491,25 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
   const maxLen = Math.max(...lines.map((l) => l.scores.length));
   const timestamps = snapshots[0]?.priceTimestamps ?? [];
 
+  // Build time-based X-axis spanning 7:30 AM – 2:00 PM MT
+  const parsedTimes = timestamps.map(t => new Date(t).getTime());
+  // Compute today's market open/close in Mountain Time
+  const refDate = timestamps.length > 0 ? new Date(timestamps[0]) : new Date();
+  const mtDateStr = refDate.toLocaleDateString('en-US', { timeZone: 'America/Denver' });
+  const marketOpenMs = new Date(`${mtDateStr} 07:30:00 AM`).getTime();
+  const marketCloseMs = new Date(`${mtDateStr} 02:00:00 PM`).getTime();
+  // Use actual data range but pad to at least market hours
+  const xDomainMin = parsedTimes.length > 0 ? Math.min(marketOpenMs, Math.min(...parsedTimes)) : marketOpenMs;
+  const xDomainMax = parsedTimes.length > 0 ? Math.max(marketCloseMs, Math.max(...parsedTimes)) : marketCloseMs;
+  const xDomainRange = xDomainMax - xDomainMin || 1;
+
+  function fmtTimeLabel(d: Date): string {
+    const mt = new Date(d.toLocaleString('en-US', { timeZone: 'America/Denver' }));
+    const h = mt.getHours();
+    const m = mt.getMinutes();
+    return `${h % 12 || 12}:${m.toString().padStart(2, '0')}${h >= 12 ? 'p' : 'a'}`;
+  }
+
   // Dynamic Y-axis: compute actual min/max from data with 10% padding
   const allScores = lines.flatMap((l) => l.scores);
   const dataMin = Math.min(...allScores);
@@ -507,13 +526,23 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
     yTicks.push(t);
   }
 
-  // X-axis label indices
-  const xLabelIndices: number[] = [];
-  const xStep = Math.max(1, Math.floor(maxLen / 5));
-  for (let i = 0; i < maxLen; i += xStep) xLabelIndices.push(i);
-  if (xLabelIndices.length > 0 && xLabelIndices[xLabelIndices.length - 1] !== maxLen - 1
-      && (maxLen - 1 - xLabelIndices[xLabelIndices.length - 1]) >= xStep * 0.5) {
-    xLabelIndices.push(maxLen - 1);
+  // X-axis: generate evenly-spaced hour labels across the trading day
+  const xTimeTicks: number[] = [];
+  {
+    // Round up to next half-hour from domain start
+    const startMs = xDomainMin;
+    const halfHour = 30 * 60 * 1000;
+    let tick = Math.ceil(startMs / halfHour) * halfHour;
+    while (tick <= xDomainMax) {
+      xTimeTicks.push(tick);
+      tick += halfHour;
+    }
+    // Limit to ~7 labels max
+    while (xTimeTicks.length > 7) {
+      const filtered = xTimeTicks.filter((_, i) => i % 2 === 0);
+      xTimeTicks.length = 0;
+      xTimeTicks.push(...filtered);
+    }
   }
 
   // viewBox = CSS pixels so font sizes are real screen pixels
@@ -522,7 +551,10 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
     const chartW = vw - padL - padR;
     const chartH = vh - padT - padB;
 
-    const xScale = (i: number) => padL + (maxLen === 1 ? chartW / 2 : (i / (maxLen - 1)) * chartW);
+    const xScale = (i: number) => {
+      if (i >= parsedTimes.length) return padL + (maxLen === 1 ? chartW / 2 : (i / (maxLen - 1)) * chartW);
+      return padL + ((parsedTimes[i] - xDomainMin) / xDomainRange) * chartW;
+    };
     const yScale = (v: number) => padT + chartH - ((v - yMin) / yRange) * chartH;
 
     const onPointerMove = (e: React.PointerEvent) => {
@@ -531,8 +563,15 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
       const rect = svg.getBoundingClientRect();
       const screenX = e.clientX - rect.left;
       const fraction = (screenX / rect.width - padL / vw) / (chartW / vw);
-      const idx = Math.round(fraction * (maxLen - 1));
-      if (idx >= 0 && idx < maxLen) setHoverIdx(idx);
+      const hoverTime = xDomainMin + fraction * xDomainRange;
+      // Snap to nearest timestamp
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < parsedTimes.length; i++) {
+        const dist = Math.abs(parsedTimes[i] - hoverTime);
+        if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+      }
+      if (fraction >= 0 && fraction <= 1 && bestIdx < maxLen) setHoverIdx(bestIdx);
       else setHoverIdx(null);
     };
 
@@ -575,13 +614,11 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
         ))}
 
         {/* X-axis time labels */}
-        {xLabelIndices.map((i) => {
-          if (i >= timestamps.length) return null;
-          const d = new Date(timestamps[i]);
-          const label = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' });
+        {xTimeTicks.map((ms) => {
+          const xPos = padL + ((ms - xDomainMin) / xDomainRange) * chartW;
           return (
-            <text key={i} x={xScale(i)} y={vh - 4} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
-              {label}
+            <text key={ms} x={xPos} y={vh - 4} textAnchor="middle" fill="#6b7280" fontSize={fontX}>
+              {fmtTimeLabel(new Date(ms))}
             </text>
           );
         })}
