@@ -100,29 +100,38 @@ export function DashboardClient() {
     }
   }
 
-  // Fetch intraday candle data for all current symbols
+  // Fetch intraday candle data for all symbols in a single batch call
   useEffect(() => {
     if (snapshots.length === 0) return;
     const symbols = snapshots.map((s) => s.symbol);
     let cancelled = false;
     async function fetchCharts() {
-      const entries: [string, { closes: number[]; times: string[] }][] = await Promise.all(
-        symbols.map(async (sym) => {
-          try {
-            const res = await fetch(`/api/chart/${encodeURIComponent(sym)}`);
-            if (res.ok) {
-              const data = await res.json();
-              const candles: { close: number; time: string }[] = data.candles ?? [];
-              const closes = candles.map(c => c.close);
-              const times = candles.map(c => c.time);
-              return [sym, { closes, times }] as [string, { closes: number[]; times: string[] }];
+      try {
+        const res = await fetch('/api/chart/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbols }),
+        });
+        if (res.ok) {
+          const data: Record<string, { candles: { close: number; time: string }[] }> = await res.json();
+          if (!cancelled) {
+            const map: Record<string, { closes: number[]; times: string[] }> = {};
+            for (const sym of symbols) {
+              const entry = data[sym];
+              if (entry?.candles?.length) {
+                map[sym] = {
+                  closes: entry.candles.map(c => c.close),
+                  times: entry.candles.map(c => c.time),
+                };
+              } else {
+                map[sym] = { closes: [], times: [] };
+              }
             }
-          } catch { /* ignore */ }
-          return [sym, { closes: [], times: [] }] as [string, { closes: number[]; times: string[] }];
-        })
-      );
-      if (!cancelled) {
-        setChartDataMap(Object.fromEntries(entries));
+            setChartDataMap(map);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch batch chart data:', err);
       }
     }
     fetchCharts();
