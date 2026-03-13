@@ -17,12 +17,12 @@ interface TradeData {
   ticker: { name: string | null };
 }
 
-type ViewMode = 'by-stock' | 'by-score';
+type ViewMode = 'by-time' | 'by-stock' | 'by-score';
 
 export function TradesClient() {
   const [trades, setTrades] = useState<TradeData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>('by-stock');
+  const [viewMode, setViewMode] = useState<ViewMode>('by-time');
 
   // Upload state
   const [uploading, setUploading] = useState(false);
@@ -171,6 +171,11 @@ export function TradesClient() {
       map.set(t.symbol, existing);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }
+
+  // Sort trades by time (newest first)
+  function sortByTime() {
+    return [...trades].sort((a, b) => new Date(b.tradedAt).getTime() - new Date(a.tradedAt).getTime());
   }
 
   // Sort trades by score (highest first)
@@ -354,6 +359,14 @@ export function TradesClient() {
       {/* View mode toggle */}
       <div className="flex gap-1 mb-4 bg-gray-900 rounded-lg p-1 w-fit">
         <button
+          onClick={() => setViewMode('by-time')}
+          className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
+            viewMode === 'by-time' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          By Time
+        </button>
+        <button
           onClick={() => setViewMode('by-stock')}
           className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
             viewMode === 'by-stock' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'
@@ -379,6 +392,43 @@ export function TradesClient() {
         <div className="text-center text-gray-500 py-12">
           <p className="text-lg mb-2">No trades logged yet</p>
           <p className="text-sm">Upload a screenshot or manually enter a trade to get started.</p>
+        </div>
+      )}
+
+      {/* By Time view */}
+      {!loading && trades.length > 0 && viewMode === 'by-time' && (
+        <div className="space-y-2">
+          {sortByTime().map((t) => (
+            <div key={t.id} className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Link href={`/signal/${t.symbol}`} className="font-bold text-blue-400 hover:underline">
+                    {t.symbol}
+                  </Link>
+                  <span className={`text-sm font-medium ${t.side === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                    {t.side.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {t.scoreAtTrade != null && <ScoreBadge score={t.scoreAtTrade} />}
+                  <button
+                    onClick={() => deleteTrade(t.id)}
+                    className="text-gray-600 hover:text-red-400 text-sm transition-colors"
+                    title="Delete trade"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-400">
+                {t.quantity} × ${t.price.toFixed(2)} = ${t.total.toFixed(2)}
+              </div>
+              {t.notes && <p className="text-sm text-gray-500 mt-1">{t.notes}</p>}
+              <div className="text-xs text-gray-600 mt-1">
+                {new Date(t.tradedAt).toLocaleString()}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
