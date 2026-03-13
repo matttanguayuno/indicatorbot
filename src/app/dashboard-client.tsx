@@ -199,7 +199,9 @@ export function DashboardClient() {
       </div>
 
       {loading && (
-        <div className="text-center text-gray-500 py-12">Loading signals...</div>
+        <div className="flex items-center justify-center py-16">
+          <div className="w-10 h-10 border-[3px] border-[#1e3a5f] border-t-blue-500 rounded-full animate-spin" />
+        </div>
       )}
 
       {!loading && snapshots.length === 0 && allSnapshots.length === 0 && (
