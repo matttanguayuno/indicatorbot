@@ -19,26 +19,22 @@ interface ChartCandle {
   volume: number;
 }
 
-/** Get today's market open (9:30 AM ET) as a UTC Date. */
-function getTodayMarketOpen(): Date {
-  // Determine current ET offset (EDT = -4, EST = -5)
+/** Get midnight ET today as a UTC Date (includes pre-market). */
+function getTodayStartET(): Date {
   const now = new Date();
   const etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   const etDate = new Date(etStr);
   const offsetMs = now.getTime() - etDate.getTime();
-  // Midnight ET today
   const midnightET = new Date(etDate);
   midnightET.setHours(0, 0, 0, 0);
-  // 9:30 AM ET in UTC
-  const openET = new Date(midnightET.getTime() + 9.5 * 60 * 60 * 1000 + offsetMs);
-  return openET;
+  return new Date(midnightET.getTime() + offsetMs);
 }
 
 /** Build candles from stored SignalSnapshot prices. */
 async function snapshotFallback(symbol: string): Promise<ChartCandle[]> {
-  const marketOpen = getTodayMarketOpen();
+  const todayStart = getTodayStartET();
   const snapshots = await prisma.signalSnapshot.findMany({
-    where: { symbol, timestamp: { gte: marketOpen } },
+    where: { symbol, timestamp: { gte: todayStart } },
     orderBy: { timestamp: 'asc' },
     select: { currentPrice: true, timestamp: true },
     take: 5000,
@@ -63,15 +59,15 @@ export async function POST(req: NextRequest) {
   }
 
   const pipelineCandles = getCachedCandles();
-  const marketOpen = getTodayMarketOpen();
+  const todayStart = getTodayStartET();
   const result: Record<string, { candles: ChartCandle[]; source: string }> = {};
 
   for (const sym of symbols) {
     const cached = pipelineCandles.get(sym);
     if (cached && cached.length > 0) {
-      // Filter to today's market hours only
+      // Filter to today only (includes pre-market)
       const todayCandles: ChartCandle[] = cached
-        .filter((c) => c.timestamp >= marketOpen)
+        .filter((c) => c.timestamp >= todayStart)
         .map((c) => ({
           time: c.timestamp.toISOString(),
           open: c.open,
