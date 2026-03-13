@@ -469,7 +469,7 @@ function ScoreEvolutionPanel({ snapshots, fullSize }: { snapshots: Snapshot[]; f
   }, [expanded]);
 
   // Build single-line data: only the highest-scoring stock
-  const eligible = snapshots.filter((s) => s.scoreHistory.length >= 2);
+  const eligible = snapshots.filter((s) => s.scoreHistory.length >= 1);
   const topStock = eligible.length > 0
     ? eligible.reduce((best, s) => (s.signalScore > best.signalScore ? s : best))
     : null;

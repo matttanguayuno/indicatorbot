@@ -71,23 +71,42 @@ export async function GET(req: NextRequest) {
       let priceHistory: number[] = [];
       let priceTimestamps: string[] = [];
       if (sinceDate || historyCount > 0) {
+        let effectiveSince = sinceDate;
+        let effectiveTake = historyCount;
+
         const history = await prisma.signalSnapshot.findMany({
           where: {
             tickerId: t.id,
-            ...(sinceDate ? { timestamp: { gte: sinceDate } } : {}),
+            ...(effectiveSince ? { timestamp: { gte: effectiveSince } } : {}),
           },
           orderBy: { timestamp: 'desc' },
-          take: historyCount,
+          take: effectiveTake,
           select: { signalScore: true, currentPrice: true, timestamp: true },
         });
+
+        // If "today" yielded < 2 entries, widen to last 24h for score evolution
+        let finalHistory = history;
+        if (effectiveSince && history.length < 2) {
+          const wider = await prisma.signalSnapshot.findMany({
+            where: {
+              tickerId: t.id,
+              timestamp: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+            },
+            orderBy: { timestamp: 'desc' },
+            take: effectiveTake,
+            select: { signalScore: true, currentPrice: true, timestamp: true },
+          });
+          if (wider.length > finalHistory.length) finalHistory = wider;
+        }
+
         // Reverse so chart plots oldest → newest (left to right)
-        history.reverse();
+        finalHistory.reverse();
         // Keep only the last snapshot per minute to smooth rapid-poll oscillation
         const seen = new Map<string, number>();
-        for (let i = 0; i < history.length; i++) {
-          seen.set(history[i].timestamp.toISOString().slice(0, 16), i);
+        for (let i = 0; i < finalHistory.length; i++) {
+          seen.set(finalHistory[i].timestamp.toISOString().slice(0, 16), i);
         }
-        const thinned = [...new Set(seen.values())].sort((a, b) => a - b).map(i => history[i]);
+        const thinned = [...new Set(seen.values())].sort((a, b) => a - b).map(i => finalHistory[i]);
         scoreHistory = thinned.map((h) => h.signalScore);
         priceHistory = thinned.map((h) => h.currentPrice);
         priceTimestamps = thinned.map((h) => h.timestamp.toISOString());
