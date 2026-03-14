@@ -55,6 +55,7 @@ import { calculateScore, type SignalInputs } from '@/lib/scoring';
 import { generateExplanation } from '@/lib/explanations';
 import { ALERT_CONFIG, getScoringRules } from '@/lib/config';
 import type { ScoringRules } from '@/lib/config';
+import { getPatternConfig, type PatternConfig } from '@/lib/config/patterns';
 import { format, subDays } from 'date-fns';
 
 interface ProcessResult {
@@ -77,6 +78,7 @@ async function processTicker(
   series: TwelveDataTimeSeries | null,
   dataSource: string,
   rules: ScoringRules,
+  patternConfig: PatternConfig,
 ): Promise<ProcessResult> {
   try {
     // 1) Fetch quote — source-dependent
@@ -245,7 +247,7 @@ async function processTicker(
     const newsScore = calcNewsScore(recentNewsCount, rules.weights.newsCatalyst.maxArticles);
 
     // Pattern detection
-    const patterns = hasCandleData ? detectAllPatterns(candles!) : [];
+    const patterns = hasCandleData ? detectAllPatterns(candles!, patternConfig) : [];
     if (patterns.length > 0) {
       console.log(`[Pipeline] ${symbol}: ${patterns.length} pattern(s) detected: ${patterns.map(p => p.label).join(', ')}`);
     }
@@ -474,6 +476,7 @@ export async function runPollingCycle(source: string = 'unknown'): Promise<{
 
   // Load dynamic scoring rules
   const rules = await getScoringRules();
+  const patternConfig = getPatternConfig(settings?.patternConfigJson);
 
   // Get active tickers
   const tickers = await prisma.ticker.findMany({
@@ -565,7 +568,7 @@ export async function runPollingCycle(source: string = 'unknown'): Promise<{
   for (const ticker of tickers) {
     const candles = candleMap.get(ticker.symbol) ?? null;
     const series = seriesMap.get(ticker.symbol) ?? null;
-    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, series, dataSource, rules);
+    const result = await processTicker(ticker.symbol, ticker.id, scoreThreshold, cooldownMin, candles, series, dataSource, rules, patternConfig);
     results.push(result);
   }
   const succeeded = results.filter((r) => r.success).length;

@@ -376,6 +376,10 @@ export function PatternsClient() {
                   setHighlightedRef(null);
                 }
               }}
+              onBackgroundClick={() => {
+                setLockedPattern(null);
+                setPopupPos(null);
+              }}
               width={900}
               height={400}
             />

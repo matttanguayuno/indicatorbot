@@ -7,6 +7,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectAllPatterns } from '@/lib/signals/patterns';
 import type { NormalizedCandle } from '@/lib/types';
+import prisma from '@/lib/db';
+import { getPatternConfig } from '@/lib/config/patterns';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -25,6 +27,9 @@ export async function POST(req: NextRequest) {
     timestamp: new Date(c.time),
   }));
 
-  const patterns = detectAllPatterns(candles);
+  const settings = await prisma.appSettings.findFirst();
+  const config = getPatternConfig(settings?.patternConfigJson);
+
+  const patterns = detectAllPatterns(candles, config);
   return NextResponse.json({ patterns, candleCount: candles.length });
 }

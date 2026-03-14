@@ -17,6 +17,7 @@ interface PriceChartProps {
   patterns?: PatternResult[];
   highlightPatternIndex?: number | null;
   onPatternClick?: (index: number, clickPos?: { x: number; y: number }) => void;
+  onBackgroundClick?: () => void;
   width?: number;
   height?: number;
   className?: string;
@@ -27,6 +28,7 @@ export function PriceChart({
   patterns,
   highlightPatternIndex,
   onPatternClick,
+  onBackgroundClick,
   width: defaultW = 900,
   height: defaultH = 350,
   className = '',
@@ -38,7 +40,9 @@ export function PriceChart({
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ startX: number; startZoom: [number, number] } | null>(null);
+  const dragRef = useRef<{ startX: number; startZoom: [number, number]; hasDragged: boolean } | null>(null);
+  const patternClickedRef = useRef(false);
+  const dragOccurredRef = useRef(false);
   const [vSize, setVSize] = useState<[number, number]>([defaultW, defaultH]);
 
   // ResizeObserver: viewBox = CSS pixels so font sizes are real screen pixels
@@ -77,8 +81,67 @@ export function PriceChart({
   const lows = visCandles.map((c) => c.low);
   const volumes = visCandles.map((c) => c.volume);
 
-  const priceMin = Math.min(...lows);
-  const priceMax = Math.max(...highs);
+  let priceMin = Math.min(...lows);
+  let priceMax = Math.max(...highs);
+
+  // Expand price range to include visible pattern overlay extents + label room
+  if (patterns) {
+    for (const p of patterns) {
+      const vStart = p.startIndex - zStart;
+      const vEnd = p.endIndex - zStart;
+      if (vEnd < 0 || vStart >= visCandles.length) continue;
+      // Compute the highest/lowest price this pattern's overlay reaches
+      let pHigh = priceMax;
+      let pLow = priceMin;
+      switch (p.type) {
+        case 'volume-breakout':
+          pHigh = p.resistancePrice;
+          break;
+        case 'consolidation-breakout':
+          pHigh = p.rangeHigh;
+          pLow = p.rangeLow;
+          break;
+        case 'bull-flag': {
+          const pS = Math.max(0, p.poleStartIndex - zStart);
+          const pE = Math.max(0, p.poleEndIndex - zStart);
+          const fS = Math.max(0, p.flagStartIndex - zStart);
+          const fE = Math.min(visCandles.length - 1, p.flagEndIndex - zStart);
+          if (pS < visCandles.length && fE >= 0) {
+            const poleSlice = visCandles.slice(pS, pE + 1);
+            const flagSlice = visCandles.slice(fS, fE + 1);
+            if (poleSlice.length > 0) pHigh = Math.max(pHigh, Math.max(...poleSlice.map(c => c.high)));
+            if (flagSlice.length > 0) {
+              pHigh = Math.max(pHigh, Math.max(...flagSlice.map(c => c.high)));
+              pLow = Math.min(pLow, Math.min(...flagSlice.map(c => c.low)));
+            }
+          }
+          break;
+        }
+        case 'ascending-triangle':
+          pHigh = p.resistancePrice;
+          break;
+        case 'double-bottom':
+          pHigh = p.necklinePrice;
+          pLow = Math.min(p.firstBottomPrice, p.secondBottomPrice);
+          break;
+        case 'inside-bar-breakout':
+          pHigh = p.motherBarHigh;
+          pLow = p.motherBarLow;
+          break;
+        case 'vwap-reclaim':
+          pHigh = p.vwapPrice;
+          break;
+        default:
+          break;
+      }
+      priceMax = Math.max(priceMax, pHigh);
+      priceMin = Math.min(priceMin, pLow);
+    }
+    // Add ~5% headroom above for labels
+    const rawRange = priceMax - priceMin || 1;
+    priceMax += rawRange * 0.05;
+  }
+
   const priceRange = priceMax - priceMin || 1;
   const volMax = Math.max(...volumes) || 1;
 
@@ -150,8 +213,7 @@ export function PriceChart({
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (!isZoomed) return;
-      dragRef.current = { startX: e.clientX, startZoom: [...zoom] as [number, number] };
-      svgRef.current?.setPointerCapture(e.pointerId);
+      dragRef.current = { startX: e.clientX, startZoom: [...zoom] as [number, number], hasDragged: false };
       setHoverIndex(null);
     },
     [isZoomed, zoom],
@@ -165,6 +227,12 @@ export function PriceChart({
       // Drag-to-pan when zoomed
       if (dragRef.current) {
         const dx = e.clientX - dragRef.current.startX;
+        // Only start dragging after a threshold to allow clicks
+        if (!dragRef.current.hasDragged && Math.abs(dx) < 5) return;
+        if (!dragRef.current.hasDragged) {
+          dragRef.current.hasDragged = true;
+          svgRef.current?.setPointerCapture(e.pointerId);
+        }
         const pxRange = rect.width * (1 - padLeft / width - padRight / width);
         const zoomRange = dragRef.current.startZoom[1] - dragRef.current.startZoom[0];
         const shift = -(dx / pxRange) * zoomRange;
@@ -192,7 +260,8 @@ export function PriceChart({
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (dragRef.current) {
-        svgRef.current?.releasePointerCapture(e.pointerId);
+        dragOccurredRef.current = dragRef.current.hasDragged;
+        if (dragRef.current.hasDragged) svgRef.current?.releasePointerCapture(e.pointerId);
         dragRef.current = null;
       }
     },
@@ -271,6 +340,7 @@ export function PriceChart({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={(e) => { handlePointerUp(e); handlePointerLeave(); }}
+      onClick={() => { if (!patternClickedRef.current && !dragOccurredRef.current && onBackgroundClick) onBackgroundClick(); patternClickedRef.current = false; dragOccurredRef.current = false; }}
       onDoubleClick={() => setZoom([0, 1])}
       style={{ touchAction: 'none', userSelect: 'none', width: '100%', height: '100%', cursor: isZoomed ? 'grab' : 'crosshair' }}
     >
@@ -334,7 +404,7 @@ export function PriceChart({
         const gProps = {
           opacity,
           style: { cursor: onPatternClick ? 'pointer' : undefined } as React.CSSProperties,
-          onClick: onPatternClick ? (e: React.MouseEvent) => { e.stopPropagation(); const rect = svgRef.current?.getBoundingClientRect(); onPatternClick(pi, rect ? { x: e.clientX - rect.left, y: e.clientY - rect.top } : undefined); } : undefined,
+          onClick: onPatternClick ? (e: React.MouseEvent) => { e.stopPropagation(); patternClickedRef.current = true; const rect = svgRef.current?.getBoundingClientRect(); onPatternClick(pi, rect ? { x: e.clientX - rect.left, y: e.clientY - rect.top } : undefined); } : undefined,
         };
 
         switch (p.type) {

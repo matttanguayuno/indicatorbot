@@ -24,6 +24,7 @@ model AppSettings {
   apiLoggingEnabled   Boolean  @default(true)
   rulesJson           String?
   sellRulesJson       String?
+  patternConfigJson   String?
   updatedAt           DateTime @updatedAt
 }
 

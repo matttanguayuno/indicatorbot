@@ -6,6 +6,8 @@ import { TickerSearch } from '@/components/ticker-search';
 import { RulesClient } from '@/app/rules/rules-client';
 import { SellRulesClient } from '@/app/rules/sell-rules-client';
 import { PushToggle } from '@/components/push-toggle';
+import type { PatternConfig } from '@/lib/config/patterns';
+import { DEFAULT_PATTERN_CONFIG } from '@/lib/config/patterns';
 
 interface Settings {
   id: number;
@@ -19,6 +21,7 @@ interface Settings {
   screenerSyncTimes: string;
   newsSummaryTimes: string;
   sentimentMethod: string;
+  patternConfig?: PatternConfig;
   twelveDataExhausted?: boolean;
   twelveDataResumesAt?: string | null;
 }
@@ -90,6 +93,7 @@ export function SettingsClient() {
           screenerTopN: settings.screenerTopN,
           screenerSyncTimes: settings.screenerSyncTimes,
           newsSummaryTimes: settings.newsSummaryTimes,
+          patternConfig: settings.patternConfig,
         }),
       });
       if (res.ok) setSettings(await res.json());
@@ -544,6 +548,9 @@ export function SettingsClient() {
       </div>
       </div>
 
+      {/* Pattern Detection Config */}
+      {settings && <PatternSettingsSection settings={settings} setSettings={setSettings} />}
+
       <RulesClient />
 
       <SellRulesClient />
@@ -562,6 +569,186 @@ export function SettingsClient() {
             View Feedback →
           </Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pattern Detection Settings
+// ---------------------------------------------------------------------------
+
+const PATTERN_LABELS: Record<keyof PatternConfig, string> = {
+  volumeBreakout: 'Volume Breakout',
+  consolidationBreakout: 'Consolidation Breakout',
+  bullFlag: 'Bull Flag',
+  ascendingTriangle: 'Ascending Triangle',
+  channelBreakout: 'Channel Breakout',
+  doubleBottom: 'Double Bottom',
+  insideBarBreakout: 'Inside Bar Breakout',
+  vwapReclaim: 'VWAP Reclaim',
+  symmetricalTriangle: 'Symmetrical Triangle',
+};
+
+type PatternKey = keyof PatternConfig;
+
+interface PatternFieldDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+}
+
+const PATTERN_FIELDS: Record<PatternKey, PatternFieldDef[]> = {
+  volumeBreakout: [
+    { key: 'lookback', label: 'Lookback', min: 5, max: 100, step: 1, suffix: 'bars' },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+    { key: 'confirmationBars', label: 'Confirmation Bars', min: 1, max: 5, step: 1 },
+  ],
+  consolidationBreakout: [
+    { key: 'lookback', label: 'Lookback', min: 10, max: 100, step: 1, suffix: 'bars' },
+    { key: 'bbPeriod', label: 'BB Period', min: 5, max: 50, step: 1 },
+    { key: 'contractionPct', label: 'Contraction', min: 10, max: 80, step: 5, suffix: '%' },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  bullFlag: [
+    { key: 'lookback', label: 'Lookback', min: 15, max: 120, step: 1, suffix: 'bars' },
+    { key: 'poleMinGainPct', label: 'Pole Min Gain', min: 1, max: 30, step: 0.5, suffix: '%' },
+    { key: 'poleLenMin', label: 'Pole Len Min', min: 3, max: 30, step: 1, suffix: 'bars' },
+    { key: 'poleLenMax', label: 'Pole Len Max', min: 5, max: 50, step: 1, suffix: 'bars' },
+    { key: 'maxRetracePct', label: 'Max Retrace', min: 10, max: 80, step: 5, suffix: '%' },
+    { key: 'minFlagBars', label: 'Min Flag Bars', min: 1, max: 20, step: 1 },
+    { key: 'maxFlagBars', label: 'Max Flag Bars', min: 3, max: 40, step: 1 },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  ascendingTriangle: [
+    { key: 'lookback', label: 'Lookback', min: 20, max: 150, step: 1, suffix: 'bars' },
+    { key: 'resistanceTolerance', label: 'Resistance Tol.', min: 0.001, max: 0.01, step: 0.001 },
+    { key: 'minTouches', label: 'Min Touches', min: 2, max: 10, step: 1 },
+    { key: 'minR2', label: 'Min R²', min: 0.1, max: 1, step: 0.05 },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  channelBreakout: [
+    { key: 'lookback', label: 'Lookback', min: 20, max: 150, step: 1, suffix: 'bars' },
+    { key: 'minR2', label: 'Min R²', min: 0.1, max: 1, step: 0.05 },
+    { key: 'slopeParallelismPct', label: 'Parallelism', min: 5, max: 50, step: 5, suffix: '%' },
+    { key: 'minSwingPoints', label: 'Min Swing Pts', min: 2, max: 10, step: 1 },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  doubleBottom: [
+    { key: 'lookback', label: 'Lookback', min: 15, max: 150, step: 1, suffix: 'bars' },
+    { key: 'priceTolerance', label: 'Price Tol.', min: 0.001, max: 0.02, step: 0.001 },
+    { key: 'minSeparation', label: 'Min Separation', min: 3, max: 30, step: 1, suffix: 'bars' },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  insideBarBreakout: [
+    { key: 'minInsideBars', label: 'Min Inside Bars', min: 1, max: 10, step: 1 },
+  ],
+  vwapReclaim: [
+    { key: 'lookback', label: 'Lookback', min: 5, max: 100, step: 1, suffix: 'bars' },
+    { key: 'minDipPct', label: 'Min Dip', min: 0.1, max: 3, step: 0.1, suffix: '%' },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  symmetricalTriangle: [
+    { key: 'lookback', label: 'Lookback', min: 20, max: 150, step: 1, suffix: 'bars' },
+    { key: 'minR2', label: 'Min R²', min: 0.1, max: 1, step: 0.05 },
+    { key: 'minSwingPoints', label: 'Min Swing Pts', min: 2, max: 10, step: 1 },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+};
+
+function PatternSettingsSection({ settings, setSettings }: { settings: Settings; setSettings: (s: Settings) => void }) {
+  const [expanded, setExpanded] = useState<PatternKey | null>(null);
+  const config = settings.patternConfig ?? DEFAULT_PATTERN_CONFIG;
+
+  function updatePatternField(pattern: PatternKey, field: string, value: number | boolean) {
+    const updated = {
+      ...config,
+      [pattern]: { ...config[pattern], [field]: value },
+    };
+    setSettings({ ...settings, patternConfig: updated });
+  }
+
+  function resetToDefaults() {
+    setSettings({ ...settings, patternConfig: { ...DEFAULT_PATTERN_CONFIG } });
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-400">Pattern Detection</h2>
+        <button
+          onClick={resetToDefaults}
+          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          Reset to defaults
+        </button>
+      </div>
+      <p className="text-xs text-gray-500">
+        Enable/disable patterns and tune detection thresholds. Changes take effect on next Save Settings.
+      </p>
+
+      <div className="space-y-1">
+        {(Object.keys(PATTERN_LABELS) as PatternKey[]).map((key) => {
+          const patternCfg = config[key] as unknown as Record<string, unknown>;
+          const enabled = patternCfg.enabled as boolean;
+          const isExpanded = expanded === key;
+          const fields = PATTERN_FIELDS[key];
+
+          return (
+            <div key={key} className="border border-gray-800 rounded">
+              <div className="flex items-center gap-2 px-3 py-2">
+                <button
+                  onClick={() => updatePatternField(key, 'enabled', !enabled)}
+                  className={`w-8 h-4 rounded-full relative transition-colors flex-shrink-0 ${enabled ? 'bg-emerald-600' : 'bg-gray-700'}`}
+                >
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${enabled ? 'left-4' : 'left-0.5'}`} />
+                </button>
+                <button
+                  onClick={() => setExpanded(isExpanded ? null : key)}
+                  className={`flex-1 text-left text-sm transition-colors ${enabled ? 'text-gray-200' : 'text-gray-500'}`}
+                >
+                  {PATTERN_LABELS[key]}
+                </button>
+                <button
+                  onClick={() => setExpanded(isExpanded ? null : key)}
+                  className="text-gray-500 text-xs"
+                >
+                  {isExpanded ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {isExpanded && enabled && (
+                <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-800">
+                  {fields.map((f) => (
+                    <div key={f.key} className="flex items-center justify-between">
+                      <label className="text-xs text-gray-400">{f.label}</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={patternCfg[f.key] as number}
+                          onChange={(e) => {
+                            const v = parseFloat(e.target.value);
+                            if (!isNaN(v) && v >= f.min && v <= f.max) {
+                              updatePatternField(key, f.key, v);
+                            }
+                          }}
+                          min={f.min}
+                          max={f.max}
+                          step={f.step}
+                          className="w-20 bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-200 text-right"
+                        />
+                        {f.suffix && <span className="text-xs text-gray-500 w-8">{f.suffix}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import prisma from '@/lib/db';
 import { ALERT_CONFIG, POLLING_CONFIG } from '@/lib/config';
 import { isQuotaExhausted, getQuotaResumeTime } from '@/lib/twelvedata';
 import { applySentiment } from '@/lib/news/sentiment';
+import { getPatternConfig } from '@/lib/config/patterns';
 
 async function getOrCreateSettings() {
   let settings = await prisma.appSettings.findFirst();
@@ -26,8 +27,10 @@ async function getOrCreateSettings() {
 export async function GET() {
   const settings = await getOrCreateSettings();
   const tdExhausted = isQuotaExhausted();
+  const patternConfig = getPatternConfig(settings.patternConfigJson);
   return NextResponse.json({
     ...settings,
+    patternConfig,
     twelveDataExhausted: tdExhausted,
     twelveDataResumesAt: tdExhausted ? new Date(getQuotaResumeTime()).toISOString() : null,
   });
@@ -37,7 +40,7 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes, sentimentMethod } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes, sentimentMethod, patternConfig } = body;
 
   const settings = await getOrCreateSettings();
 
@@ -94,6 +97,7 @@ export async function PUT(req: NextRequest) {
       ...(validSyncTimes != null && { screenerSyncTimes: validSyncTimes }),
       ...(validNewsTimes != null && { newsSummaryTimes: validNewsTimes }),
       ...(validSentimentMethod != null && { sentimentMethod: validSentimentMethod }),
+      ...(patternConfig != null && typeof patternConfig === 'object' && { patternConfigJson: JSON.stringify(patternConfig) }),
     },
   });
 

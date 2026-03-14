@@ -12,6 +12,8 @@ import type {
   SymmetricalTriangle,
 } from '../types';
 import { calcBollingerBands, linearRegression } from './indicators';
+import type { PatternConfig } from '../config/patterns';
+import { DEFAULT_PATTERN_CONFIG } from '../config/patterns';
 
 // Skip the first N candles to avoid opening-auction noise
 const SKIP_OPEN = 5;
@@ -63,27 +65,29 @@ function findSwingHighs(candles: NormalizedCandle[], margin: number = 2): number
 //    volume ≥ 1.5× average, confirmed by 2 consecutive closes above.
 //    Lookback: 22 candles.
 // ---------------------------------------------------------------------------
-export function detectVolumeBreakout(candles: NormalizedCandle[]): VolumeBreakout | null {
-  const lookback = 22;
+export function detectVolumeBreakout(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.volumeBreakout): VolumeBreakout | null {
+  const { lookback, volumeRatio: minVolRatio, confirmationBars } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   // Scan from most recent backward (report only the latest pattern)
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
     const windowStart = end - lookback + 1;
-    const rangeCandles = candles.slice(windowStart, end - 1); // exclude last 2 for confirmation
+    const rangeCandles = candles.slice(windowStart, end - confirmationBars + 1);
     if (rangeCandles.length < 3) continue;
 
     const resistance = Math.max(...rangeCandles.map(c => c.high));
     const avg = avgVolume(rangeCandles);
 
-    // Need 2 consecutive closes above resistance
-    const c1 = candles[end - 1];
-    const c2 = candles[end];
-    if (c1.close <= resistance || c2.close <= resistance) continue;
+    // Need consecutive closes above resistance
+    let confirmed = true;
+    for (let i = 0; i < confirmationBars; i++) {
+      if (candles[end - i].close <= resistance) { confirmed = false; break; }
+    }
+    if (!confirmed) continue;
 
     // Volume confirmation on breakout candle
-    const volumeRatio = c1.volume / (avg || 1);
-    if (volumeRatio < 1.5) continue;
+    const volumeRatio = candles[end - confirmationBars + 1].volume / (avg || 1);
+    if (volumeRatio < minVolRatio) continue;
 
     return {
       type: 'volume-breakout',
@@ -94,7 +98,7 @@ export function detectVolumeBreakout(candles: NormalizedCandle[]): VolumeBreakou
       conviction: Math.min(volumeRatio / 4, 1),
       label: 'Volume Breakout',
       resistancePrice: resistance,
-      breakoutPrice: c1.close,
+      breakoutPrice: candles[end - confirmationBars + 1].close,
       volumeRatio,
     };
   }
@@ -106,11 +110,11 @@ export function detectVolumeBreakout(candles: NormalizedCandle[]): VolumeBreakou
 //    Bollinger bandwidth contracts ≥40% from its peak in window, then price
 //    breaks the range with volume ≥ 1.5× average. Lookback: 35 candles.
 // ---------------------------------------------------------------------------
-export function detectConsolidationBreakout(candles: NormalizedCandle[]): ConsolidationBreakout | null {
-  const lookback = 35;
+export function detectConsolidationBreakout(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.consolidationBreakout): ConsolidationBreakout | null {
+  const { lookback, bbPeriod, contractionPct, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
-  const bb = calcBollingerBands(candles, 20);
+  const bb = calcBollingerBands(candles, bbPeriod);
 
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
     const windowStart = end - lookback + 1;
@@ -125,7 +129,7 @@ export function detectConsolidationBreakout(candles: NormalizedCandle[]): Consol
     const afterPeak = windowBB.slice(peakIdx);
     const minWidth = Math.min(...afterPeak.map(b => b.width));
     const contraction = 1 - minWidth / peakWidth;
-    if (contraction < 0.4) continue;
+    if (contraction < contractionPct / 100) continue;
 
     // Determine consolidation range from the narrow section
     const narrowStart = windowStart + peakIdx;
@@ -139,10 +143,9 @@ export function detectConsolidationBreakout(candles: NormalizedCandle[]): Consol
     // Break above range
     if (lastCandle.close <= rangeHigh) continue;
 
-    // Volume surge
     const avg = avgVolume(narrowCandles);
     const volRatio = lastCandle.volume / (avg || 1);
-    if (volRatio < 1.5) continue;
+    if (volRatio < minVolRatio) continue;
 
     return {
       type: 'consolidation-breakout',
@@ -166,31 +169,31 @@ export function detectConsolidationBreakout(candles: NormalizedCandle[]): Consol
 //    (≤50% retrace, declining volume, flat-to-negative slope), then close
 //    above flag high. Lookback: 45 candles.
 // ---------------------------------------------------------------------------
-export function detectBullFlag(candles: NormalizedCandle[]): BullFlag | null {
-  const lookback = 45;
+export function detectBullFlag(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.bullFlag): BullFlag | null {
+  const { lookback, poleMinGainPct, poleLenMin, poleLenMax, maxRetracePct, minFlagBars, maxFlagBars, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
     const windowStart = end - lookback + 1;
 
     // Look for a strong pole: find the sharpest rally in the window
-    for (let poleLen = 8; poleLen <= 15; poleLen++) {
+    for (let poleLen = poleLenMin; poleLen <= poleLenMax; poleLen++) {
       for (let poleStart = windowStart; poleStart <= end - poleLen - 5; poleStart++) {
         const poleEnd = poleStart + poleLen;
         const poleGain = (candles[poleEnd].close - candles[poleStart].low) / candles[poleStart].low;
-        if (poleGain < 0.015) continue; // Need ≥1.5% gain
+        if (poleGain < poleMinGainPct / 100) continue;
 
         // Flag: from poleEnd to end
         const flagCandles = candles.slice(poleEnd, end + 1);
-        if (flagCandles.length < 4) continue;
+        if (flagCandles.length < minFlagBars + 1 || flagCandles.length > maxFlagBars + 1) continue;
 
         const poleHigh = Math.max(...candles.slice(poleStart, poleEnd + 1).map(c => c.high));
         const poleLow = candles[poleStart].low;
         const flagLow = Math.min(...flagCandles.map(c => c.low));
 
-        // Retrace ≤50%
+        // Retrace check
         const retrace = (poleHigh - flagLow) / (poleHigh - poleLow || 1);
-        if (retrace > 0.5) continue;
+        if (retrace > maxRetracePct / 100) continue;
 
         // Flag slope should be flat or slightly negative
         const flagCloses = flagCandles.map(c => c.close);
@@ -238,8 +241,8 @@ export function detectBullFlag(candles: NormalizedCandle[]): BullFlag | null {
 //    breakout close above resistance with volume ≥ 1.2×.
 //    Lookback: 60 candles.
 // ---------------------------------------------------------------------------
-export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingTriangle | null {
-  const lookback = 60;
+export function detectAscendingTriangle(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.ascendingTriangle): AscendingTriangle | null {
+  const { lookback, resistanceTolerance, minTouches, minR2, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
@@ -249,13 +252,13 @@ export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingT
     const swingHighs = findSwingHighs(window, 3);
     if (swingHighs.length < 3) continue;
 
-    // Find flat resistance — cluster of swing highs within 0.3% tolerance
+    // Find flat resistance — cluster of swing highs within tolerance
     const highPrices = swingHighs.map(i => window[i].high);
     const candidateResistance = highPrices.reduce((a, b) => a + b, 0) / highPrices.length;
-    const tolerance = candidateResistance * 0.003;
+    const tolerance = candidateResistance * resistanceTolerance;
 
     const touches = swingHighs.filter(i => Math.abs(window[i].high - candidateResistance) <= tolerance);
-    if (touches.length < 3) continue;
+    if (touches.length < minTouches) continue;
 
     // Find rising swing lows
     const swingLows = findSwingLows(window, 2);
@@ -263,7 +266,7 @@ export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingT
 
     const lowPrices = swingLows.map(i => window[i].low);
     const reg = linearRegression(lowPrices);
-    if (reg.slope <= 0 || reg.r2 < 0.5) continue;
+    if (reg.slope <= 0 || reg.r2 < minR2) continue;
 
     // Breakout: last candle closes above resistance
     if (candles[end].close <= candidateResistance + tolerance) continue;
@@ -271,7 +274,7 @@ export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingT
     // Volume confirmation
     const avg = avgVolume(candles.slice(windowStart, end));
     const volRatio = candles[end].volume / (avg || 1);
-    if (volRatio < 1.2) continue;
+    if (volRatio < minVolRatio) continue;
 
     return {
       type: 'ascending-triangle',
@@ -297,8 +300,8 @@ export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingT
 //    R² ≥ 0.6 each), breakout close above upper channel with volume ≥ 1.3×.
 //    Lookback: 53 candles.
 // ---------------------------------------------------------------------------
-export function detectChannelBreakout(candles: NormalizedCandle[]): ChannelBreakout | null {
-  const lookback = 53;
+export function detectChannelBreakout(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.channelBreakout): ChannelBreakout | null {
+  const { lookback, minR2, slopeParallelismPct, minSwingPoints, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
@@ -307,13 +310,13 @@ export function detectChannelBreakout(candles: NormalizedCandle[]): ChannelBreak
 
     const swingHighs = findSwingHighs(window, 3);
     const swingLows = findSwingLows(window, 3);
-    if (swingHighs.length < 3 || swingLows.length < 3) continue;
+    if (swingHighs.length < minSwingPoints || swingLows.length < minSwingPoints) continue;
 
     // Regress swing highs and lows
     const highReg = linearRegression(swingHighs.map(i => window[i].high));
     const lowReg = linearRegression(swingLows.map(i => window[i].low));
 
-    if (highReg.r2 < 0.6 || lowReg.r2 < 0.6) continue;
+    if (highReg.r2 < minR2 || lowReg.r2 < minR2) continue;
 
     // Slopes should be roughly parallel (within 15%)
     // Use position-aware regression: x = index in window
@@ -330,11 +333,11 @@ export function detectChannelBreakout(candles: NormalizedCandle[]): ChannelBreak
     const hSlope = regWithX(highXY);
     const lSlope = regWithX(lowXY);
 
-    if (hSlope.r2 < 0.6 || lSlope.r2 < 0.6) continue;
+    if (hSlope.r2 < minR2 || lSlope.r2 < minR2) continue;
 
     // Parallel check
     const avgSlope = (Math.abs(hSlope.slope) + Math.abs(lSlope.slope)) / 2;
-    if (avgSlope > 0 && Math.abs(hSlope.slope - lSlope.slope) / avgSlope > 0.15) continue;
+    if (avgSlope > 0 && Math.abs(hSlope.slope - lSlope.slope) / avgSlope > slopeParallelismPct / 100) continue;
 
     // Upper channel value at last candle
     const lastIdx = window.length - 1;
@@ -346,7 +349,7 @@ export function detectChannelBreakout(candles: NormalizedCandle[]): ChannelBreak
     // Volume
     const avg = avgVolume(candles.slice(windowStart, end));
     const volRatio = candles[end].volume / (avg || 1);
-    if (volRatio < 1.3) continue;
+    if (volRatio < minVolRatio) continue;
 
     return {
       type: 'channel-breakout',
@@ -390,8 +393,8 @@ function regWithX(points: { x: number; y: number }[]): { slope: number; intercep
 //    Two swing lows at similar price (≤0.5% tolerance), with a peak between
 //    them. Breakout close above the neckline (peak). Lookback: 50 candles.
 // ---------------------------------------------------------------------------
-export function detectDoubleBottom(candles: NormalizedCandle[]): DoubleBottom | null {
-  const lookback = 50;
+export function detectDoubleBottom(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.doubleBottom): DoubleBottom | null {
+  const { lookback, priceTolerance, minSeparation, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
@@ -406,14 +409,13 @@ export function detectDoubleBottom(candles: NormalizedCandle[]): DoubleBottom | 
       for (let b = a + 1; b < swingLows.length; b++) {
         const i1 = swingLows[a];
         const i2 = swingLows[b];
-        // Need some separation (at least 8 candles apart)
-        if (i2 - i1 < 8) continue;
+        if (i2 - i1 < minSeparation) continue;
 
         const p1 = window[i1].low;
         const p2 = window[i2].low;
-        // Similar price (within 0.5%)
+        // Similar price
         const avgPrice = (p1 + p2) / 2;
-        if (Math.abs(p1 - p2) / avgPrice > 0.005) continue;
+        if (Math.abs(p1 - p2) / avgPrice > priceTolerance) continue;
 
         // Find the neckline: highest high between the two bottoms
         const between = window.slice(i1, i2 + 1);
@@ -422,10 +424,9 @@ export function detectDoubleBottom(candles: NormalizedCandle[]): DoubleBottom | 
         // Breakout: last candle closes above neckline
         if (candles[end].close <= neckline) continue;
 
-        // Volume confirmation
         const avg = avgVolume(candles.slice(windowStart, end));
         const volRatio = candles[end].volume / (avg || 1);
-        if (volRatio < 1.2) continue;
+        if (volRatio < minVolRatio) continue;
 
         return {
           type: 'double-bottom',
@@ -453,7 +454,8 @@ export function detectDoubleBottom(candles: NormalizedCandle[]): DoubleBottom | 
 //    bar's range, followed by a close above the mother bar's high.
 //    Lookback: 10 candles.
 // ---------------------------------------------------------------------------
-export function detectInsideBarBreakout(candles: NormalizedCandle[]): InsideBarBreakout | null {
+export function detectInsideBarBreakout(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.insideBarBreakout): InsideBarBreakout | null {
+  const { minInsideBars } = cfg;
   if (candles.length < 4 + SKIP_OPEN) return null;
 
   // Scan from most recent backward
@@ -474,7 +476,7 @@ export function detectInsideBarBreakout(candles: NormalizedCandle[]): InsideBarB
       }
     }
 
-    if (insideCount === 0) continue;
+    if (insideCount < minInsideBars) continue;
 
     const mother = candles[motherIdx];
     const breakout = candles[end];
@@ -508,8 +510,8 @@ export function detectInsideBarBreakout(candles: NormalizedCandle[]): InsideBarB
 //    Price dips below VWAP by ≥0.3%, then closes back above VWAP with
 //    volume ≥ 1.3× average. Lookback: 30 candles.
 // ---------------------------------------------------------------------------
-export function detectVWAPReclaim(candles: NormalizedCandle[]): VWAPReclaim | null {
-  const lookback = 30;
+export function detectVWAPReclaim(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.vwapReclaim): VWAPReclaim | null {
+  const { lookback, minDipPct, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   // Compute running VWAP for the full series
@@ -541,15 +543,14 @@ export function detectVWAPReclaim(candles: NormalizedCandle[]): VWAPReclaim | nu
       }
     }
 
-    if (maxDip < 0.003 || dipIdx < 0) continue; // Need ≥0.3% dip below VWAP
+    if (maxDip < minDipPct / 100 || dipIdx < 0) continue;
 
     // Confirm the dip candle was actually below VWAP
     if (candles[dipIdx].close >= vwaps[dipIdx]) continue;
 
-    // Volume confirmation on reclaim
     const avg = avgVolume(candles.slice(windowStart, end));
     const volRatio = candles[end].volume / (avg || 1);
-    if (volRatio < 1.3) continue;
+    if (volRatio < minVolRatio) continue;
 
     return {
       type: 'vwap-reclaim',
@@ -572,8 +573,8 @@ export function detectVWAPReclaim(candles: NormalizedCandle[]): VWAPReclaim | nu
 //    Converging trendlines — descending swing highs + ascending swing lows,
 //    with breakout above upper trendline. Lookback: 50 candles.
 // ---------------------------------------------------------------------------
-export function detectSymmetricalTriangle(candles: NormalizedCandle[]): SymmetricalTriangle | null {
-  const lookback = 50;
+export function detectSymmetricalTriangle(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.symmetricalTriangle): SymmetricalTriangle | null {
+  const { lookback, minR2, minSwingPoints, volumeRatio: minVolRatio } = cfg;
   if (candles.length < lookback + SKIP_OPEN) return null;
 
   for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
@@ -582,7 +583,7 @@ export function detectSymmetricalTriangle(candles: NormalizedCandle[]): Symmetri
 
     const swingHighs = findSwingHighs(window, 3);
     const swingLows = findSwingLows(window, 2);
-    if (swingHighs.length < 3 || swingLows.length < 3) continue;
+    if (swingHighs.length < minSwingPoints || swingLows.length < minSwingPoints) continue;
 
     // Regress with actual x positions
     const highXY = swingHighs.map(idx => ({ x: idx, y: window[idx].high }));
@@ -591,7 +592,7 @@ export function detectSymmetricalTriangle(candles: NormalizedCandle[]): Symmetri
     const hReg = regWithX(highXY);
     const lReg = regWithX(lowXY);
 
-    if (hReg.r2 < 0.5 || lReg.r2 < 0.5) continue;
+    if (hReg.r2 < minR2 || lReg.r2 < minR2) continue;
 
     // Upper trendline must slope down, lower must slope up (converging)
     if (hReg.slope >= 0 || lReg.slope <= 0) continue;
@@ -610,7 +611,7 @@ export function detectSymmetricalTriangle(candles: NormalizedCandle[]): Symmetri
     // Volume confirmation
     const avg = avgVolume(candles.slice(windowStart, end));
     const volRatio = candles[end].volume / (avg || 1);
-    if (volRatio < 1.2) continue;
+    if (volRatio < minVolRatio) continue;
 
     return {
       type: 'symmetrical-triangle',
@@ -633,25 +634,43 @@ export function detectSymmetricalTriangle(candles: NormalizedCandle[]): Symmetri
 // ---------------------------------------------------------------------------
 // Master detector — runs all patterns and returns all found
 // ---------------------------------------------------------------------------
-export function detectAllPatterns(candles: NormalizedCandle[]): PatternResult[] {
+export function detectAllPatterns(candles: NormalizedCandle[], config: PatternConfig = DEFAULT_PATTERN_CONFIG): PatternResult[] {
   const results: PatternResult[] = [];
-  const vb = detectVolumeBreakout(candles);
-  if (vb) results.push(vb);
-  const cb = detectConsolidationBreakout(candles);
-  if (cb) results.push(cb);
-  const bf = detectBullFlag(candles);
-  if (bf) results.push(bf);
-  const at = detectAscendingTriangle(candles);
-  if (at) results.push(at);
-  const ch = detectChannelBreakout(candles);
-  if (ch) results.push(ch);
-  const db = detectDoubleBottom(candles);
-  if (db) results.push(db);
-  const ib = detectInsideBarBreakout(candles);
-  if (ib) results.push(ib);
-  const vr = detectVWAPReclaim(candles);
-  if (vr) results.push(vr);
-  const st = detectSymmetricalTriangle(candles);
-  if (st) results.push(st);
+  if (config.volumeBreakout.enabled) {
+    const vb = detectVolumeBreakout(candles, config.volumeBreakout);
+    if (vb) results.push(vb);
+  }
+  if (config.consolidationBreakout.enabled) {
+    const cb = detectConsolidationBreakout(candles, config.consolidationBreakout);
+    if (cb) results.push(cb);
+  }
+  if (config.bullFlag.enabled) {
+    const bf = detectBullFlag(candles, config.bullFlag);
+    if (bf) results.push(bf);
+  }
+  if (config.ascendingTriangle.enabled) {
+    const at = detectAscendingTriangle(candles, config.ascendingTriangle);
+    if (at) results.push(at);
+  }
+  if (config.channelBreakout.enabled) {
+    const ch = detectChannelBreakout(candles, config.channelBreakout);
+    if (ch) results.push(ch);
+  }
+  if (config.doubleBottom.enabled) {
+    const db = detectDoubleBottom(candles, config.doubleBottom);
+    if (db) results.push(db);
+  }
+  if (config.insideBarBreakout.enabled) {
+    const ib = detectInsideBarBreakout(candles, config.insideBarBreakout);
+    if (ib) results.push(ib);
+  }
+  if (config.vwapReclaim.enabled) {
+    const vr = detectVWAPReclaim(candles, config.vwapReclaim);
+    if (vr) results.push(vr);
+  }
+  if (config.symmetricalTriangle.enabled) {
+    const st = detectSymmetricalTriangle(candles, config.symmetricalTriangle);
+    if (st) results.push(st);
+  }
   return results;
 }
