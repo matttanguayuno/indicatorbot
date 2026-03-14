@@ -106,6 +106,17 @@ async function processTicker(
       return { symbol, success: false, error: 'Quote price is 0' };
     }
 
+    // Outside market hours, only process tickers that are actively trading.
+    // If the latest candle is more than 5 minutes old, the stock is stale.
+    if (!isMarketOpenET() && hasCandleData) {
+      const latestCandleTime = candles![candles!.length - 1].timestamp.getTime();
+      const ageMs = Date.now() - latestCandleTime;
+      const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+      if (ageMs > STALE_THRESHOLD_MS) {
+        return { symbol, success: false, error: `Stale — last candle ${Math.round(ageMs / 60000)}m ago` };
+      }
+    }
+
     // 2) Fetch company profile — use DB-persisted data first to avoid burning credits.
     //    Only call the API when the ticker has never had profile data populated.
     let profile: NormalizedProfile | null = null;
@@ -540,22 +551,6 @@ export async function runPollingCycle(source: string = 'unknown'): Promise<{
   }
 
   const results: ProcessResult[] = [];
-
-  // Only create snapshots and process tickers during market hours.
-  // Candle data is still fetched above to keep the cache warm.
-  if (!isMarketOpenET()) {
-    console.log('[Pipeline] Market closed — skipping snapshot creation');
-    return {
-      processed: tickers.length,
-      succeeded: 0,
-      failed: 0,
-      results,
-      dataSource,
-      candlesAvailable: candleMap.size,
-      candleError: 'Market closed — snapshots not created',
-      source,
-    };
-  }
 
   // Process sequentially to respect API rate limits
   for (const ticker of tickers) {
