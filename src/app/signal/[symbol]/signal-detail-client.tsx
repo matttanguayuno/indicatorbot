@@ -814,21 +814,24 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
     const rect = svg.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const fraction = (screenX / rect.width - padL / w) / (chartW / w);
-    const idx = Math.round(fraction * (scores.length - 1));
-    if (idx >= 0 && idx < scores.length) setHoverIdx(idx);
-    else setHoverIdx(null);
+    const clamped = Math.max(0, Math.min(1, fraction));
+    const idx = Math.round(clamped * (scores.length - 1));
+    setHoverIdx(idx);
   }
 
   return (
-    <div ref={containerRef} className="aspect-[600/360] sm:aspect-[600/180]">
+    <div
+      ref={containerRef}
+      className="aspect-[600/360] sm:aspect-[600/180] touch-none"
+      onPointerMove={handlePointer}
+      onPointerLeave={() => setHoverIdx(null)}
+    >
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="xMidYMid meet"
       style={{ width: '100%', height: '100%' }}
-      className="select-none"
-      onPointerMove={handlePointer}
-      onPointerLeave={() => setHoverIdx(null)}
+      className="select-none pointer-events-none"
     >
       {/* Grid lines + Y labels */}
       {yTicks.map(t => (

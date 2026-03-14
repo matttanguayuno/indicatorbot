@@ -217,7 +217,7 @@ export function DashboardClient() {
       )}
 
       {/* Hero section — top-scoring stock + score evolution */}
-      {snapshots.length > 0 && (
+      {snapshots.length > 0 && marketOpen && (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
           <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} feedback={feedbackMap[snapshots[0].symbol] ?? null} />
           <ScoreEvolutionPanel snapshots={snapshots} />
@@ -225,6 +225,7 @@ export function DashboardClient() {
       )}
 
       {/* Remaining cards */}
+      {marketOpen && (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
         {snapshots.slice(1).map((s) => (
           <Link
@@ -317,6 +318,14 @@ export function DashboardClient() {
           </Link>
         ))}
       </div>
+      )}
+
+      {!loading && !marketOpen && snapshots.length > 0 && (
+        <div className="text-center text-gray-500 py-12">
+          <p className="text-lg">Market is closed</p>
+          <p className="text-sm mt-1">Opportunities will appear during market hours (9:30 AM – 4:00 PM ET, Mon–Fri).</p>
+        </div>
+      )}
     </div>
   );
 }

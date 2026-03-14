@@ -242,7 +242,7 @@ export function PriceChart({
   })() : '';
 
   return (
-    <div ref={containerRef} className={className} style={{ width: '100%', aspectRatio: `${defaultW} / ${defaultH}` }}>
+    <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
