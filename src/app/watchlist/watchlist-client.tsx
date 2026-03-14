@@ -268,7 +268,7 @@ export function WatchlistClient() {
       )}
 
       {/* AI News Summary */}
-      {(summaryText || summaryLoading) && (
+      {snapshots.length > 0 && (summaryText || summaryLoading) && (
         <div className="mt-4">
           <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5">
