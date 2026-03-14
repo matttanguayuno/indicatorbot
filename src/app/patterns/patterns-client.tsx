@@ -79,7 +79,7 @@ export function PatternsClient() {
     try {
       // 1. Fetch chart candles
       const chartRes = await fetch(
-        `/api/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`
+        `/api/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&noFilter=1&forceApi=1`
       );
       if (!chartRes.ok) {
         setLoading(false);

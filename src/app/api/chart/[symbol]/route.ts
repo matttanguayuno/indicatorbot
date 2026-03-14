@@ -200,6 +200,8 @@ export async function GET(
 
   const rawInterval = req.nextUrl.searchParams.get('interval') ?? '1min';
   const rawRange = req.nextUrl.searchParams.get('range') ?? '1D';
+  const noFilter = req.nextUrl.searchParams.get('noFilter') === '1';
+  const forceApi = req.nextUrl.searchParams.get('forceApi') === '1';
 
   const rawParsedInterval: Interval = (VALID_INTERVALS as readonly string[]).includes(rawInterval)
     ? (rawInterval as Interval)
@@ -233,7 +235,7 @@ export async function GET(
   // 1D: prefer Twelve Data API (full trading day with real OHLCV candles).
   //     Snapshots only go back to when the server started polling, which may
   //     miss the first hours of the day.
-  const snapshotFirst = range === '1H';
+  const snapshotFirst = !forceApi && range === '1H';
 
   if (snapshotFirst) {
     candles = await fetchSnapshotHistory(upper, interval, range);
@@ -253,7 +255,8 @@ export async function GET(
 
   // For 1D / 1H ranges, filter to today's regular market hours only (9:30 AM – 4:00 PM ET)
   // so all stocks share the same X-axis timeline and don't show previous days.
-  if (range === '1D' || range === '1H') {
+  // Skip this filter when noFilter=1 (used by Patterns Lab for testing).
+  if (!noFilter && (range === '1D' || range === '1H')) {
     const todayET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
     const todayDate = `${todayET.getFullYear()}-${String(todayET.getMonth() + 1).padStart(2, '0')}-${String(todayET.getDate()).padStart(2, '0')}`;
     candles = candles.filter((c) => {
