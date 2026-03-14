@@ -115,6 +115,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const searchParams = useSearchParams();
   const from = searchParams.get('from') ?? 'opportunities';
 
+  const [expandedAlert, setExpandedAlert] = useState<number | null>(null);
+
   // Fetch ticker list matching the source page context
   useEffect(() => {
     const url = from === 'watchlist' ? '/api/snapshots?threshold=0' : '/api/snapshots';
@@ -360,17 +362,20 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       {stockAlerts.length > 0 && (
         <div className="space-y-1.5">
           {stockAlerts.map((a) => (
-            <div key={a.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border ${
+            <div
+              key={a.id}
+              onClick={() => setExpandedAlert(expandedAlert === a.id ? null : a.id)}
+              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm border cursor-pointer ${
               a.alertType === 'sell'
                 ? 'bg-red-900/30 border-red-800/50'
                 : 'bg-green-900/30 border-green-800/50'
             }`}>
-              <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded shrink-0 mt-0.5 ${
                 a.alertType === 'sell' ? 'bg-red-900/60 text-red-300' : 'bg-green-900/60 text-green-300'
               }`}>
                 {a.alertType === 'sell' ? 'SELL' : 'BUY'}
               </span>
-              <span className="text-gray-300 flex-1 truncate">{a.explanation}</span>
+              <span className={`text-gray-300 flex-1 ${expandedAlert === a.id ? '' : 'truncate'}`}>{a.explanation}</span>
               <TimeAgo date={a.createdAt} />
             </div>
           ))}
