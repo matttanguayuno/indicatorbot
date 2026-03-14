@@ -254,6 +254,45 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   if (!latest) return <div className="text-center text-gray-500 py-12">No data for {symbol}</div>;
 
   const meta: Record<string, string> = latest.dataSourceMeta ? JSON.parse(latest.dataSourceMeta) : {};
+
+  /** Remap pattern indices from pipeline candle array to chart candle array
+   *  by matching timestamps. Returns patterns with indices adjusted for the
+   *  current chartCandles array, or empty if timestamps don't overlap. */
+  function remapPatterns(raw: PatternResult[]): PatternResult[] {
+    if (chartCandles.length === 0) return [];
+    // Build a map from ISO-minute-key to chart index for fast lookup
+    const timeToIdx = new Map<string, number>();
+    for (let i = 0; i < chartCandles.length; i++) {
+      // Key by minute (ISO string truncated to minute)
+      timeToIdx.set(chartCandles[i].time.slice(0, 16), i);
+    }
+    const findIdx = (iso: string): number | null => {
+      const key = iso.slice(0, 16);
+      return timeToIdx.get(key) ?? null;
+    };
+
+    return raw.flatMap((p) => {
+      const si = findIdx(p.startTime);
+      const ei = findIdx(p.endTime);
+      if (si == null || ei == null) return [];
+
+      const base = { ...p, startIndex: si, endIndex: ei };
+      if (p.type === 'bull-flag') {
+        const psi = findIdx(p.poleStartTime) ?? si;
+        const pei = findIdx(p.poleEndTime) ?? ei;
+        const fsi = findIdx(p.flagStartTime) ?? pei;
+        const fei = findIdx(p.flagEndTime) ?? ei;
+        return [{ ...base, poleStartIndex: psi, poleEndIndex: pei, flagStartIndex: fsi, flagEndIndex: fei } as PatternResult];
+      }
+      if (p.type === 'ascending-triangle') {
+        const swingLowIndices = p.swingLowTimes
+          .map(t => findIdx(t))
+          .filter((i): i is number => i != null);
+        return [{ ...base, swingLowIndices } as PatternResult];
+      }
+      return [base as PatternResult];
+    });
+  }
   const hasCandleData = latest.pctChange5m != null && latest.pctChangeIntraday != null;
   const rangePct = latest.intradayRangePct != null ? latest.intradayRangePct * 100
     : latest.pctChange15m != null ? latest.pctChange15m * 100
@@ -299,6 +338,23 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         </div>
         <ScoreBadge score={latest.signalScore} />
       </div>
+
+      {/* Pattern badges */}
+      {latest.patterns && (() => {
+        const pats: PatternResult[] = JSON.parse(latest.patterns);
+        if (pats.length === 0) return null;
+        return (
+          <div className="flex flex-wrap gap-1.5">
+            {pats.map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                {p.label}
+                <span className="text-yellow-500/70">{Math.round(p.conviction * 100)}%</span>
+              </span>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Alerts for this stock */}
       {stockAlerts.length > 0 && (
@@ -492,7 +548,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               key={`${chartInterval}:${chartRange}`}
               candles={chartCandles}
               patterns={chartInterval === '1min' && chartRange === '1D' && latest?.patterns
-                ? (JSON.parse(latest.patterns) as PatternResult[])
+                ? remapPatterns(JSON.parse(latest.patterns) as PatternResult[])
                 : undefined}
               width={chartWidth}
               height={chartHeight}

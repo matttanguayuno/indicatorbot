@@ -56,7 +56,7 @@ function findSwingHighs(candles: NormalizedCandle[], margin: number = 2): number
 // ---------------------------------------------------------------------------
 // 1. Volume-Confirmed Breakout
 //    Price closes above resistance (highest high over 20 candles) with
-//    volume ≥ 2× average, confirmed by 2 consecutive closes above.
+//    volume ≥ 1.5× average, confirmed by 2 consecutive closes above.
 //    Lookback: 22 candles.
 // ---------------------------------------------------------------------------
 export function detectVolumeBreakout(candles: NormalizedCandle[]): VolumeBreakout | null {
@@ -79,12 +79,14 @@ export function detectVolumeBreakout(candles: NormalizedCandle[]): VolumeBreakou
 
     // Volume confirmation on breakout candle
     const volumeRatio = c1.volume / (avg || 1);
-    if (volumeRatio < 2) continue;
+    if (volumeRatio < 1.5) continue;
 
     return {
       type: 'volume-breakout',
       startIndex: windowStart,
       endIndex: end,
+      startTime: candles[windowStart].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
       conviction: Math.min(volumeRatio / 4, 1),
       label: 'Volume Breakout',
       resistancePrice: resistance,
@@ -97,8 +99,8 @@ export function detectVolumeBreakout(candles: NormalizedCandle[]): VolumeBreakou
 
 // ---------------------------------------------------------------------------
 // 2. Consolidation Breakout
-//    Bollinger bandwidth contracts ≥60% from its peak in window, then price
-//    breaks the range with volume ≥ 2× average. Lookback: 35 candles.
+//    Bollinger bandwidth contracts ≥40% from its peak in window, then price
+//    breaks the range with volume ≥ 1.5× average. Lookback: 35 candles.
 // ---------------------------------------------------------------------------
 export function detectConsolidationBreakout(candles: NormalizedCandle[]): ConsolidationBreakout | null {
   const lookback = 35;
@@ -119,7 +121,7 @@ export function detectConsolidationBreakout(candles: NormalizedCandle[]): Consol
     const afterPeak = windowBB.slice(peakIdx);
     const minWidth = Math.min(...afterPeak.map(b => b.width));
     const contraction = 1 - minWidth / peakWidth;
-    if (contraction < 0.6) continue;
+    if (contraction < 0.4) continue;
 
     // Determine consolidation range from the narrow section
     const narrowStart = windowStart + peakIdx;
@@ -136,12 +138,14 @@ export function detectConsolidationBreakout(candles: NormalizedCandle[]): Consol
     // Volume surge
     const avg = avgVolume(narrowCandles);
     const volRatio = lastCandle.volume / (avg || 1);
-    if (volRatio < 2) continue;
+    if (volRatio < 1.5) continue;
 
     return {
       type: 'consolidation-breakout',
       startIndex: narrowStart,
       endIndex: end,
+      startTime: candles[narrowStart].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
       conviction: Math.min(contraction * (volRatio / 4), 1),
       label: 'Consolidation Breakout',
       rangeHigh,
@@ -154,7 +158,7 @@ export function detectConsolidationBreakout(candles: NormalizedCandle[]): Consol
 
 // ---------------------------------------------------------------------------
 // 3. Bull Flag
-//    Sharp pole (≥2% gain over up to 15 candles), shallow flag pullback
+//    Sharp pole (≥1.5% gain over up to 15 candles), shallow flag pullback
 //    (≤50% retrace, declining volume, flat-to-negative slope), then close
 //    above flag high. Lookback: 45 candles.
 // ---------------------------------------------------------------------------
@@ -170,7 +174,7 @@ export function detectBullFlag(candles: NormalizedCandle[]): BullFlag | null {
       for (let poleStart = windowStart; poleStart <= end - poleLen - 5; poleStart++) {
         const poleEnd = poleStart + poleLen;
         const poleGain = (candles[poleEnd].close - candles[poleStart].low) / candles[poleStart].low;
-        if (poleGain < 0.02) continue; // Need ≥2% gain
+        if (poleGain < 0.015) continue; // Need ≥1.5% gain
 
         // Flag: from poleEnd to end
         const flagCandles = candles.slice(poleEnd, end + 1);
@@ -204,12 +208,18 @@ export function detectBullFlag(candles: NormalizedCandle[]): BullFlag | null {
           type: 'bull-flag',
           startIndex: poleStart,
           endIndex: end,
+          startTime: candles[poleStart].timestamp.toISOString(),
+          endTime: candles[end].timestamp.toISOString(),
           conviction: Math.min(poleGain * 10 * (1 - retrace), 1),
           label: 'Bull Flag',
           poleStartIndex: poleStart,
           poleEndIndex: poleEnd,
           flagStartIndex: poleEnd,
           flagEndIndex: end,
+          poleStartTime: candles[poleStart].timestamp.toISOString(),
+          poleEndTime: candles[poleEnd].timestamp.toISOString(),
+          flagStartTime: candles[poleEnd].timestamp.toISOString(),
+          flagEndTime: candles[end].timestamp.toISOString(),
           flagSlope: reg.slope,
         };
       }
@@ -221,7 +231,7 @@ export function detectBullFlag(candles: NormalizedCandle[]): BullFlag | null {
 // ---------------------------------------------------------------------------
 // 4. Ascending Triangle
 //    Flat resistance (≥3 touches within 0.3% tolerance), rising swing lows,
-//    breakout close above resistance with volume ≥ 1.5×.
+//    breakout close above resistance with volume ≥ 1.2×.
 //    Lookback: 60 candles.
 // ---------------------------------------------------------------------------
 export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingTriangle | null {
@@ -257,16 +267,19 @@ export function detectAscendingTriangle(candles: NormalizedCandle[]): AscendingT
     // Volume confirmation
     const avg = avgVolume(candles.slice(windowStart, end));
     const volRatio = candles[end].volume / (avg || 1);
-    if (volRatio < 1.5) continue;
+    if (volRatio < 1.2) continue;
 
     return {
       type: 'ascending-triangle',
       startIndex: windowStart,
       endIndex: end,
+      startTime: candles[windowStart].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
       conviction: Math.min(reg.r2 * (volRatio / 3), 1),
       label: 'Ascending Triangle',
       resistancePrice: candidateResistance,
       swingLowIndices: swingLows.map(i => i + windowStart),
+      swingLowTimes: swingLows.map(i => candles[i + windowStart].timestamp.toISOString()),
       trendlineSlope: reg.slope,
       trendlineIntercept: reg.intercept,
     };
@@ -335,6 +348,8 @@ export function detectChannelBreakout(candles: NormalizedCandle[]): ChannelBreak
       type: 'channel-breakout',
       startIndex: windowStart,
       endIndex: end,
+      startTime: candles[windowStart].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
       conviction: Math.min(((hSlope.r2 + lSlope.r2) / 2) * (volRatio / 2.5), 1),
       label: 'Channel Breakout',
       upperSlope: hSlope.slope,

@@ -246,6 +246,9 @@ async function processTicker(
 
     // Pattern detection
     const patterns = hasCandleData ? detectAllPatterns(candles!) : [];
+    if (patterns.length > 0) {
+      console.log(`[Pipeline] ${symbol}: ${patterns.length} pattern(s) detected: ${patterns.map(p => p.label).join(', ')}`);
+    }
 
     // 5) Score
     const signalInputs: SignalInputs = {

@@ -50,6 +50,9 @@ export interface PatternBase {
   startIndex: number;
   /** Index where the pattern ends (breakout candle) */
   endIndex: number;
+  /** ISO timestamps for time-based alignment with chart candles */
+  startTime: string;
+  endTime: string;
   /** Conviction score 0–1 (volume ratio × R² etc.) */
   conviction: number;
   /** Human-readable label */
@@ -76,6 +79,10 @@ export interface BullFlag extends PatternBase {
   poleEndIndex: number;
   flagStartIndex: number;
   flagEndIndex: number;
+  poleStartTime: string;
+  poleEndTime: string;
+  flagStartTime: string;
+  flagEndTime: string;
   /** Slope of the flag channel (negative = declining) */
   flagSlope: number;
 }
@@ -85,6 +92,7 @@ export interface AscendingTriangle extends PatternBase {
   resistancePrice: number;
   /** Indices of the rising swing lows */
   swingLowIndices: number[];
+  swingLowTimes: string[];
   trendlineSlope: number;
   trendlineIntercept: number;
 }

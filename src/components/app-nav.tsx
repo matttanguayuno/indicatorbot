@@ -16,6 +16,7 @@ const navItems = [
 const desktopExtraItems = [
   { href: '/feedback', label: 'Feedback', icon: '📋', insertBefore: '/settings' },
   { href: '/api-calls', label: 'API Calls', icon: '🔧', insertBefore: '/settings' },
+  { href: '/patterns', label: 'Patterns', icon: '🔬', insertBefore: '/settings' },
 ];
 
 export function AppNav() {
