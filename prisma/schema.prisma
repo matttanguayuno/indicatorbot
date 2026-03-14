@@ -281,6 +281,16 @@ model BuyEntry {
 }
 
 // ---------------------------------------------------------------------------
+// Poll Lock — prevents duplicate concurrent polling cycles
+// ---------------------------------------------------------------------------
+model PollLock {
+  id        Int      @id @default(1)
+  lockedAt  DateTime @default(now())
+  lockedBy  String   @default("")
+  expiresAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
 // API Call Log — persistent log of Twelve Data API calls
 // ---------------------------------------------------------------------------
 model ApiCallLog {

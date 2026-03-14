@@ -459,6 +459,29 @@ export async function runPollingCycle(source: string = 'unknown'): Promise<{
   candleError: string | null;
   source: string;
 }> {
+  // ── DB-level lock to prevent duplicate concurrent cycles ──
+  const LOCK_TTL_SEC = 120; // max cycle duration before lock expires
+  let affectedRows = 0;
+  try {
+    // Try to claim the lock: only succeeds if no unexpired lock exists
+    affectedRows = await prisma.$executeRawUnsafe(
+      `INSERT INTO "PollLock" (id, "lockedAt", "lockedBy", "expiresAt")
+       VALUES (1, NOW(), $1, NOW() + INTERVAL '${LOCK_TTL_SEC} seconds')
+       ON CONFLICT (id) DO UPDATE
+       SET "lockedAt" = NOW(), "lockedBy" = $1, "expiresAt" = NOW() + INTERVAL '${LOCK_TTL_SEC} seconds'
+       WHERE "PollLock"."expiresAt" < NOW()`,
+      source
+    );
+  } catch {
+    console.log(`[Pipeline] Lock contention — skipping cycle (source: ${source})`);
+    return { processed: 0, succeeded: 0, failed: 0, results: [], dataSource: '', candlesAvailable: 0, candleError: 'Lock contention', source };
+  }
+  if (affectedRows === 0) {
+    console.log(`[Pipeline] Another process holds the lock — skipping (source: ${source})`);
+    return { processed: 0, succeeded: 0, failed: 0, results: [], dataSource: '', candlesAvailable: 0, candleError: 'Locked by another process', source };
+  }
+
+  try {
   console.log(`[Pipeline] Cycle started — source: ${source}`);
   // Load settings
   const settings = await prisma.appSettings.findFirst();
@@ -607,6 +630,10 @@ export async function runPollingCycle(source: string = 'unknown'): Promise<{
       : candleError,
     source,
   };
+  } finally {
+    // Release the lock so the next cycle can run
+    await prisma.pollLock.update({ where: { id: 1 }, data: { expiresAt: new Date(0) } }).catch(() => {});
+  }
 }
 
 /**
