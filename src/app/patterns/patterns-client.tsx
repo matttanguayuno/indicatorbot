@@ -94,7 +94,9 @@ export function PatternsClient() {
   const [loading, setLoading] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [chartSource, setChartSource] = useState('');
-  const [highlightedPattern, setHighlightedPattern] = useState<number | null>(null);
+  const [lockedPattern, setLockedPattern] = useState<number | null>(null);
+  const [hoveredPattern, setHoveredPattern] = useState<number | null>(null);
+  const highlightedPattern = lockedPattern ?? hoveredPattern;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -141,6 +143,8 @@ export function PatternsClient() {
     setLoading(true);
     setPatterns([]);
     setCandles([]);
+    setLockedPattern(null);
+    setHoveredPattern(null);
 
     try {
       // 1. Fetch chart candles
@@ -297,7 +301,7 @@ export function PatternsClient() {
                   candles={candles}
                   patterns={patterns.length > 0 ? patterns : undefined}
                   highlightPatternIndex={highlightedPattern}
-                  onPatternClick={(i) => setHighlightedPattern(highlightedPattern === i ? null : i)}
+                  onPatternClick={(i) => setLockedPattern(lockedPattern === i ? null : i)}
                   width={900}
                   height={400}
                 />
@@ -308,33 +312,40 @@ export function PatternsClient() {
           {/* Results panel */}
           {!loading && !detecting && activeSymbol && (
             <div className="lg:w-72 shrink-0 space-y-2">
-              <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
                 {patterns.length === 0 ? 'No Patterns' : `${patterns.length} Pattern${patterns.length > 1 ? 's' : ''}`}
               </h2>
 
               {patterns.length === 0 && candles.length > 0 && (
-                <p className="text-xs text-zinc-500">No breakout patterns detected in {candles.length} candles. Try a different timeframe or stock.</p>
+                <p className="text-sm text-zinc-500">No breakout patterns detected in {candles.length} candles. Try a different timeframe or stock.</p>
               )}
 
-              {patternDetails && patternDetails.map((detail, i) => (
-                <div
-                  key={i}
-                  className={`rounded-lg p-3 cursor-pointer transition-all border text-xs ${
-                    highlightedPattern === i
-                      ? 'bg-yellow-900/20 border-yellow-500/60 ring-1 ring-yellow-500/30'
-                      : 'bg-zinc-900 border-transparent hover:border-yellow-700/40'
-                  }`}
-                  onMouseEnter={() => setHighlightedPattern(i)}
-                  onMouseLeave={() => setHighlightedPattern(null)}
-                  onClick={() => setHighlightedPattern(highlightedPattern === i ? null : i)}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-yellow-300">{detail.label}</span>
-                    <span className="text-zinc-500">{detail.conviction}%</span>
+              {patternDetails && patternDetails.map((detail, i) => {
+                const cc = convictionClasses(detail.conviction);
+                const isLocked = lockedPattern === i;
+                const isHovered = hoveredPattern === i && !isLocked;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-3 cursor-pointer transition-all border text-sm ${
+                      isLocked
+                        ? `${cc.bg} ${cc.border} ring-1 ${cc.ring}`
+                        : isHovered
+                        ? `bg-zinc-800 ${cc.border}`
+                        : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800/50'
+                    }`}
+                    onMouseEnter={() => setHoveredPattern(i)}
+                    onMouseLeave={() => setHoveredPattern(null)}
+                    onClick={() => setLockedPattern(lockedPattern === i ? null : i)}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`font-medium ${cc.accent}`}>{detail.label}</span>
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cc.badge}`}>{detail.conviction}%</span>
+                    </div>
+                    <div className="text-zinc-400">{detail.details}</div>
                   </div>
-                  <div className="text-zinc-400">{detail.details}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -346,18 +357,18 @@ export function PatternsClient() {
 
       {/* Pattern Reference */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-zinc-300">Pattern Reference</h2>
+        <h2 className="text-base font-semibold text-zinc-300">Pattern Reference</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {PATTERN_REFERENCE.map((ref) => (
-            <div key={ref.type} className="bg-zinc-900 rounded-lg p-3 space-y-2">
-              <div className="flex items-center gap-2">
+            <div key={ref.type} className="bg-zinc-900 rounded-lg p-4 space-y-3">
+              <div className="text-sm font-semibold text-zinc-200">{ref.name}</div>
+              <div className="flex justify-center">
                 <PatternIcon type={ref.type} />
-                <span className="text-sm font-medium text-zinc-200">{ref.name}</span>
               </div>
-              <p className="text-[11px] text-zinc-400 leading-relaxed">{ref.description}</p>
-              <div className="space-y-0.5">
+              <p className="text-xs text-zinc-400 leading-relaxed">{ref.description}</p>
+              <div className="space-y-1">
                 {ref.criteria.map((c, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-[11px]">
+                  <div key={i} className="flex items-start gap-1.5 text-xs">
                     <span className="text-yellow-500 mt-0.5">•</span>
                     <span className="text-zinc-500">{c}</span>
                   </div>
@@ -371,10 +382,16 @@ export function PatternsClient() {
   );
 }
 
+function convictionClasses(pct: number) {
+  if (pct >= 70) return { accent: 'text-emerald-300', bg: 'bg-emerald-900/20', border: 'border-emerald-500/50', ring: 'ring-emerald-500/30', badge: 'bg-emerald-900/40 text-emerald-300' };
+  if (pct >= 45) return { accent: 'text-yellow-300', bg: 'bg-yellow-900/20', border: 'border-yellow-500/50', ring: 'ring-yellow-500/30', badge: 'bg-yellow-900/40 text-yellow-300' };
+  return { accent: 'text-orange-300', bg: 'bg-orange-900/20', border: 'border-orange-500/50', ring: 'ring-orange-500/30', badge: 'bg-orange-900/40 text-orange-300' };
+}
+
 /** Abstract SVG icon showing the general shape of each pattern */
 function PatternIcon({ type }: { type: string }) {
-  const w = 36;
-  const h = 24;
+  const w = 120;
+  const h = 80;
   const stroke = '#facc15';
   const fill = '#facc1530';
 
