@@ -105,9 +105,61 @@ export interface ChannelBreakout extends PatternBase {
   lowerIntercept: number;
 }
 
+export interface DoubleBottom extends PatternBase {
+  type: 'double-bottom';
+  /** Price of the first bottom */
+  firstBottomPrice: number;
+  /** Price of the second bottom */
+  secondBottomPrice: number;
+  /** Index of the first bottom */
+  firstBottomIndex: number;
+  /** Index of the second bottom */
+  secondBottomIndex: number;
+  /** Neckline (high between the two bottoms) */
+  necklinePrice: number;
+}
+
+export interface InsideBarBreakout extends PatternBase {
+  type: 'inside-bar-breakout';
+  /** Index of the mother bar */
+  motherBarIndex: number;
+  /** Number of inside bars before breakout */
+  insideBarCount: number;
+  /** High of the mother bar (breakout level) */
+  motherBarHigh: number;
+  /** Low of the mother bar */
+  motherBarLow: number;
+}
+
+export interface VWAPReclaim extends PatternBase {
+  type: 'vwap-reclaim';
+  /** VWAP value at reclaim */
+  vwapPrice: number;
+  /** How far below VWAP price dipped (as %) */
+  dipPercent: number;
+  /** Volume ratio on the reclaim candle */
+  volumeRatio: number;
+}
+
+export interface SymmetricalTriangle extends PatternBase {
+  type: 'symmetrical-triangle';
+  /** Descending resistance trendline */
+  upperSlope: number;
+  upperIntercept: number;
+  /** Ascending support trendline */
+  lowerSlope: number;
+  lowerIntercept: number;
+  /** Number of swing points used */
+  swingPointCount: number;
+}
+
 export type PatternResult =
   | VolumeBreakout
   | ConsolidationBreakout
   | BullFlag
   | AscendingTriangle
-  | ChannelBreakout;
+  | ChannelBreakout
+  | DoubleBottom
+  | InsideBarBreakout
+  | VWAPReclaim
+  | SymmetricalTriangle;

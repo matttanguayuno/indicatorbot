@@ -6,6 +6,10 @@ import type {
   BullFlag,
   AscendingTriangle,
   ChannelBreakout,
+  DoubleBottom,
+  InsideBarBreakout,
+  VWAPReclaim,
+  SymmetricalTriangle,
 } from '../types';
 import { calcBollingerBands, linearRegression } from './indicators';
 
@@ -382,6 +386,251 @@ function regWithX(points: { x: number; y: number }[]): { slope: number; intercep
 }
 
 // ---------------------------------------------------------------------------
+// 6. Double Bottom
+//    Two swing lows at similar price (≤0.5% tolerance), with a peak between
+//    them. Breakout close above the neckline (peak). Lookback: 50 candles.
+// ---------------------------------------------------------------------------
+export function detectDoubleBottom(candles: NormalizedCandle[]): DoubleBottom | null {
+  const lookback = 50;
+  if (candles.length < lookback + SKIP_OPEN) return null;
+
+  for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
+    const windowStart = end - lookback + 1;
+    const window = candles.slice(windowStart, end + 1);
+
+    const swingLows = findSwingLows(window, 3);
+    if (swingLows.length < 2) continue;
+
+    // Try pairs of swing lows
+    for (let a = 0; a < swingLows.length - 1; a++) {
+      for (let b = a + 1; b < swingLows.length; b++) {
+        const i1 = swingLows[a];
+        const i2 = swingLows[b];
+        // Need some separation (at least 8 candles apart)
+        if (i2 - i1 < 8) continue;
+
+        const p1 = window[i1].low;
+        const p2 = window[i2].low;
+        // Similar price (within 0.5%)
+        const avgPrice = (p1 + p2) / 2;
+        if (Math.abs(p1 - p2) / avgPrice > 0.005) continue;
+
+        // Find the neckline: highest high between the two bottoms
+        const between = window.slice(i1, i2 + 1);
+        const neckline = Math.max(...between.map(c => c.high));
+
+        // Breakout: last candle closes above neckline
+        if (candles[end].close <= neckline) continue;
+
+        // Volume confirmation
+        const avg = avgVolume(candles.slice(windowStart, end));
+        const volRatio = candles[end].volume / (avg || 1);
+        if (volRatio < 1.2) continue;
+
+        return {
+          type: 'double-bottom',
+          startIndex: windowStart + i1,
+          endIndex: end,
+          startTime: candles[windowStart + i1].timestamp.toISOString(),
+          endTime: candles[end].timestamp.toISOString(),
+          conviction: Math.min((1 - Math.abs(p1 - p2) / avgPrice / 0.005) * (volRatio / 3), 1),
+          label: 'Double Bottom',
+          firstBottomPrice: p1,
+          secondBottomPrice: p2,
+          firstBottomIndex: windowStart + i1,
+          secondBottomIndex: windowStart + i2,
+          necklinePrice: neckline,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 7. Inside Bar Breakout
+//    One or more candles whose entire range fits within the prior "mother"
+//    bar's range, followed by a close above the mother bar's high.
+//    Lookback: 10 candles.
+// ---------------------------------------------------------------------------
+export function detectInsideBarBreakout(candles: NormalizedCandle[]): InsideBarBreakout | null {
+  if (candles.length < 4 + SKIP_OPEN) return null;
+
+  // Scan from most recent backward
+  for (let end = candles.length - 1; end >= SKIP_OPEN + 2; end--) {
+    // Walk backward to find inside bars
+    let motherIdx = end - 1;
+    let insideCount = 0;
+
+    // Count consecutive inside bars ending at end-1
+    while (motherIdx >= SKIP_OPEN + 1) {
+      const mother = candles[motherIdx - 1];
+      const child = candles[motherIdx];
+      if (child.high <= mother.high && child.low >= mother.low) {
+        insideCount++;
+        motherIdx--;
+      } else {
+        break;
+      }
+    }
+
+    if (insideCount === 0) continue;
+
+    const mother = candles[motherIdx];
+    const breakout = candles[end];
+
+    // Breakout above mother bar high
+    if (breakout.close <= mother.high) continue;
+
+    // Volume confirmation
+    const avg = avgVolume(candles.slice(Math.max(SKIP_OPEN, motherIdx - 10), motherIdx));
+    const volRatio = breakout.volume / (avg || 1);
+
+    return {
+      type: 'inside-bar-breakout',
+      startIndex: motherIdx,
+      endIndex: end,
+      startTime: candles[motherIdx].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
+      conviction: Math.min((insideCount / 4 + volRatio / 4) * 0.8, 1),
+      label: 'Inside Bar Breakout',
+      motherBarIndex: motherIdx,
+      insideBarCount: insideCount,
+      motherBarHigh: mother.high,
+      motherBarLow: mother.low,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 8. VWAP Reclaim
+//    Price dips below VWAP by ≥0.3%, then closes back above VWAP with
+//    volume ≥ 1.3× average. Lookback: 30 candles.
+// ---------------------------------------------------------------------------
+export function detectVWAPReclaim(candles: NormalizedCandle[]): VWAPReclaim | null {
+  const lookback = 30;
+  if (candles.length < lookback + SKIP_OPEN) return null;
+
+  // Compute running VWAP for the full series
+  const vwaps: number[] = [];
+  let cumTPV = 0;
+  let cumVol = 0;
+  for (const c of candles) {
+    const tp = (c.high + c.low + c.close) / 3;
+    cumTPV += tp * c.volume;
+    cumVol += c.volume;
+    vwaps.push(cumVol > 0 ? cumTPV / cumVol : c.close);
+  }
+
+  for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
+    const windowStart = end - lookback + 1;
+    const vwapNow = vwaps[end];
+
+    // Current candle must close above VWAP
+    if (candles[end].close <= vwapNow) continue;
+
+    // Find the deepest dip below VWAP in the lookback window
+    let maxDip = 0;
+    let dipIdx = -1;
+    for (let i = windowStart; i < end; i++) {
+      const dip = (vwaps[i] - candles[i].low) / vwaps[i];
+      if (dip > maxDip) {
+        maxDip = dip;
+        dipIdx = i;
+      }
+    }
+
+    if (maxDip < 0.003 || dipIdx < 0) continue; // Need ≥0.3% dip below VWAP
+
+    // Confirm the dip candle was actually below VWAP
+    if (candles[dipIdx].close >= vwaps[dipIdx]) continue;
+
+    // Volume confirmation on reclaim
+    const avg = avgVolume(candles.slice(windowStart, end));
+    const volRatio = candles[end].volume / (avg || 1);
+    if (volRatio < 1.3) continue;
+
+    return {
+      type: 'vwap-reclaim',
+      startIndex: dipIdx,
+      endIndex: end,
+      startTime: candles[dipIdx].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
+      conviction: Math.min(maxDip * 50 * (volRatio / 3), 1),
+      label: 'VWAP Reclaim',
+      vwapPrice: vwapNow,
+      dipPercent: maxDip * 100,
+      volumeRatio: volRatio,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 9. Symmetrical Triangle
+//    Converging trendlines — descending swing highs + ascending swing lows,
+//    with breakout above upper trendline. Lookback: 50 candles.
+// ---------------------------------------------------------------------------
+export function detectSymmetricalTriangle(candles: NormalizedCandle[]): SymmetricalTriangle | null {
+  const lookback = 50;
+  if (candles.length < lookback + SKIP_OPEN) return null;
+
+  for (let end = candles.length - 1; end >= SKIP_OPEN + lookback - 1; end--) {
+    const windowStart = end - lookback + 1;
+    const window = candles.slice(windowStart, end); // exclude breakout candle
+
+    const swingHighs = findSwingHighs(window, 3);
+    const swingLows = findSwingLows(window, 2);
+    if (swingHighs.length < 3 || swingLows.length < 3) continue;
+
+    // Regress with actual x positions
+    const highXY = swingHighs.map(idx => ({ x: idx, y: window[idx].high }));
+    const lowXY = swingLows.map(idx => ({ x: idx, y: window[idx].low }));
+
+    const hReg = regWithX(highXY);
+    const lReg = regWithX(lowXY);
+
+    if (hReg.r2 < 0.5 || lReg.r2 < 0.5) continue;
+
+    // Upper trendline must slope down, lower must slope up (converging)
+    if (hReg.slope >= 0 || lReg.slope <= 0) continue;
+
+    // Lines should converge within the window (intersection point ahead or near end)
+    // intersection at x = (lReg.intercept - hReg.intercept) / (hReg.slope - lReg.slope)
+    const convergenceX = (lReg.intercept - hReg.intercept) / (hReg.slope - lReg.slope);
+    if (convergenceX < window.length * 0.5) continue; // converge too early = not a triangle
+
+    // Upper trendline at last candle
+    const upperAtEnd = hReg.intercept + hReg.slope * (window.length - 1);
+
+    // Breakout above upper trendline
+    if (candles[end].close <= upperAtEnd) continue;
+
+    // Volume confirmation
+    const avg = avgVolume(candles.slice(windowStart, end));
+    const volRatio = candles[end].volume / (avg || 1);
+    if (volRatio < 1.2) continue;
+
+    return {
+      type: 'symmetrical-triangle',
+      startIndex: windowStart,
+      endIndex: end,
+      startTime: candles[windowStart].timestamp.toISOString(),
+      endTime: candles[end].timestamp.toISOString(),
+      conviction: Math.min(((hReg.r2 + lReg.r2) / 2) * (volRatio / 2.5), 1),
+      label: 'Symmetrical Triangle',
+      upperSlope: hReg.slope,
+      upperIntercept: hReg.intercept,
+      lowerSlope: lReg.slope,
+      lowerIntercept: lReg.intercept,
+      swingPointCount: swingHighs.length + swingLows.length,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Master detector — runs all patterns and returns all found
 // ---------------------------------------------------------------------------
 export function detectAllPatterns(candles: NormalizedCandle[]): PatternResult[] {
@@ -396,5 +645,13 @@ export function detectAllPatterns(candles: NormalizedCandle[]): PatternResult[] 
   if (at) results.push(at);
   const ch = detectChannelBreakout(candles);
   if (ch) results.push(ch);
+  const db = detectDoubleBottom(candles);
+  if (db) results.push(db);
+  const ib = detectInsideBarBreakout(candles);
+  if (ib) results.push(ib);
+  const vr = detectVWAPReclaim(candles);
+  if (vr) results.push(vr);
+  const st = detectSymmetricalTriangle(candles);
+  if (st) results.push(st);
   return results;
 }

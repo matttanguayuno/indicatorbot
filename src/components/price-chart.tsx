@@ -465,6 +465,93 @@ export function PriceChart({
               </g>
             );
           }
+          case 'double-bottom': {
+            const y1 = yPrice(p.firstBottomPrice);
+            const y2 = yPrice(p.secondBottomPrice);
+            const ny = yPrice(p.necklinePrice);
+            const i1 = Math.max(0, p.firstBottomIndex - zStart);
+            const i2 = Math.max(0, Math.min(visCandles.length - 1, p.secondBottomIndex - zStart));
+            return (
+              <g key={pi} {...gProps}>
+                {/* Bottom markers */}
+                <circle cx={x(i1)} cy={y1} r={4} fill={patternColor} opacity={0.7} />
+                <circle cx={x(i2)} cy={y2} r={4} fill={patternColor} opacity={0.7} />
+                {/* Neckline */}
+                <line x1={x(clampedStart)} y1={ny} x2={x(clampedEnd)} y2={ny}
+                  stroke={patternColor} strokeWidth={strokeW} strokeDasharray="4,3" />
+                {/* W-shape connecting line */}
+                <polyline
+                  points={`${x(i1)},${y1} ${x(Math.round((i1 + i2) / 2))},${ny} ${x(i2)},${y2}`}
+                  fill="none" stroke={patternColor} strokeWidth={strokeW} opacity={0.5} />
+                <text x={x(clampedStart) + 4} y={ny - 6} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'inside-bar-breakout': {
+            const mi = Math.max(0, p.motherBarIndex - zStart);
+            const mh = yPrice(p.motherBarHigh);
+            const ml = yPrice(p.motherBarLow);
+            return (
+              <g key={pi} {...gProps}>
+                {/* Mother bar range */}
+                <rect x={x(mi) - barW} y={mh} width={x(clampedEnd) - x(mi) + barW * 2}
+                  height={ml - mh}
+                  fill={patternFill} stroke={patternColor} strokeWidth={strokeW} strokeDasharray="3,2" />
+                {/* Breakout level */}
+                <line x1={x(mi)} y1={mh} x2={x(clampedEnd)} y2={mh}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                <text x={x(mi) + 4} y={mh - 6} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'vwap-reclaim': {
+            const vy = yPrice(p.vwapPrice);
+            return (
+              <g key={pi} {...gProps}>
+                {/* VWAP line */}
+                <line x1={x(clampedStart)} y1={vy} x2={x(clampedEnd)} y2={vy}
+                  stroke={patternColor} strokeWidth={strokeW} strokeDasharray="6,3" />
+                {/* Label */}
+                <text x={x(clampedEnd) + 4} y={vy - 6} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+                {/* Arrow up at reclaim point */}
+                <polygon
+                  points={`${x(clampedEnd)},${vy - 10} ${x(clampedEnd) - 5},${vy - 2} ${x(clampedEnd) + 5},${vy - 2}`}
+                  fill={patternColor} />
+              </g>
+            );
+          }
+          case 'symmetrical-triangle': {
+            const startOffset = p.startIndex - zStart;
+            const upperY1 = yPrice(p.upperIntercept + p.upperSlope * Math.max(0, -startOffset));
+            const upperY2 = yPrice(p.upperIntercept + p.upperSlope * (clampedEnd - startOffset));
+            const lowerY1 = yPrice(p.lowerIntercept + p.lowerSlope * Math.max(0, -startOffset));
+            const lowerY2 = yPrice(p.lowerIntercept + p.lowerSlope * (clampedEnd - startOffset));
+            return (
+              <g key={pi} {...gProps}>
+                <line x1={x(clampedStart)} y1={upperY1} x2={x(clampedEnd)} y2={upperY2}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                <line x1={x(clampedStart)} y1={lowerY1} x2={x(clampedEnd)} y2={lowerY2}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                <polygon
+                  points={[
+                    `${x(clampedStart)},${upperY1}`,
+                    `${x(clampedEnd)},${upperY2}`,
+                    `${x(clampedEnd)},${lowerY2}`,
+                    `${x(clampedStart)},${lowerY1}`,
+                  ].join(' ')}
+                  fill={patternFill} />
+                <text x={x(clampedStart) + 4} y={Math.min(upperY1, upperY2) - 6} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
           default:
             return null;
         }

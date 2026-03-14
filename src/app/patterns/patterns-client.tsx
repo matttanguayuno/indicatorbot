@@ -79,6 +79,56 @@ const PATTERN_REFERENCE = [
     ],
     lookback: 53,
   },
+  {
+    type: 'double-bottom',
+    name: 'Double Bottom',
+    icon: 'W',
+    description: 'Two swing lows at similar price forming a "W" shape, followed by a breakout above the neckline.',
+    criteria: [
+      'Two swing lows within 0.5% of each other',
+      'At least 8 candles apart',
+      'Neckline = highest high between bottoms',
+      'Close above neckline + volume ≥ 1.2×',
+    ],
+    lookback: 50,
+  },
+  {
+    type: 'inside-bar-breakout',
+    name: 'Inside Bar Breakout',
+    icon: '▯',
+    description: 'One or more candles contained within the prior "mother" bar\'s range, then price breaks above.',
+    criteria: [
+      'Child bar high ≤ mother bar high',
+      'Child bar low ≥ mother bar low',
+      'Breakout close above mother bar high',
+    ],
+    lookback: 10,
+  },
+  {
+    type: 'vwap-reclaim',
+    name: 'VWAP Reclaim',
+    icon: '↗',
+    description: 'Price dips below VWAP then reclaims it with volume, signaling buyers regaining control.',
+    criteria: [
+      'Price dips ≥ 0.3% below VWAP',
+      'Close returns above VWAP',
+      'Volume ≥ 1.3× average on reclaim candle',
+    ],
+    lookback: 30,
+  },
+  {
+    type: 'symmetrical-triangle',
+    name: 'Symmetrical Triangle',
+    icon: '◇',
+    description: 'Converging trendlines — descending highs and ascending lows — squeezing price into an apex breakout.',
+    criteria: [
+      'Upper trendline slopes down, lower slopes up',
+      'Both trendlines R² ≥ 0.5',
+      '≥ 3 swing points on each line',
+      'Close above upper trendline + volume ≥ 1.2×',
+    ],
+    lookback: 50,
+  },
 ];
 
 export function PatternsClient() {
@@ -213,6 +263,14 @@ export function PatternsClient() {
           return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Resistance $${p.resistancePrice.toFixed(2)} · ${p.swingLowIndices.length} swing lows` };
         case 'channel-breakout':
           return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Upper slope ${p.upperSlope.toFixed(4)} · Lower ${p.lowerSlope.toFixed(4)}` };
+        case 'double-bottom':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Bottoms $${p.firstBottomPrice.toFixed(2)} / $${p.secondBottomPrice.toFixed(2)} · Neckline $${p.necklinePrice.toFixed(2)}` };
+        case 'inside-bar-breakout':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `${p.insideBarCount} inside bar${p.insideBarCount > 1 ? 's' : ''} · Mother high $${p.motherBarHigh.toFixed(2)}` };
+        case 'vwap-reclaim':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `VWAP $${p.vwapPrice.toFixed(2)} · Dip ${p.dipPercent.toFixed(1)}% · Vol ${p.volumeRatio.toFixed(1)}×` };
+        case 'symmetrical-triangle':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `${p.swingPointCount} swing points · Converging trendlines` };
       }
     });
   }, [patterns]);
@@ -382,7 +440,7 @@ export function PatternsClient() {
       {/* Pattern Reference */}
       <div className="space-y-3">
         <h2 className="text-base font-semibold text-zinc-300">Pattern Reference</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {PATTERN_REFERENCE.map((ref) => (
             <div
               key={ref.type}
@@ -473,6 +531,51 @@ function PatternIcon({ type }: { type: string }) {
           <line x1="8" y1="52" x2="85" y2="66" stroke={stroke} strokeWidth="1" />
           <polygon points="8,20 85,34 85,66 8,52" fill={fill} />
           <polyline points="22,46 40,40 58,44 75,36 85,34 100,16 112,10" fill="none" stroke={stroke} strokeWidth="2.5" />
+        </svg>
+      );
+    case 'double-bottom':
+      // W shape with neckline
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <line x1="8" y1="22" x2="112" y2="22" stroke={stroke} strokeWidth="1" strokeDasharray="5,3" opacity="0.5" />
+          <polyline points="12,24 25,62 42,24 60,64 78,24 95,18 112,10" fill="none" stroke={stroke} strokeWidth="2.5" />
+          <circle cx="25" cy="62" r="4" fill={stroke} opacity="0.6" />
+          <circle cx="60" cy="64" r="4" fill={stroke} opacity="0.6" />
+          <text x="42" y="18" fill={stroke} fontSize="9" opacity="0.6" textAnchor="middle">neckline</text>
+        </svg>
+      );
+    case 'inside-bar-breakout':
+      // Mother bar with smaller bars inside, then breakout
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <rect x="20" y="12" width="16" height="56" fill={fill} stroke={stroke} strokeWidth="1.5" rx="1" />
+          <rect x="40" y="22" width="12" height="36" fill={fill} stroke={stroke} strokeWidth="1" rx="1" opacity="0.6" />
+          <rect x="56" y="26" width="12" height="28" fill={fill} stroke={stroke} strokeWidth="1" rx="1" opacity="0.6" />
+          <rect x="72" y="24" width="12" height="32" fill={fill} stroke={stroke} strokeWidth="1" rx="1" opacity="0.6" />
+          <line x1="20" y1="12" x2="100" y2="12" stroke={stroke} strokeWidth="1" strokeDasharray="4,2" />
+          <polyline points="88,14 96,8 112,4" fill="none" stroke={accent} strokeWidth="2.5" />
+          <text x="28" y="76" fill={stroke} fontSize="8" textAnchor="middle" opacity="0.6">mother</text>
+        </svg>
+      );
+    case 'vwap-reclaim':
+      // Price dips below VWAP line then reclaims
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <line x1="8" y1="36" x2="112" y2="36" stroke={stroke} strokeWidth="1.5" strokeDasharray="6,3" />
+          <polyline points="8,30 22,32 36,38 50,52 62,58 72,48 82,38 92,34 102,28 112,20" fill="none" stroke={stroke} strokeWidth="2.5" />
+          <text x="112" y="46" fill={stroke} fontSize="9" opacity="0.6">VWAP</text>
+          <polygon points="102,24 97,32 107,32" fill={accent} opacity="0.7" />
+        </svg>
+      );
+    case 'symmetrical-triangle':
+      // Converging trendlines
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <line x1="8" y1="12" x2="85" y2="36" stroke={stroke} strokeWidth="1" />
+          <line x1="8" y1="68" x2="85" y2="44" stroke={stroke} strokeWidth="1" />
+          <polygon points="8,12 85,36 85,44 8,68" fill={fill} />
+          <polyline points="12,16 25,60 40,22 55,52 70,34 85,40 100,18 112,10" fill="none" stroke={stroke} strokeWidth="2" />
+          <polyline points="85,38 100,18 112,10" fill="none" stroke={accent} strokeWidth="2.5" />
         </svg>
       );
     default:
