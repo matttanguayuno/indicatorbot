@@ -82,7 +82,7 @@ export function ApiCallsClient() {
     });
 
   return (
-    <div className="space-y-4 pb-24 overflow-x-hidden">
+    <div className="space-y-4 pb-24">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">API Call Log</h1>
         <div className="flex items-center gap-4">
@@ -138,7 +138,7 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        <div className="overflow-x-hidden">
+        <div>
           <table className="w-full text-sm">
             <colgroup>
               <col className="w-28" />
@@ -230,10 +230,10 @@ function CreditChart({ entries }: { entries: LogEntry[] }) {
   const labelEvery = Math.max(1, Math.ceil(data.length / 12));
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4">
+    <div className="bg-zinc-900 rounded-lg p-4 overflow-hidden">
       <h2 className="text-sm font-semibold text-zinc-400 mb-3">Credits Per Minute</h2>
-      <div className="overflow-x-auto -mx-4 px-4">
-        <svg width={chartW + 40} height={chartH + 28} style={{ minWidth: chartW + 40 }}>
+      <div className="overflow-x-auto">
+        <svg width={chartW + 40} height={chartH + 28}>
           {/* 55-credit limit line */}
           {maxCredits >= LIMIT * 0.5 && (() => {
             const y = chartH - (LIMIT / Math.max(maxCredits, LIMIT)) * chartH;
