@@ -313,7 +313,7 @@ export function SettingsClient() {
             </div>
           </div>
           <p className="text-xs text-gray-500 -mt-2">
-            Keyword = free pattern matching. AI = GPT-4o-mini per news cycle. Off = no scoring.
+            Keyword = free pattern matching. AI = GPT-4o-mini at news fetch times. Off = no scoring.
           </p>
 
           <button

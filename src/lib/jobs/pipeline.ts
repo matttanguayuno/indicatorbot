@@ -522,9 +522,9 @@ export async function runPollingCycle(): Promise<{
     console.error('[Pipeline] Sell alert check failed:', err instanceof Error ? err.message : err);
   }
 
-  // 9) Score any unscored news headlines
+  // 9) Score any unscored news headlines (keyword only — AI runs at news fetch times)
   try {
-    await applySentiment();
+    await applySentiment(true);
   } catch (err) {
     console.error('[Pipeline] Sentiment scoring failed:', err instanceof Error ? err.message : err);
   }

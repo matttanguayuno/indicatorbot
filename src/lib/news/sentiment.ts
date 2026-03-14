@@ -85,9 +85,9 @@ export async function classifyAI(items: { id: number; headline: string }[]): Pro
 
 // ── Apply sentiment to unscored news items ─────────────────────────────
 
-export async function applySentiment(): Promise<number> {
+export async function applySentiment(keywordOnly = false): Promise<number> {
   const settings = await prisma.appSettings.findFirst();
-  const method = settings?.sentimentMethod ?? 'keyword';
+  const method = keywordOnly ? 'keyword' : (settings?.sentimentMethod ?? 'keyword');
 
   if (method === 'off') return 0;
 
