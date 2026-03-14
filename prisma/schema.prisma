@@ -204,6 +204,7 @@ model NewsItem {
   url       String?
   summary   String?
   sentiment String?
+  sentimentSource String?  // "keyword" or "ai" — tracks which method scored it
   publishedAt DateTime
   fetchedAt   DateTime @default(now())
 

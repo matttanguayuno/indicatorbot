@@ -101,21 +101,27 @@ export async function applySentiment(keywordOnly = false): Promise<number> {
 
   if (method === 'off') return 0;
 
-  // In AI mode (at news summary times), re-score all articles from last 48h
-  // — this overwrites keyword placeholders with deeper AI analysis
+  // In AI mode (at news summary times), score articles not yet AI-scored
+  // — this upgrades keyword placeholders with deeper AI analysis
   if (method === 'ai') {
     const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
-    const recent = await prisma.newsItem.findMany({
-      where: { publishedAt: { gte: cutoff } },
+    const needsAI = await prisma.newsItem.findMany({
+      where: {
+        publishedAt: { gte: cutoff },
+        OR: [
+          { sentimentSource: null },
+          { sentimentSource: 'keyword' },
+        ],
+      },
       select: { id: true, headline: true, summary: true },
       take: 200,
     });
 
-    if (recent.length === 0) return 0;
+    if (needsAI.length === 0) return 0;
 
-    const classified = await classifyAI(recent);
+    const classified = await classifyAI(needsAI);
     // Fill any AI didn't return with keyword fallback
-    for (const item of recent) {
+    for (const item of needsAI) {
       if (!classified.has(item.id)) {
         classified.set(item.id, classifyKeyword(item.headline));
       }
@@ -123,7 +129,7 @@ export async function applySentiment(keywordOnly = false): Promise<number> {
 
     let count = 0;
     for (const [id, sentiment] of classified) {
-      await prisma.newsItem.update({ where: { id }, data: { sentiment } });
+      await prisma.newsItem.update({ where: { id }, data: { sentiment, sentimentSource: 'ai' } });
       count++;
     }
     console.log(`[Sentiment] AI-scored ${count} recent articles`);
@@ -142,7 +148,7 @@ export async function applySentiment(keywordOnly = false): Promise<number> {
   let count = 0;
   for (const item of unscored) {
     const sentiment = classifyKeyword(item.headline);
-    await prisma.newsItem.update({ where: { id: item.id }, data: { sentiment } });
+    await prisma.newsItem.update({ where: { id: item.id }, data: { sentiment, sentimentSource: 'keyword' } });
     count++;
   }
 
