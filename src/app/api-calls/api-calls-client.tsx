@@ -138,15 +138,23 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        <div className="-mx-4 px-4">
+        <div className="overflow-x-hidden">
           <table className="w-full text-sm">
+            <colgroup>
+              <col className="w-28" />
+              <col className="w-20" />
+              <col className="w-16" />
+              <col className="w-16" />
+              <col className="w-12" />
+              <col />
+            </colgroup>
             <thead>
-              <tr className="text-left text-zinc-400 border-b border-zinc-800">
-                <th className="py-2 pr-3">Time</th>
-                <th className="py-2 pr-3">Source</th>
-                <th className="py-2 pr-3 text-right">Tickers</th>
-                <th className="py-2 pr-3 text-right">Credits</th>
-                <th className="py-2 pr-3">Status</th>
+              <tr className="text-left text-zinc-400 border-b border-zinc-800 text-xs">
+                <th className="py-2 pr-2">Time</th>
+                <th className="py-2 pr-2">Source</th>
+                <th className="py-2 pr-2 text-right">Tickers</th>
+                <th className="py-2 pr-2 text-right">Credits</th>
+                <th className="py-2 pr-2">Status</th>
                 <th className="py-2">Detail</th>
               </tr>
             </thead>
@@ -173,10 +181,10 @@ export function ApiCallsClient() {
                         {formatTime(e.timestamp)}
                         {isBusy && <span className="ml-1 text-amber-400 font-semibold" title={`${count} calls this minute`}>×{count}</span>}
                       </td>
-                      <td className={`py-1.5 pr-3 text-xs font-medium ${sourceColor}`}>{source}</td>
-                      <td className="py-1.5 pr-3 text-xs text-right" title={e.symbols}>{e.symbols.split(',').length}</td>
-                      <td className="py-1.5 pr-3 text-xs text-right">{e.credits}</td>
-                      <td className={`py-1.5 pr-3 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
+                      <td className={`py-1.5 pr-2 text-xs font-medium ${sourceColor}`}>{source}</td>
+                      <td className="py-1.5 pr-2 text-xs text-right" title={e.symbols}>{e.symbols.split(',').length}</td>
+                      <td className="py-1.5 pr-2 text-xs text-right">{e.credits}</td>
+                      <td className={`py-1.5 pr-2 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
                       <td className="py-1.5 text-xs text-zinc-500 truncate" title={e.detail}>{e.detail}</td>
                     </tr>
                   );
