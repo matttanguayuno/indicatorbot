@@ -145,9 +145,10 @@ export function PatternsClient() {
   const [detecting, setDetecting] = useState(false);
   const [chartSource, setChartSource] = useState('');
   const [lockedPattern, setLockedPattern] = useState<number | null>(null);
-  const [hoveredPattern, setHoveredPattern] = useState<number | null>(null);
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null);
-  const highlightedPattern = lockedPattern ?? hoveredPattern;
+  const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const highlightedPattern = lockedPattern;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const searchRef = useRef<HTMLDivElement>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -206,7 +207,7 @@ export function PatternsClient() {
     setPatterns([]);
     setCandles([]);
     setLockedPattern(null);
-    setHoveredPattern(null);
+    setPopupPos(null);
 
     try {
       // 1. Fetch chart candles
@@ -360,77 +361,84 @@ export function PatternsClient() {
         <div className="text-xs text-zinc-500">{activeSymbol} — {chartSource}</div>
       )}
 
-      {/* Chart + Results side by side */}
-      {(candles.length >= 2 || (activeSymbol && !loading)) && (
-        <div className="flex gap-4 flex-col lg:flex-row">
-          {/* Chart */}
-          {candles.length >= 2 && (
-            <div className="bg-zinc-900 rounded-lg p-3 overflow-hidden flex-1 min-w-0">
-              <div className="w-full aspect-[900/400]">
-                <PriceChart
-                  candles={candles}
-                  patterns={patterns.length > 0 ? patterns : undefined}
-                  highlightPatternIndex={highlightedPattern}
-                  onPatternClick={(i) => setLockedPattern(lockedPattern === i ? null : i)}
-                  width={900}
-                  height={400}
-                />
-              </div>
-            </div>
-          )}
+      {/* Chart with pattern popup */}
+      {candles.length >= 2 && (
+        <div ref={chartContainerRef} className="relative bg-zinc-900 rounded-lg p-3 overflow-hidden">
+          <div className="w-full aspect-[900/400]">
+            <PriceChart
+              candles={candles}
+              patterns={patterns.length > 0 ? patterns : undefined}
+              highlightPatternIndex={highlightedPattern}
+              onPatternClick={(i, pos) => {
+                if (lockedPattern === i) {
+                  setLockedPattern(null);
+                  setPopupPos(null);
+                } else {
+                  setLockedPattern(i);
+                  setPopupPos(pos ?? null);
+                }
+              }}
+              width={900}
+              height={400}
+            />
+          </div>
 
-          {/* Results panel */}
-          {!loading && !detecting && activeSymbol && (
-            <div className="lg:w-72 shrink-0 space-y-2">
-              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
-                {patterns.length === 0 ? 'No Patterns' : `${patterns.length} Pattern${patterns.length > 1 ? 's' : ''}`}
-              </h2>
-
-              {patterns.length === 0 && candles.length > 0 && (
-                <p className="text-sm text-zinc-500">No breakout patterns detected in {candles.length} candles. Try a different timeframe or stock.</p>
-              )}
-
-              {patternDetails && patternDetails.map((detail, i) => {
-                const cc = convictionClasses(detail.conviction);
-                const isLocked = lockedPattern === i;
-                const isHovered = hoveredPattern === i && !isLocked;
-                return (
-                  <div
-                    key={i}
-                    className={`rounded-lg p-3 cursor-pointer transition-all border text-sm ${
-                      isLocked
-                        ? `${cc.bg} ${cc.border} ring-1 ${cc.ring}`
-                        : isHovered
-                        ? `bg-zinc-800 ${cc.border}`
-                        : 'bg-zinc-900 border-zinc-800 hover:bg-zinc-800/50'
-                    }`}
-                    onMouseEnter={() => setHoveredPattern(i)}
-                    onMouseLeave={() => setHoveredPattern(null)}
-                    onClick={() => setLockedPattern(lockedPattern === i ? null : i)}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`font-medium ${cc.accent}`}>{detail.label}</span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          title="View in Pattern Reference"
-                          className="text-zinc-500 hover:text-zinc-300 transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            scrollToRef(detail.type);
-                          }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        </button>
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cc.badge}`}>{detail.conviction}%</span>
-                      </div>
-                    </div>
-                    <div className="text-zinc-400">{detail.details}</div>
+          {/* Pattern popup */}
+          {lockedPattern != null && patternDetails && patternDetails[lockedPattern] && popupPos && (() => {
+            const detail = patternDetails[lockedPattern];
+            const cc = convictionClasses(detail.conviction);
+            const container = chartContainerRef.current;
+            const cw = container?.clientWidth ?? 900;
+            const ch = container?.clientHeight ?? 400;
+            // Position popup near click, but keep it inside the chart
+            const popupW = 260;
+            const popupH = 80;
+            let px = popupPos.x + 12;
+            let py = popupPos.y - popupH - 8;
+            if (px + popupW > cw - 12) px = popupPos.x - popupW - 12;
+            if (py < 8) py = popupPos.y + 16;
+            if (px < 8) px = 8;
+            return (
+              <div
+                className={`absolute z-30 rounded-lg p-3 border shadow-xl text-sm backdrop-blur-sm ${cc.bg} ${cc.border}`}
+                style={{ left: px, top: py, width: popupW }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`font-semibold ${cc.accent}`}>{detail.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      title="View in Pattern Reference"
+                      className="text-zinc-400 hover:text-zinc-200 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        scrollToRef(detail.type);
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </button>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cc.badge}`}>{detail.conviction}%</span>
+                    <button
+                      className="text-zinc-500 hover:text-zinc-300 ml-1"
+                      onClick={() => { setLockedPattern(null); setPopupPos(null); }}
+                    >
+                      ✕
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+                <div className="text-zinc-400 text-xs">{detail.details}</div>
+              </div>
+            );
+          })()}
         </div>
+      )}
+
+      {/* Detection summary */}
+      {!loading && !detecting && activeSymbol && candles.length > 0 && patterns.length === 0 && (
+        <p className="text-sm text-zinc-500">No breakout patterns detected in {candles.length} candles. Try a different timeframe or stock.</p>
+      )}
+
+      {!loading && !detecting && patterns.length > 0 && (
+        <p className="text-sm text-zinc-400">{patterns.length} pattern{patterns.length > 1 ? 's' : ''} detected — click overlays on the chart for details.</p>
       )}
 
       {detecting && (

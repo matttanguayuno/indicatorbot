@@ -16,7 +16,7 @@ interface PriceChartProps {
   candles: Candle[];
   patterns?: PatternResult[];
   highlightPatternIndex?: number | null;
-  onPatternClick?: (index: number) => void;
+  onPatternClick?: (index: number, clickPos?: { x: number; y: number }) => void;
   width?: number;
   height?: number;
   className?: string;
@@ -334,7 +334,7 @@ export function PriceChart({
         const gProps = {
           opacity,
           style: { cursor: onPatternClick ? 'pointer' : undefined } as React.CSSProperties,
-          onClick: onPatternClick ? (e: React.MouseEvent) => { e.stopPropagation(); onPatternClick(pi); } : undefined,
+          onClick: onPatternClick ? (e: React.MouseEvent) => { e.stopPropagation(); const rect = svgRef.current?.getBoundingClientRect(); onPatternClick(pi, rect ? { x: e.clientX - rect.left, y: e.clientY - rect.top } : undefined); } : undefined,
         };
 
         switch (p.type) {
