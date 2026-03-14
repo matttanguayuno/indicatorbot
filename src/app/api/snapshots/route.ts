@@ -43,6 +43,15 @@ function parseSince(value: string): Date | null {
   return isNaN(iso.getTime()) ? null : iso;
 }
 
+/** Mon–Fri, 9:30 AM – 4:00 PM ET */
+function isMarketOpenET(): boolean {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay();
+  const time = et.getHours() * 60 + et.getMinutes();
+  return day >= 1 && day <= 5 && time >= 570 && time < 960;
+}
+
 export async function GET(req: NextRequest) {
   const limit = Math.min(
     parseInt(req.nextUrl.searchParams.get('limit') ?? '20', 10),
@@ -126,6 +135,13 @@ export async function GET(req: NextRequest) {
   const results = snapshots
     .filter((s): s is NonNullable<typeof s> => s !== null)
     .filter((s) => s.signalScore >= watchlistThreshold)
+    // When market is closed, hide snapshots that haven't been refreshed recently.
+    // The pipeline skips stale tickers, so a stale timestamp means no fresh data.
+    .filter((s) => {
+      if (isMarketOpenET()) return true;
+      const ageMs = Date.now() - new Date(s.timestamp).getTime();
+      return ageMs < 10 * 60 * 1000; // 10 minutes
+    })
     .sort((a, b) => b.signalScore - a.signalScore)
     .slice(0, limit);
 
