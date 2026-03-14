@@ -43,6 +43,7 @@ export function DashboardClient() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [polling, setPolling] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  const [scoreThreshold, setScoreThreshold] = useState(0);
   const [chartDataMap, setChartDataMap] = useState<Record<string, { closes: number[]; times: string[] }>>({}); 
   const [feedbackMap, setFeedbackMap] = useState<Record<string, { rating: string; note: string | null; snapshotId: number }>>({}); 
 
@@ -153,6 +154,7 @@ export function DashboardClient() {
         if (res.ok) {
           const settings = await res.json();
           intervalSec = settings.pollingIntervalSec ?? 60;
+          setScoreThreshold(settings.watchlistThreshold ?? 0);
         }
       } catch { /* default 60s */ }
 
@@ -217,7 +219,7 @@ export function DashboardClient() {
       )}
 
       {/* Hero section — top-scoring stock + score evolution */}
-      {snapshots.length > 0 && marketOpen && (
+      {snapshots.length > 0 && (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
           <HeroCard s={snapshots[0]} chartData={chartDataMap[snapshots[0].symbol] ?? { closes: [], times: [] }} feedback={feedbackMap[snapshots[0].symbol] ?? null} />
           <ScoreEvolutionPanel snapshots={snapshots} />
@@ -225,7 +227,6 @@ export function DashboardClient() {
       )}
 
       {/* Remaining cards */}
-      {marketOpen && (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mt-4">
         {snapshots.slice(1).map((s) => (
           <Link
@@ -318,14 +319,19 @@ export function DashboardClient() {
           </Link>
         ))}
       </div>
-      )}
 
-      {!loading && !marketOpen && snapshots.length > 0 && (
-        <div className="text-center text-gray-500 py-12">
-          <p className="text-lg">Market is closed</p>
-          <p className="text-sm mt-1">Opportunities will appear during market hours (9:30 AM – 4:00 PM ET, Mon–Fri).</p>
-        </div>
-      )}
+      {!loading && snapshots.length === 0 && allSnapshots.length > 0 && (() => {
+        const topScore = Math.max(...allSnapshots.map(s => s.signalScore));
+        return (
+          <div className="text-center text-gray-500 py-8">
+            <p className="text-lg">No opportunities right now</p>
+            <p className="text-sm mt-1">
+              No watchlist stocks have a score above {scoreThreshold}.
+              {topScore > 0 && <> Highest score: {topScore}.</>}
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
