@@ -272,7 +272,7 @@ export function PriceChart({
       onPointerUp={handlePointerUp}
       onPointerLeave={(e) => { handlePointerUp(e); handlePointerLeave(); }}
       onDoubleClick={() => setZoom([0, 1])}
-      style={{ touchAction: 'none', width: '100%', height: '100%', cursor: isZoomed ? 'grab' : 'crosshair' }}
+      style={{ touchAction: 'none', userSelect: 'none', width: '100%', height: '100%', cursor: isZoomed ? 'grab' : 'crosshair' }}
     >
       {/* Grid lines */}
       {yTicks.map((t, i) => (
@@ -324,8 +324,8 @@ export function PriceChart({
 
         const isHighlighted = highlightPatternIndex === pi;
         const dimmed = highlightPatternIndex != null && !isHighlighted;
-        const patternColor = isHighlighted ? '#fbbf24' : '#facc15'; // brighter yellow when highlighted
-        const patternFill = isHighlighted ? '#fbbf2440' : dimmed ? '#facc1508' : '#facc1518';
+        const patternColor = isHighlighted ? '#93c5fd' : '#60a5fa'; // blue overlay
+        const patternFill = isHighlighted ? '#93c5fd30' : dimmed ? '#60a5fa08' : '#60a5fa18';
         const strokeW = isHighlighted ? 2 : 1;
         const opacity = dimmed ? 0.3 : 1;
         const gProps = {
@@ -530,8 +530,8 @@ export function PriceChart({
         </g>
       )}
 
-      {/* Full-area hit target */}
-      <rect x={0} y={0} width={width} height={height} fill="transparent" />
+      {/* Full-area hit target (pointer-events none so pattern overlays are clickable) */}
+      <rect x={0} y={0} width={width} height={height} fill="transparent" pointerEvents="none" />
     </svg>
     </div>
   );

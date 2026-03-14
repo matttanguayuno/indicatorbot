@@ -361,14 +361,14 @@ export function PatternsClient() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {PATTERN_REFERENCE.map((ref) => (
             <div key={ref.type} className="bg-zinc-900 rounded-lg p-4 space-y-3">
-              <div className="text-sm font-semibold text-zinc-200">{ref.name}</div>
+              <div className="text-base font-semibold text-zinc-200">{ref.name}</div>
               <div className="flex justify-center">
                 <PatternIcon type={ref.type} />
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed">{ref.description}</p>
+              <p className="text-sm text-zinc-400 leading-relaxed">{ref.description}</p>
               <div className="space-y-1">
                 {ref.criteria.map((c, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-xs">
+                  <div key={i} className="flex items-start gap-1.5 text-sm">
                     <span className="text-yellow-500 mt-0.5">•</span>
                     <span className="text-zinc-500">{c}</span>
                   </div>
@@ -390,59 +390,59 @@ function convictionClasses(pct: number) {
 
 /** Abstract SVG icon showing the general shape of each pattern */
 function PatternIcon({ type }: { type: string }) {
-  const w = 120;
-  const h = 80;
-  const stroke = '#facc15';
-  const fill = '#facc1530';
+  const w = 160;
+  const h = 100;
+  const stroke = '#60a5fa';
+  const fill = '#60a5fa20';
+  const accent = '#4ade80';
 
   switch (type) {
     case 'volume-breakout':
-      // Flat resistance line, price pops above with tall volume bar
       return (
-        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
-          <line x1="2" y1="10" x2="26" y2="10" stroke={stroke} strokeWidth="1" strokeDasharray="2,1" />
-          <polyline points="2,18 10,14 18,12 22,11 26,10 30,6 34,4" fill="none" stroke={stroke} strokeWidth="1.5" />
-          <rect x="28" y="16" width="4" height="8" fill={stroke} opacity="0.5" rx="0.5" />
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <line x1="8" y1="35" x2="85" y2="35" stroke={stroke} strokeWidth="1.5" strokeDasharray="5,3" />
+          <polyline points="8,60 25,50 42,44 58,40 72,36 85,34 98,20 112,12" fill="none" stroke={stroke} strokeWidth="2.5" />
+          <rect x="92" y="50" width="12" height="26" fill={stroke} opacity="0.5" rx="1.5" />
+          <rect x="78" y="58" width="10" height="18" fill={stroke} opacity="0.25" rx="1" />
         </svg>
       );
     case 'consolidation-breakout':
-      // Narrowing bands then breakout
       return (
-        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
-          <path d="M2,4 Q10,2 18,8 Q24,10 28,10" fill="none" stroke={stroke} strokeWidth="0.7" opacity="0.5" />
-          <path d="M2,20 Q10,22 18,16 Q24,14 28,14" fill="none" stroke={stroke} strokeWidth="0.7" opacity="0.5" />
-          <rect x="8" y="8" width="18" height="8" fill={fill} rx="1" />
-          <polyline points="2,14 10,13 18,12 24,12 28,12 32,5 34,3" fill="none" stroke={stroke} strokeWidth="1.5" />
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <path d="M8,14 Q30,8 55,28 Q75,36 90,36" fill="none" stroke={stroke} strokeWidth="1" opacity="0.5" />
+          <path d="M8,66 Q30,72 55,52 Q75,44 90,44" fill="none" stroke={stroke} strokeWidth="1" opacity="0.5" />
+          <rect x="25" y="28" width="60" height="24" fill={fill} rx="2" />
+          <polyline points="8,46 25,44 42,40 58,40 75,40 90,38 102,18 112,10" fill="none" stroke={stroke} strokeWidth="2.5" />
         </svg>
       );
     case 'bull-flag':
-      // Sharp pole up, then shallow pullback flag
       return (
-        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
-          <polyline points="2,20 6,18 10,6 12,4" fill="none" stroke="#4ade80" strokeWidth="1.5" />
-          <rect x="12" y="4" width="16" height="8" fill={fill} rx="1" />
-          <polyline points="12,4 16,6 20,7 24,8 28,9" fill="none" stroke={stroke} strokeWidth="1" strokeDasharray="2,1" />
-          <polyline points="28,9 32,5 34,3" fill="none" stroke={stroke} strokeWidth="1.5" />
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <polyline points="8,68 18,60 30,22 38,14" fill="none" stroke={accent} strokeWidth="2.5" />
+          <rect x="38" y="14" width="50" height="26" fill={fill} rx="2" />
+          <polyline points="38,14 50,20 62,24 75,27 88,30" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="4,2" />
+          <polyline points="88,30 100,16 112,10" fill="none" stroke={stroke} strokeWidth="2.5" />
         </svg>
       );
     case 'ascending-triangle':
-      // Flat top, rising lows forming triangle
       return (
-        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
-          <line x1="4" y1="6" x2="30" y2="6" stroke={stroke} strokeWidth="1" strokeDasharray="2,1" />
-          <polyline points="4,20 12,16 20,12 28,8" fill="none" stroke={stroke} strokeWidth="1" />
-          <polygon points="4,6 4,20 28,6" fill={fill} />
-          <polyline points="28,8 32,4 34,2" fill="none" stroke={stroke} strokeWidth="1.5" />
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <line x1="12" y1="20" x2="95" y2="20" stroke={stroke} strokeWidth="1.5" strokeDasharray="5,3" />
+          <polyline points="12,68 35,54 58,40 82,28" fill="none" stroke={stroke} strokeWidth="1.5" />
+          <polygon points="12,20 12,68 90,20" fill={fill} />
+          <polyline points="82,28 100,14 112,8" fill="none" stroke={stroke} strokeWidth="2.5" />
+          <circle cx="12" cy="68" r="3" fill={stroke} opacity="0.5" />
+          <circle cx="35" cy="54" r="3" fill={stroke} opacity="0.5" />
+          <circle cx="58" cy="40" r="3" fill={stroke} opacity="0.5" />
         </svg>
       );
     case 'channel-breakout':
-      // Two parallel lines, breakout above upper
       return (
-        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
-          <line x1="2" y1="6" x2="26" y2="10" stroke={stroke} strokeWidth="0.7" />
-          <line x1="2" y1="16" x2="26" y2="20" stroke={stroke} strokeWidth="0.7" />
-          <polygon points="2,6 26,10 26,20 2,16" fill={fill} />
-          <polyline points="8,14 14,12 20,13 26,10 30,5 34,3" fill="none" stroke={stroke} strokeWidth="1.5" />
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          <line x1="8" y1="20" x2="85" y2="34" stroke={stroke} strokeWidth="1" />
+          <line x1="8" y1="52" x2="85" y2="66" stroke={stroke} strokeWidth="1" />
+          <polygon points="8,20 85,34 85,66 8,52" fill={fill} />
+          <polyline points="22,46 40,40 58,44 75,36 85,34 100,16 112,10" fill="none" stroke={stroke} strokeWidth="2.5" />
         </svg>
       );
     default:
