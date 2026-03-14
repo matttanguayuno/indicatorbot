@@ -137,7 +137,7 @@ export function ApiCallsClient() {
         <p className="text-zinc-500 text-sm">No API calls logged yet.</p>
       ) : (
         <>
-        <CreditChart entries={entries} />
+        {/* <CreditChart entries={entries} />
         <div>
           <table className="w-full text-sm">
             <colgroup>
@@ -192,7 +192,7 @@ export function ApiCallsClient() {
               })()}
             </tbody>
           </table>
-        </div>
+        </div> */}
         </>
       )}
     </div>
