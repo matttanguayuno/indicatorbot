@@ -138,7 +138,6 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        {/*
         <div>
           <table className="w-full text-sm">
             <colgroup>
@@ -194,7 +193,6 @@ export function ApiCallsClient() {
             </tbody>
           </table>
         </div>
-        */}
         </>
       )}
     </div>
@@ -239,7 +237,7 @@ function CreditChart({ entries }: { entries: LogEntry[] }) {
   }, [data.length]);
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4 overflow-hidden">
+    <div className="bg-zinc-900 rounded-lg p-4 overflow-hidden min-w-0 max-w-full">
       <h2 className="text-sm font-semibold text-zinc-400 mb-3">Credits Per Minute</h2>
       <div ref={scrollRef} className="overflow-x-auto">
         <svg width={chartW + 40} height={chartH + 28}>
