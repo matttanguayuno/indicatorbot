@@ -88,7 +88,12 @@ export async function classifyAI(items: { id: number; headline: string; summary?
   return result;
 }
 
-// ── Apply sentiment to unscored news items ─────────────────────────────
+// ── Apply sentiment to news items ───────────────────────────────────────
+// keywordOnly=true  → score unscored items with keyword (called every poll)
+// keywordOnly=false → use configured method:
+//   "keyword" → keyword on unscored only
+//   "ai"      → AI on all recent articles (overwrites keyword placeholders)
+//   "off"     → skip
 
 export async function applySentiment(keywordOnly = false): Promise<number> {
   const settings = await prisma.appSettings.findFirst();
@@ -96,34 +101,48 @@ export async function applySentiment(keywordOnly = false): Promise<number> {
 
   if (method === 'off') return 0;
 
+  // In AI mode (at news summary times), re-score all articles from last 48h
+  // — this overwrites keyword placeholders with deeper AI analysis
+  if (method === 'ai') {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const recent = await prisma.newsItem.findMany({
+      where: { publishedAt: { gte: cutoff } },
+      select: { id: true, headline: true, summary: true },
+      take: 200,
+    });
+
+    if (recent.length === 0) return 0;
+
+    const classified = await classifyAI(recent);
+    // Fill any AI didn't return with keyword fallback
+    for (const item of recent) {
+      if (!classified.has(item.id)) {
+        classified.set(item.id, classifyKeyword(item.headline));
+      }
+    }
+
+    let count = 0;
+    for (const [id, sentiment] of classified) {
+      await prisma.newsItem.update({ where: { id }, data: { sentiment } });
+      count++;
+    }
+    console.log(`[Sentiment] AI-scored ${count} recent articles`);
+    return count;
+  }
+
+  // Keyword mode: only score unscored items
   const unscored = await prisma.newsItem.findMany({
     where: { sentiment: null },
-    select: { id: true, headline: true, ...(method === 'ai' ? { summary: true } : {}) },
+    select: { id: true, headline: true },
     take: 200,
   });
 
   if (unscored.length === 0) return 0;
 
-  let classified: Map<number, Sentiment>;
-
-  if (method === 'ai') {
-    classified = await classifyAI(unscored as { id: number; headline: string; summary?: string | null }[]);
-    // Fill any AI didn't return with keyword fallback
-    for (const item of unscored) {
-      if (!classified.has(item.id)) {
-        classified.set(item.id, classifyKeyword(item.headline));
-      }
-    }
-  } else {
-    classified = new Map();
-    for (const item of unscored) {
-      classified.set(item.id, classifyKeyword(item.headline));
-    }
-  }
-
   let count = 0;
-  for (const [id, sentiment] of classified) {
-    await prisma.newsItem.update({ where: { id }, data: { sentiment } });
+  for (const item of unscored) {
+    const sentiment = classifyKeyword(item.headline);
+    await prisma.newsItem.update({ where: { id: item.id }, data: { sentiment } });
     count++;
   }
 
