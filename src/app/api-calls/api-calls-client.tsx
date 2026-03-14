@@ -149,13 +149,13 @@ export function ApiCallsClient() {
               <col />
             </colgroup>
             <thead>
-              <tr className="text-left text-zinc-400 border-b border-zinc-800 text-xs">
-                <th className="py-2 pr-2">Time</th>
-                <th className="py-2 pr-2">Source</th>
-                <th className="py-2 pr-2 text-right">Tickers</th>
-                <th className="py-2 pr-2 text-right">Credits</th>
-                <th className="py-2 pr-2">Status</th>
-                <th className="py-2">Detail</th>
+              <tr className="text-left text-zinc-400 text-xs">
+                <th className="py-2 pr-2 sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">Time</th>
+                <th className="py-2 pr-2 sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">Source</th>
+                <th className="py-2 pr-2 text-right sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">Tickers</th>
+                <th className="py-2 pr-2 text-right sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">Credits</th>
+                <th className="py-2 pr-2 sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">Status</th>
+                <th className="py-2 sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">Detail</th>
               </tr>
             </thead>
             <tbody>
