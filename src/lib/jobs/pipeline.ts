@@ -10,6 +10,16 @@ import prisma from '@/lib/db';
 import { sendPushToAll } from '@/lib/push';
 import { checkSellAlerts } from '@/lib/sell-alerts';
 import { applySentiment } from '@/lib/news/sentiment';
+
+/** Mon–Fri, 9:30 AM – 4:00 PM ET */
+function isMarketOpenET(): boolean {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay();
+  const time = et.getHours() * 60 + et.getMinutes();
+  return day >= 1 && day <= 5 && time >= 570 && time < 960;
+}
+
 import {
   getQuote as getFHQuote,
   getCompanyProfile,
@@ -539,14 +549,16 @@ export async function runPollingCycle(): Promise<{
 
   console.log(`[Pipeline] Done: ${succeeded} succeeded, ${failed} failed`);
 
-  // 8) Check sell alerts for active buy entries
-  try {
-    const sellAlerts = await checkSellAlerts();
-    if (sellAlerts.length > 0) {
-      console.log(`[Pipeline] ${sellAlerts.length} sell alert(s) triggered`);
+  // 8) Check sell alerts for active buy entries (only during market hours)
+  if (isMarketOpenET()) {
+    try {
+      const sellAlerts = await checkSellAlerts();
+      if (sellAlerts.length > 0) {
+        console.log(`[Pipeline] ${sellAlerts.length} sell alert(s) triggered`);
+      }
+    } catch (err) {
+      console.error('[Pipeline] Sell alert check failed:', err instanceof Error ? err.message : err);
     }
-  } catch (err) {
-    console.error('[Pipeline] Sell alert check failed:', err instanceof Error ? err.message : err);
   }
 
   // 9) Score any unscored news headlines (keyword only — AI runs at news fetch times)

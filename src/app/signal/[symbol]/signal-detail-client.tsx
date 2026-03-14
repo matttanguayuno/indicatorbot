@@ -405,58 +405,91 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
         <h2 className="text-base font-semibold text-gray-400 mb-2">Chart</h2>
 
-        {/* Time Range toggles */}
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          <span className="text-xs text-gray-500 mr-1 self-center">Range</span>
-          {(['1H', '1D', '1W', '1M', 'Q', '1Y', 'YTD', 'Max'] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setChartRange(r)}
-              className={`px-3 py-1.5 sm:px-2 sm:py-0.5 rounded text-sm sm:text-xs font-medium transition-colors ${
-                chartRange === r
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {r === 'Q' ? 'Quarter' : r}
-            </button>
-          ))}
+        {/* Time Range — dropdown on mobile, buttons on sm+ */}
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs text-gray-500">Range</span>
+          {/* Mobile dropdown */}
+          <select
+            value={chartRange}
+            onChange={(e) => setChartRange(e.target.value as typeof chartRange)}
+            className="sm:hidden bg-gray-800 text-gray-200 text-sm rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 outline-none"
+          >
+            {(['1H', '1D', '1W', '1M', 'Q', '1Y', 'YTD', 'Max'] as const).map((r) => (
+              <option key={r} value={r}>{r === 'Q' ? 'Quarter' : r}</option>
+            ))}
+          </select>
+          {/* Desktop buttons */}
+          <div className="hidden sm:flex flex-wrap gap-1.5">
+            {(['1H', '1D', '1W', '1M', 'Q', '1Y', 'YTD', 'Max'] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setChartRange(r)}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  chartRange === r
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {r === 'Q' ? 'Quarter' : r}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Interval toggles */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          <span className="text-xs text-gray-500 mr-1 self-center">Interval</span>
-          {([
-            ['1min', '1m'],
-            ['5min', '5m'],
-            ['15min', '15m'],
-            ['30min', '30m'],
-            ['1h', '1h'],
-            ['4h', '4h'],
-          ] as const).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setChartInterval(val)}
-              className={`px-3 py-1.5 sm:px-2 sm:py-0.5 rounded text-sm sm:text-xs font-medium transition-colors ${
-                chartInterval === val
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Interval — dropdown on mobile, buttons on sm+ */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-gray-500">Interval</span>
+          {/* Mobile dropdown */}
+          <select
+            value={chartInterval}
+            onChange={(e) => setChartInterval(e.target.value as typeof chartInterval)}
+            className="sm:hidden bg-gray-800 text-gray-200 text-sm rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 outline-none"
+          >
+            {([
+              ['1min', '1m'],
+              ['5min', '5m'],
+              ['15min', '15m'],
+              ['30min', '30m'],
+              ['1h', '1h'],
+              ['4h', '4h'],
+            ] as const).map(([val, label]) => (
+              <option key={val} value={val}>{label}</option>
+            ))}
+          </select>
+          {/* Desktop buttons */}
+          <div className="hidden sm:flex flex-wrap gap-1.5">
+            {([
+              ['1min', '1m'],
+              ['5min', '5m'],
+              ['15min', '15m'],
+              ['30min', '30m'],
+              ['1h', '1h'],
+              ['4h', '4h'],
+            ] as const).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setChartInterval(val)}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  chartInterval === val
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         {chartLoading ? (
           <div className="h-[280px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 450' }}>
+          <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
             <PriceChart key={`${chartInterval}:${chartRange}`} candles={chartCandles} width={chartWidth} height={chartHeight} />
           </div>
         ) : history.length >= 2 ? (
-          <div ref={chartContainerRef} className="w-full" style={{ aspectRatio: '900 / 450' }}>
+          <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
             <MiniChart
               data={[...history].reverse().map(h => h.currentPrice)}
               timestamps={[...history].reverse().map(h => h.timestamp)}
@@ -787,7 +820,7 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
   }
 
   return (
-    <div ref={containerRef} className="aspect-[600/300] sm:aspect-[600/180]">
+    <div ref={containerRef} className="aspect-[600/360] sm:aspect-[600/180]">
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}
