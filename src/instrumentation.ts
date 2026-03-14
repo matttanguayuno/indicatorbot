@@ -5,9 +5,15 @@
  * 2. Scheduled FMP screener sync at configured times (Mountain Time).
  */
 
+// Guard against duplicate scheduler registration (register() can be called
+// more than once during server lifecycle — hot reload, worker restart, etc.)
+let _schedulerStarted = false;
+
 export async function register() {
   // Only run in the Node.js runtime (not Edge)
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  if (_schedulerStarted) return;
+  _schedulerStarted = true;
 
   // Dynamically import to avoid bundling server code in edge
   const { runPollingCycle } = await import('@/lib/jobs');
