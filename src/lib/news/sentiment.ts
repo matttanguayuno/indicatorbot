@@ -48,17 +48,22 @@ export function classifyKeyword(headline: string): Sentiment {
 
 // ── AI classification ──────────────────────────────────────────────────
 
-const AI_SYSTEM = `You classify financial news headlines as bullish, bearish, or neutral for the stock mentioned.
+const AI_SYSTEM = `You classify financial news articles as bullish, bearish, or neutral for the stock mentioned.
+Each article includes a headline and optionally a summary/content excerpt.
 Respond with ONLY a JSON array of objects: [{"id": number, "sentiment": "bullish"|"bearish"|"neutral"}]
 No explanation, no markdown — just the JSON array.`;
 
-export async function classifyAI(items: { id: number; headline: string }[]): Promise<Map<number, Sentiment>> {
+export async function classifyAI(items: { id: number; headline: string; summary?: string | null }[]): Promise<Map<number, Sentiment>> {
   const result = new Map<number, Sentiment>();
   if (items.length === 0) return result;
 
   try {
     const openai = getOpenAI();
-    const userMsg = items.map(i => `${i.id}: ${i.headline}`).join('\n');
+    const userMsg = items.map(i => {
+      let text = `${i.id}: ${i.headline}`;
+      if (i.summary) text += `\n   ${i.summary}`;
+      return text;
+    }).join('\n');
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0,
@@ -93,7 +98,7 @@ export async function applySentiment(keywordOnly = false): Promise<number> {
 
   const unscored = await prisma.newsItem.findMany({
     where: { sentiment: null },
-    select: { id: true, headline: true },
+    select: { id: true, headline: true, ...(method === 'ai' ? { summary: true } : {}) },
     take: 200,
   });
 
@@ -102,7 +107,7 @@ export async function applySentiment(keywordOnly = false): Promise<number> {
   let classified: Map<number, Sentiment>;
 
   if (method === 'ai') {
-    classified = await classifyAI(unscored);
+    classified = await classifyAI(unscored as { id: number; headline: string; summary?: string | null }[]);
     // Fill any AI didn't return with keyword fallback
     for (const item of unscored) {
       if (!classified.has(item.id)) {
