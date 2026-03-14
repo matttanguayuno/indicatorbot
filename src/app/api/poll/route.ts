@@ -9,7 +9,7 @@ import { runPollingCycle } from '@/lib/jobs';
 
 export async function POST() {
   try {
-    const result = await runPollingCycle();
+    const result = await runPollingCycle('manual');
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

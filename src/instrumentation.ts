@@ -42,7 +42,7 @@ export async function register() {
 
     polling = true;
     try {
-      const result = await runPollingCycle();
+      const result = await runPollingCycle('scheduler');
       console.log(
         `[Server Poll] ${result.succeeded}/${result.processed} succeeded` +
         (result.failed > 0 ? `, ${result.failed} failed` : ''),

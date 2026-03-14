@@ -145,14 +145,16 @@ export async function getTimeSeries(
   symbols: string[],
   interval: string = '1min',
   outputsize: number = 90,
+  caller: string = '',
 ): Promise<Map<string, TwelveDataTimeSeries>> {
   if (symbols.length === 0) return new Map();
+  const tag = caller ? ` [${caller}]` : '';
 
   // Skip if we're in rate-limit backoff
   if (Date.now() < quotaExhaustedUntil) {
     const waitSec = Math.round((quotaExhaustedUntil - Date.now()) / 1000);
     console.log(`[TwelveData] Rate-limit backoff active, skipping candle fetch (${waitSec}s remaining)`);
-    await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'skipped', detail: `Rate-limited, ${waitSec}s remaining` });
+    await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)${tag}`, status: 'skipped', detail: `Rate-limited, ${waitSec}s remaining` });
     return new Map();
   }
 
@@ -172,7 +174,7 @@ export async function getTimeSeries(
       if (res.status === 429) {
         quotaExhaustedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
         console.warn(`[TwelveData] Rate limited — backing off 60s until ${new Date(quotaExhaustedUntil).toISOString()}`);
-        await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'rate-limited', detail: 'HTTP 429' });
+        await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: 0, purpose: `Candles ${interval} (${outputsize} bars)${tag}`, status: 'rate-limited', detail: 'HTTP 429' });
         return new Map();
       }
 
@@ -234,7 +236,7 @@ export async function getTimeSeries(
         }
       }
 
-      await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: symbols.length, purpose: `Candles ${interval} (${outputsize} bars)`, status: 'ok', detail: `${result.size}/${symbols.length} symbols returned` });
+      await logApiCall({ timestamp: new Date().toISOString(), endpoint: '/time_series', symbols, credits: symbols.length, purpose: `Candles ${interval} (${outputsize} bars)${tag}`, status: 'ok', detail: `${result.size}/${symbols.length} symbols returned` });
       return result;
     } catch (err) {
       console.error(`[TwelveData] Network error, attempt ${attempt}:`, err);

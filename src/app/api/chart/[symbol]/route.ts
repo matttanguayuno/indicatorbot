@@ -109,7 +109,7 @@ const chartCache = new Map<string, CachedChart>();
 async function fetchTwelveDataCandles(symbol: string, interval: Interval, range: Range): Promise<ChartCandle[]> {
   const outputsize = computeOutputSize(interval, range);
   console.log(`[Chart] TwelveData fetch: ${symbol} interval=${interval} outputsize=${outputsize}`);
-  const seriesMap = await getTimeSeries([symbol], interval, outputsize);
+  const seriesMap = await getTimeSeries([symbol], interval, outputsize, 'chart-page');
   const series = seriesMap.get(symbol);
   if (!series) {
     console.log(`[Chart] TwelveData returned no series for ${symbol}`);

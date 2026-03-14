@@ -425,12 +425,9 @@ const profileCache = new Map<string, { profile: NormalizedProfile; fetchedAt: nu
 
 /**
  * Main polling entry point: processes all active tickers.
- * Global lock prevents concurrent executions from overlapping triggers
- * (instrumentation scheduler, cron endpoint, manual poll button).
+ * Accepts a `source` tag for logging which trigger initiated the cycle.
  */
-let _pollingLock = false;
-
-export async function runPollingCycle(): Promise<{
+export async function runPollingCycle(source: string = 'unknown'): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
@@ -438,28 +435,9 @@ export async function runPollingCycle(): Promise<{
   dataSource: string;
   candlesAvailable: number;
   candleError: string | null;
+  source: string;
 }> {
-  if (_pollingLock) {
-    console.log('[Pipeline] Skipping — another polling cycle is already running');
-    return { processed: 0, succeeded: 0, failed: 0, results: [], dataSource: 'skipped', candlesAvailable: 0, candleError: null };
-  }
-  _pollingLock = true;
-  try {
-    return await _runPollingCycleInner();
-  } finally {
-    _pollingLock = false;
-  }
-}
-
-async function _runPollingCycleInner(): Promise<{
-  processed: number;
-  succeeded: number;
-  failed: number;
-  results: ProcessResult[];
-  dataSource: string;
-  candlesAvailable: number;
-  candleError: string | null;
-}> {
+  console.log(`[Pipeline] Cycle started — source: ${source}`);
   // Load settings
   const settings = await prisma.appSettings.findFirst();
   const scoreThreshold = settings?.scoreThreshold ?? ALERT_CONFIG.defaultScoreThreshold;
@@ -511,7 +489,7 @@ async function _runPollingCycleInner(): Promise<{
         const symbols = tickers.map((t: { symbol: string }) => t.symbol);
         // Grow plan: send all symbols in one batch (cost = 1 credit per symbol).
         console.log(`[Pipeline] Fetching Twelve Data candles for: ${symbols.join(', ')}`);
-        const result = await getTimeSeries(symbols, '1min', 390);
+        const result = await getTimeSeries(symbols, '1min', 390, source);
         console.log(`[Pipeline] Twelve Data returned data for: ${[...result.keys()].join(', ') || '(none)'}`);
         for (const [sym, series] of result) {
           const mapped = mapTwelveDataCandles(series);
@@ -603,6 +581,7 @@ async function _runPollingCycleInner(): Promise<{
     candleError: autoFallback
       ? 'Twelve Data rate-limited — using Finnhub as fallback temporarily (no candle data)'
       : candleError,
+    source,
   };
 }
 
