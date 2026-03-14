@@ -83,8 +83,8 @@ export function PriceChart({
   const volMax = Math.max(...volumes) || 1;
 
   const isPositive = closes[closes.length - 1] >= visCandles[0].open;
-  const lineColor = isPositive ? '#4ade80' : '#f87171';
-  const fillColor = isPositive ? '#4ade8020' : '#f8717120';
+  const lineColor = isPositive ? '#60a5fa' : '#f87171';
+  const fillColor = isPositive ? '#60a5fa18' : '#f8717118';
 
   function x(i: number) {
     return padLeft + (i / (visCandles.length - 1)) * chartW;
@@ -308,7 +308,7 @@ export function PriceChart({
           y={yVol(c.volume)}
           width={barW}
           height={height - padBottom - yVol(c.volume)}
-          fill={c.close >= c.open ? '#4ade8040' : '#f8717140'}
+          fill={c.close >= c.open ? '#60a5fa30' : '#f8717130'}
         />
       ))}
 
@@ -324,9 +324,12 @@ export function PriceChart({
 
         const isHighlighted = highlightPatternIndex === pi;
         const dimmed = highlightPatternIndex != null && !isHighlighted;
-        const patternColor = isHighlighted ? '#93c5fd' : '#60a5fa'; // blue overlay
-        const patternFill = isHighlighted ? '#93c5fd30' : dimmed ? '#60a5fa08' : '#60a5fa18';
-        const strokeW = isHighlighted ? 2 : 1;
+        const conv = Math.round(p.conviction * 100);
+        const patternColor = dimmed ? '#9ca3af' : conv >= 70 ? '#4ade80' : conv >= 45 ? '#facc15' : '#fb923c';
+        const patternFill = dimmed ? '#9ca3af08' : isHighlighted
+          ? (conv >= 70 ? '#4ade8030' : conv >= 45 ? '#facc1530' : '#fb923c30')
+          : (conv >= 70 ? '#4ade8015' : conv >= 45 ? '#facc1515' : '#fb923c15');
+        const strokeW = isHighlighted ? 2.5 : 1.5;
         const opacity = dimmed ? 0.3 : 1;
         const gProps = {
           opacity,
@@ -341,7 +344,7 @@ export function PriceChart({
               <g key={pi} {...gProps}>
                 <line x1={x(clampedStart)} y1={ry} x2={x(clampedEnd)} y2={ry}
                   stroke={patternColor} strokeWidth={strokeW} strokeDasharray="4,3" />
-                <text x={x(clampedEnd) + 4} y={ry - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                <text x={x(clampedEnd) + 4} y={ry - 6} fill={patternColor} fontSize={13} fontWeight="700">
                   {p.label}
                 </text>
                 {/* Triangle marker at breakout */}
@@ -359,7 +362,7 @@ export function PriceChart({
               <g key={pi} {...gProps}>
                 <rect x={x(clampedStart)} y={y1} width={x(clampedEnd) - x(clampedStart)} height={y2 - y1}
                   fill={patternFill} stroke={patternColor} strokeWidth="0.7" strokeDasharray="3,2" />
-                <text x={x(clampedStart) + 4} y={y1 - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                <text x={x(clampedStart) + 4} y={y1 - 6} fill={patternColor} fontSize={13} fontWeight="700">
                   {p.label}
                 </text>
               </g>
@@ -387,7 +390,7 @@ export function PriceChart({
                 {/* Flag channel */}
                 <rect x={x(flagS)} y={yPrice(flagHigh)} width={x(flagE) - x(flagS)} height={yPrice(flagLow) - yPrice(flagHigh)}
                   fill={patternFill} stroke={patternColor} strokeWidth="0.7" strokeDasharray="3,2" />
-                <text x={x(flagS) + 4} y={yPrice(flagHigh) - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                <text x={x(flagS) + 4} y={yPrice(flagHigh) - 6} fill={patternColor} fontSize={13} fontWeight="700">
                   {p.label}
                 </text>
               </g>
@@ -424,7 +427,7 @@ export function PriceChart({
                     fill={patternFill}
                   />
                 )}
-                <text x={x(clampedStart) + 4} y={ry - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                <text x={x(clampedStart) + 4} y={ry - 6} fill={patternColor} fontSize={13} fontWeight="700">
                   {p.label}
                 </text>
               </g>
@@ -456,7 +459,7 @@ export function PriceChart({
                   ].join(' ')}
                   fill={patternFill}
                 />
-                <text x={x(clampedStart) + 4} y={Math.min(upperY1, upperY2) - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                <text x={x(clampedStart) + 4} y={Math.min(upperY1, upperY2) - 6} fill={patternColor} fontSize={13} fontWeight="700">
                   {p.label}
                 </text>
               </g>

@@ -96,9 +96,21 @@ export function PatternsClient() {
   const [chartSource, setChartSource] = useState('');
   const [lockedPattern, setLockedPattern] = useState<number | null>(null);
   const [hoveredPattern, setHoveredPattern] = useState<number | null>(null);
+  const [highlightedRef, setHighlightedRef] = useState<string | null>(null);
   const highlightedPattern = lockedPattern ?? hoveredPattern;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const searchRef = useRef<HTMLDivElement>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  function scrollToRef(type: string) {
+    const el = document.getElementById(`ref-${type}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedRef(type);
+      clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => setHighlightedRef(null), 2000);
+    }
+  }
 
   // Close search dropdown on outside click
   useEffect(() => {
@@ -340,7 +352,19 @@ export function PatternsClient() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className={`font-medium ${cc.accent}`}>{detail.label}</span>
-                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cc.badge}`}>{detail.conviction}%</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          title="View in Pattern Reference"
+                          className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollToRef(detail.type);
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        </button>
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cc.badge}`}>{detail.conviction}%</span>
+                      </div>
                     </div>
                     <div className="text-zinc-400">{detail.details}</div>
                   </div>
@@ -360,7 +384,13 @@ export function PatternsClient() {
         <h2 className="text-base font-semibold text-zinc-300">Pattern Reference</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {PATTERN_REFERENCE.map((ref) => (
-            <div key={ref.type} className="bg-zinc-900 rounded-lg p-4 space-y-3">
+            <div
+              key={ref.type}
+              id={`ref-${ref.type}`}
+              className={`bg-zinc-900 rounded-lg p-4 space-y-3 transition-all duration-700 ${
+                highlightedRef === ref.type ? 'ring-2 ring-blue-500/60' : ''
+              }`}
+            >
               <div className="text-base font-semibold text-zinc-200">{ref.name}</div>
               <div className="flex justify-center">
                 <PatternIcon type={ref.type} />
