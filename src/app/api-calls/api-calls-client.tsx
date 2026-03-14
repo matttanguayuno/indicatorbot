@@ -138,17 +138,16 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        <div className="overflow-x-auto -mx-4 px-4">
-          <table className="w-full text-sm table-fixed">
+        <div className="-mx-4 px-4">
+          <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-zinc-400 border-b border-zinc-800">
-                <th className="py-2 pr-2 w-[100px]">Time (MT)</th>
-                <th className="py-2 pr-2 w-[100px]">Endpoint</th>
+                <th className="py-2 pr-2">Time</th>
+                <th className="py-2 pr-2">Source</th>
                 <th className="py-2 pr-2">Symbols</th>
-                <th className="py-2 pr-2 w-[50px]">Credits</th>
-                <th className="py-2 pr-2 w-[120px]">Purpose</th>
-                <th className="py-2 pr-2 w-[60px]">Status</th>
-                <th className="py-2 w-[140px]">Detail</th>
+                <th className="py-2 pr-2 text-right">Cr</th>
+                <th className="py-2 pr-2">Status</th>
+                <th className="py-2">Detail</th>
               </tr>
             </thead>
             <tbody>
@@ -164,18 +163,21 @@ export function ApiCallsClient() {
                   const minuteKey = formatTime(e.timestamp).slice(0, 5);
                   const count = minuteCounts.get(minuteKey) || 0;
                   const isBusy = count >= 2;
+                  // Extract source tag from purpose e.g. "Candles 1min (390 bars)[scheduler]" → "scheduler"
+                  const sourceMatch = e.purpose.match(/\[([^\]]+)\]$/);
+                  const source = sourceMatch?.[1] ?? '—';
+                  const sourceColor = source === 'scheduler' ? 'text-blue-400' : source === 'cron' ? 'text-purple-400' : source === 'manual' ? 'text-amber-400' : source === 'chart-page' ? 'text-cyan-400' : 'text-zinc-500';
                   return (
                     <tr key={i} className={`border-b border-zinc-800/50 ${isBusy ? 'bg-amber-900/25' : 'hover:bg-zinc-900/50'}`}>
                       <td className="py-1.5 pr-2 font-mono text-xs whitespace-nowrap">
                         {formatTime(e.timestamp)}
                         {isBusy && <span className="ml-1 text-amber-400 font-semibold" title={`${count} calls this minute`}>×{count}</span>}
                       </td>
-                      <td className="py-1.5 pr-2 font-mono text-xs truncate">{e.endpoint}</td>
-                      <td className="py-1.5 pr-2 text-xs truncate" title={e.symbols}>{e.symbols}</td>
-                      <td className="py-1.5 pr-2 text-xs">{e.credits}</td>
-                      <td className="py-1.5 pr-2 text-xs text-zinc-400 truncate">{e.purpose}</td>
+                      <td className={`py-1.5 pr-2 text-xs font-medium ${sourceColor}`}>{source}</td>
+                      <td className="py-1.5 pr-2 text-xs max-w-[40vw] truncate" title={e.symbols}>{e.symbols}</td>
+                      <td className="py-1.5 pr-2 text-xs text-right">{e.credits}</td>
                       <td className={`py-1.5 pr-2 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
-                      <td className="py-1.5 text-xs text-zinc-500 truncate" title={e.detail}>{e.detail}</td>
+                      <td className="py-1.5 text-xs text-zinc-500 truncate max-w-[20vw]" title={e.detail}>{e.detail}</td>
                     </tr>
                   );
                 });
