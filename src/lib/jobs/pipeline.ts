@@ -425,8 +425,33 @@ const profileCache = new Map<string, { profile: NormalizedProfile; fetchedAt: nu
 
 /**
  * Main polling entry point: processes all active tickers.
+ * Global lock prevents concurrent executions from overlapping triggers
+ * (instrumentation scheduler, cron endpoint, manual poll button).
  */
+let _pollingLock = false;
+
 export async function runPollingCycle(): Promise<{
+  processed: number;
+  succeeded: number;
+  failed: number;
+  results: ProcessResult[];
+  dataSource: string;
+  candlesAvailable: number;
+  candleError: string | null;
+}> {
+  if (_pollingLock) {
+    console.log('[Pipeline] Skipping — another polling cycle is already running');
+    return { processed: 0, succeeded: 0, failed: 0, results: [], dataSource: 'skipped', candlesAvailable: 0, candleError: null };
+  }
+  _pollingLock = true;
+  try {
+    return await _runPollingCycleInner();
+  } finally {
+    _pollingLock = false;
+  }
+}
+
+async function _runPollingCycleInner(): Promise<{
   processed: number;
   succeeded: number;
   failed: number;
