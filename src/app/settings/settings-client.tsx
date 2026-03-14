@@ -676,7 +676,7 @@ function PatternSettingsSection({ settings, setSettings }: { settings: Settings;
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3">
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-3 max-w-2xl">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-400">Pattern Detection</h2>
         <button
@@ -690,7 +690,7 @@ function PatternSettingsSection({ settings, setSettings }: { settings: Settings;
         Enable/disable patterns and tune detection thresholds. Changes take effect on next Save Settings.
       </p>
 
-      <div className="space-y-1">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1">
         {(Object.keys(PATTERN_LABELS) as PatternKey[]).map((key) => {
           const patternCfg = config[key] as unknown as Record<string, unknown>;
           const enabled = patternCfg.enabled as boolean;
