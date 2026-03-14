@@ -77,6 +77,7 @@ interface NewsEntry {
   source: string | null;
   url: string | null;
   sentiment: string | null;
+  sentimentSource: string | null;
   publishedAt: string;
 }
 
@@ -663,12 +664,16 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             {news.map((n) => (
               <div key={n.id} className="text-sm flex items-start gap-2">
                 {n.sentiment && (
-                  <span className={`mt-0.5 shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                    n.sentiment === 'bullish' ? 'bg-green-900/50 text-green-400' :
-                    n.sentiment === 'bearish' ? 'bg-red-900/50 text-red-400' :
-                    'bg-gray-800 text-gray-500'
-                  }`}>
+                  <span
+                    className={`mt-0.5 shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                      n.sentiment === 'bullish' ? 'bg-green-900/50 text-green-400' :
+                      n.sentiment === 'bearish' ? 'bg-red-900/50 text-red-400' :
+                      'bg-gray-800 text-gray-500'
+                    }`}
+                    title={n.sentimentSource === 'ai' ? 'AI sentiment (headline + content)' : 'Keyword sentiment (headline only)'}
+                  >
                     {n.sentiment === 'bullish' ? '▲' : n.sentiment === 'bearish' ? '▼' : '—'}
+                    <span className="ml-0.5 text-[9px] opacity-60 font-normal">{n.sentimentSource === 'ai' ? 'AI' : 'K'}</span>
                   </span>
                 )}
                 <div>
