@@ -16,6 +16,71 @@ interface ChartCandle {
 const RANGES = ['1H', '1D', '1W', '1M'] as const;
 const INTERVALS = ['1min', '5min', '15min', '30min', '1h'] as const;
 
+const PATTERN_REFERENCE = [
+  {
+    type: 'volume-breakout',
+    name: 'Volume Breakout',
+    icon: '📈',
+    description: 'Price closes above resistance (highest high over 20 candles) with strong volume confirmation.',
+    criteria: [
+      '2 consecutive closes above resistance',
+      'Volume ≥ 1.5× average on breakout candle',
+    ],
+    lookback: 22,
+  },
+  {
+    type: 'consolidation-breakout',
+    name: 'Consolidation Breakout',
+    icon: '📦',
+    description: 'Bollinger Bands squeeze tightly, then price breaks out of the narrow range with volume.',
+    criteria: [
+      'Bandwidth contracts ≥ 40% from peak',
+      'Price closes above range high',
+      'Volume ≥ 1.5× average',
+    ],
+    lookback: 35,
+  },
+  {
+    type: 'bull-flag',
+    name: 'Bull Flag',
+    icon: '🚩',
+    description: 'Sharp upward pole followed by a shallow, declining pullback (flag), then breakout above the flag.',
+    criteria: [
+      'Pole gain ≥ 1.5% over 8–15 candles',
+      'Pullback retraces ≤ 50% of pole',
+      'Flag has declining volume and flat/negative slope',
+      'Close above flag high',
+    ],
+    lookback: 45,
+  },
+  {
+    type: 'ascending-triangle',
+    name: 'Ascending Triangle',
+    icon: '🔺',
+    description: 'Flat resistance with rising swing lows forming a triangle, followed by an upside breakout.',
+    criteria: [
+      'Flat resistance with ≥ 3 touches (0.3% tolerance)',
+      'Rising swing lows (R² ≥ 0.5)',
+      'Breakout close above resistance',
+      'Volume ≥ 1.2× average',
+    ],
+    lookback: 60,
+  },
+  {
+    type: 'channel-breakout',
+    name: 'Channel Breakout',
+    icon: '📐',
+    description: 'Price trends within parallel trendlines (channel), then breaks above the upper boundary.',
+    criteria: [
+      'Parallel upper/lower trendlines (slopes within 15%)',
+      'Both trendlines R² ≥ 0.6',
+      '≥ 3 swing points on each line',
+      'Close above upper channel + volume ≥ 1.3×',
+    ],
+    lookback: 53,
+  },
+];
+
 export function PatternsClient() {
   const [symbol, setSymbol] = useState('');
   const [activeSymbol, setActiveSymbol] = useState('');
@@ -29,6 +94,7 @@ export function PatternsClient() {
   const [loading, setLoading] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [chartSource, setChartSource] = useState('');
+  const [highlightedPattern, setHighlightedPattern] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -237,6 +303,8 @@ export function PatternsClient() {
             <PriceChart
               candles={candles}
               patterns={patterns.length > 0 ? patterns : undefined}
+              highlightPatternIndex={highlightedPattern}
+              onPatternClick={(i) => setHighlightedPattern(highlightedPattern === i ? null : i)}
               width={900}
               height={400}
             />
@@ -274,7 +342,17 @@ export function PatternsClient() {
           )}
 
           {patternDetails && patternDetails.map((detail, i) => (
-            <div key={i} className="bg-zinc-900 rounded-lg p-4">
+            <div
+              key={i}
+              className={`bg-zinc-900 rounded-lg p-4 cursor-pointer transition-all border ${
+                highlightedPattern === i
+                  ? 'border-yellow-500/60 ring-1 ring-yellow-500/30'
+                  : 'border-transparent hover:border-yellow-700/40'
+              }`}
+              onMouseEnter={() => setHighlightedPattern(i)}
+              onMouseLeave={() => setHighlightedPattern(null)}
+              onClick={() => setHighlightedPattern(highlightedPattern === i ? null : i)}
+            >
               <div className="flex items-center gap-2 mb-2">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
@@ -325,6 +403,33 @@ export function PatternsClient() {
           </div>
         </details>
       )}
+
+      {/* Pattern Reference */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-zinc-300">Pattern Reference</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {PATTERN_REFERENCE.map((ref) => (
+            <div key={ref.type} className="bg-zinc-900 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{ref.icon}</span>
+                <span className="text-sm font-medium text-zinc-200">{ref.name}</span>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">{ref.description}</p>
+              <div className="space-y-1">
+                {ref.criteria.map((c, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-xs">
+                    <span className="text-yellow-500 mt-0.5">•</span>
+                    <span className="text-zinc-500">{c}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
+                <span className="text-[10px] text-zinc-600">Lookback: {ref.lookback} candles</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

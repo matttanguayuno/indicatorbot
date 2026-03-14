@@ -15,6 +15,8 @@ interface Candle {
 interface PriceChartProps {
   candles: Candle[];
   patterns?: PatternResult[];
+  highlightPatternIndex?: number | null;
+  onPatternClick?: (index: number) => void;
   width?: number;
   height?: number;
   className?: string;
@@ -23,6 +25,8 @@ interface PriceChartProps {
 export function PriceChart({
   candles,
   patterns,
+  highlightPatternIndex,
+  onPatternClick,
   width: defaultW = 900,
   height: defaultH = 350,
   className = '',
@@ -305,16 +309,25 @@ export function PriceChart({
         const clampedStart = Math.max(0, vStart);
         const clampedEnd = Math.min(visCandles.length - 1, vEnd);
 
-        const patternColor = '#facc15'; // yellow-400
-        const patternFill = '#facc1518';
+        const isHighlighted = highlightPatternIndex === pi;
+        const dimmed = highlightPatternIndex != null && !isHighlighted;
+        const patternColor = isHighlighted ? '#fbbf24' : '#facc15'; // brighter yellow when highlighted
+        const patternFill = isHighlighted ? '#fbbf2440' : dimmed ? '#facc1508' : '#facc1518';
+        const strokeW = isHighlighted ? 2 : 1;
+        const opacity = dimmed ? 0.3 : 1;
+        const gProps = {
+          opacity,
+          style: { cursor: onPatternClick ? 'pointer' : undefined } as React.CSSProperties,
+          onClick: onPatternClick ? (e: React.MouseEvent) => { e.stopPropagation(); onPatternClick(pi); } : undefined,
+        };
 
         switch (p.type) {
           case 'volume-breakout': {
             const ry = yPrice(p.resistancePrice);
             return (
-              <g key={pi}>
+              <g key={pi} {...gProps}>
                 <line x1={x(clampedStart)} y1={ry} x2={x(clampedEnd)} y2={ry}
-                  stroke={patternColor} strokeWidth="1" strokeDasharray="4,3" />
+                  stroke={patternColor} strokeWidth={strokeW} strokeDasharray="4,3" />
                 <text x={x(clampedEnd) + 4} y={ry - 4} fill={patternColor} fontSize={10} fontWeight="600">
                   {p.label}
                 </text>
@@ -330,7 +343,7 @@ export function PriceChart({
             const y1 = yPrice(p.rangeHigh);
             const y2 = yPrice(p.rangeLow);
             return (
-              <g key={pi}>
+              <g key={pi} {...gProps}>
                 <rect x={x(clampedStart)} y={y1} width={x(clampedEnd) - x(clampedStart)} height={y2 - y1}
                   fill={patternFill} stroke={patternColor} strokeWidth="0.7" strokeDasharray="3,2" />
                 <text x={x(clampedStart) + 4} y={y1 - 4} fill={patternColor} fontSize={10} fontWeight="600">
@@ -354,7 +367,7 @@ export function PriceChart({
             const flagHigh = Math.max(...flagCandles.map(c => c.high));
             const flagLow = Math.min(...flagCandles.map(c => c.low));
             return (
-              <g key={pi}>
+              <g key={pi} {...gProps}>
                 {/* Pole shading */}
                 <rect x={x(poleS)} y={yPrice(poleHigh)} width={x(poleE) - x(poleS)} height={yPrice(poleLow) - yPrice(poleHigh)}
                   fill="#4ade8015" stroke="#4ade80" strokeWidth="0.5" />
@@ -374,16 +387,16 @@ export function PriceChart({
               .map(si => si - zStart)
               .filter(si => si >= 0 && si < visCandles.length);
             return (
-              <g key={pi}>
+              <g key={pi} {...gProps}>
                 {/* Resistance line */}
                 <line x1={x(clampedStart)} y1={ry} x2={x(clampedEnd)} y2={ry}
-                  stroke={patternColor} strokeWidth="1" strokeDasharray="4,3" />
+                  stroke={patternColor} strokeWidth={strokeW} strokeDasharray="4,3" />
                 {/* Rising trendline through swing lows */}
                 {visSwingLows.length >= 2 && (
                   <line
                     x1={x(visSwingLows[0])} y1={yPrice(visCandles[visSwingLows[0]].low)}
                     x2={x(visSwingLows[visSwingLows.length - 1])} y2={yPrice(visCandles[visSwingLows[visSwingLows.length - 1]].low)}
-                    stroke={patternColor} strokeWidth="1"
+                    stroke={patternColor} strokeWidth={strokeW}
                   />
                 )}
                 {/* Triangle fill */}
@@ -413,13 +426,13 @@ export function PriceChart({
             const lowerY1 = yPrice(p.lowerIntercept + p.lowerSlope * Math.max(0, -startOffset));
             const lowerY2 = yPrice(p.lowerIntercept + p.lowerSlope * (clampedEnd - startOffset));
             return (
-              <g key={pi}>
+              <g key={pi} {...gProps}>
                 {/* Upper trendline */}
                 <line x1={x(clampedStart)} y1={upperY1} x2={x(clampedEnd)} y2={upperY2}
-                  stroke={patternColor} strokeWidth="1" />
+                  stroke={patternColor} strokeWidth={strokeW} />
                 {/* Lower trendline */}
                 <line x1={x(clampedStart)} y1={lowerY1} x2={x(clampedEnd)} y2={lowerY2}
-                  stroke={patternColor} strokeWidth="1" />
+                  stroke={patternColor} strokeWidth={strokeW} />
                 {/* Channel fill */}
                 <polygon
                   points={[
