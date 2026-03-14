@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 
 interface LogEntry {
   timestamp: string;
@@ -137,7 +137,8 @@ export function ApiCallsClient() {
         <p className="text-zinc-500 text-sm">No API calls logged yet.</p>
       ) : (
         <>
-        {/* <CreditChart entries={entries} />
+        <CreditChart entries={entries} />
+        {/*
         <div>
           <table className="w-full text-sm">
             <colgroup>
@@ -192,7 +193,8 @@ export function ApiCallsClient() {
               })()}
             </tbody>
           </table>
-        </div> */}
+        </div>
+        */}
         </>
       )}
     </div>
@@ -200,6 +202,7 @@ export function ApiCallsClient() {
 }
 
 function CreditChart({ entries }: { entries: LogEntry[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const data = useMemo(() => {
     // Bucket credits by minute (HH:MM in MT)
     const buckets = new Map<string, number>();
@@ -229,10 +232,16 @@ function CreditChart({ entries }: { entries: LogEntry[] }) {
   const chartW = data.length * (barW + gap);
   const labelEvery = Math.max(1, Math.ceil(data.length / 12));
 
+  // Scroll to the latest data on load
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [data.length]);
+
   return (
     <div className="bg-zinc-900 rounded-lg p-4 overflow-hidden">
       <h2 className="text-sm font-semibold text-zinc-400 mb-3">Credits Per Minute</h2>
-      <div className="overflow-x-auto">
+      <div ref={scrollRef} className="overflow-x-auto">
         <svg width={chartW + 40} height={chartH + 28}>
           {/* 55-credit limit line */}
           {maxCredits >= LIMIT * 0.5 && (() => {
