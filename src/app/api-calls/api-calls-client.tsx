@@ -82,7 +82,7 @@ export function ApiCallsClient() {
     });
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-24 overflow-x-hidden">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">API Call Log</h1>
         <div className="flex items-center gap-4">
@@ -138,17 +138,17 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto -mx-4 px-4">
+          <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="text-left text-zinc-400 border-b border-zinc-800">
-                <th className="py-2 pr-3">Time (MT)</th>
-                <th className="py-2 pr-3">Endpoint</th>
-                <th className="py-2 pr-3">Symbols</th>
-                <th className="py-2 pr-3">Credits</th>
-                <th className="py-2 pr-3">Purpose</th>
-                <th className="py-2 pr-3">Status</th>
-                <th className="py-2">Detail</th>
+                <th className="py-2 pr-2 w-[100px]">Time (MT)</th>
+                <th className="py-2 pr-2 w-[100px]">Endpoint</th>
+                <th className="py-2 pr-2">Symbols</th>
+                <th className="py-2 pr-2 w-[50px]">Credits</th>
+                <th className="py-2 pr-2 w-[120px]">Purpose</th>
+                <th className="py-2 pr-2 w-[60px]">Status</th>
+                <th className="py-2 w-[140px]">Detail</th>
               </tr>
             </thead>
             <tbody>
@@ -166,16 +166,16 @@ export function ApiCallsClient() {
                   const isBusy = count >= 2;
                   return (
                     <tr key={i} className={`border-b border-zinc-800/50 ${isBusy ? 'bg-amber-900/25' : 'hover:bg-zinc-900/50'}`}>
-                      <td className="py-1.5 pr-3 font-mono text-xs whitespace-nowrap">
+                      <td className="py-1.5 pr-2 font-mono text-xs whitespace-nowrap">
                         {formatTime(e.timestamp)}
-                        {isBusy && <span className="ml-1.5 text-amber-400 font-semibold" title={`${count} calls this minute`}>×{count}</span>}
+                        {isBusy && <span className="ml-1 text-amber-400 font-semibold" title={`${count} calls this minute`}>×{count}</span>}
                       </td>
-                      <td className="py-1.5 pr-3 font-mono text-xs">{e.endpoint}</td>
-                      <td className="py-1.5 pr-3 text-xs max-w-[200px] truncate">{e.symbols}</td>
-                      <td className="py-1.5 pr-3 text-xs">{e.credits}</td>
-                      <td className="py-1.5 pr-3 text-xs text-zinc-400">{e.purpose}</td>
-                      <td className={`py-1.5 pr-3 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
-                      <td className="py-1.5 text-xs text-zinc-500 max-w-[200px] truncate">{e.detail}</td>
+                      <td className="py-1.5 pr-2 font-mono text-xs truncate">{e.endpoint}</td>
+                      <td className="py-1.5 pr-2 text-xs truncate" title={e.symbols}>{e.symbols}</td>
+                      <td className="py-1.5 pr-2 text-xs">{e.credits}</td>
+                      <td className="py-1.5 pr-2 text-xs text-zinc-400 truncate">{e.purpose}</td>
+                      <td className={`py-1.5 pr-2 text-xs font-medium ${STATUS_COLORS[e.status] || 'text-zinc-400'}`}>{e.status}</td>
+                      <td className="py-1.5 text-xs text-zinc-500 truncate" title={e.detail}>{e.detail}</td>
                     </tr>
                   );
                 });
@@ -222,8 +222,8 @@ function CreditChart({ entries }: { entries: LogEntry[] }) {
   return (
     <div className="bg-zinc-900 rounded-lg p-4">
       <h2 className="text-sm font-semibold text-zinc-400 mb-3">Credits Per Minute</h2>
-      <div className="overflow-x-auto">
-        <svg width={chartW + 40} height={chartH + 28} className="min-w-full">
+      <div className="overflow-x-auto -mx-4 px-4">
+        <svg width={chartW + 40} height={chartH + 28} style={{ minWidth: chartW + 40 }}>
           {/* 55-credit limit line */}
           {maxCredits >= LIMIT * 0.5 && (() => {
             const y = chartH - (LIMIT / Math.max(maxCredits, LIMIT)) * chartH;
