@@ -787,7 +787,7 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
   }
 
   return (
-    <div ref={containerRef} style={{ aspectRatio: '600 / 180' }}>
+    <div ref={containerRef} className="aspect-[600/260] sm:aspect-[600/180]">
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}
@@ -870,8 +870,9 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
             const tipW = 148;
             const tipH = 38;
             const tx = Math.min(Math.max(dotX, padL + tipW / 2), w - padR - tipW / 2);
-            let ty = dotY - tipH - 10;
-            if (ty < 2) ty = dotY + 12;
+            // On touch devices, push tooltip higher so the finger doesn't obscure it
+            let ty = dotY - tipH - 40;
+            if (ty < 2) ty = 2;
             const d = new Date(data[hoverIdx].timestamp);
             const timeLabel = d.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: false, timeZone: 'America/Denver' });
             return (

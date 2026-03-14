@@ -294,7 +294,7 @@ async function processTicker(
 
     // 7) Alert check
     if (scoreBreakdown.finalScore >= scoreThreshold) {
-      await maybeCreateAlert(symbol, tickerId, scoreBreakdown.finalScore, explanation, snapshot.id, cooldownMin);
+      await maybeCreateAlert(symbol, tickerId, scoreBreakdown.finalScore, explanation, snapshot.id, cooldownMin, scoreThreshold);
     }
 
     return { symbol, success: true, score: scoreBreakdown.finalScore, candleCount: candles?.length ?? 0 };
@@ -306,7 +306,9 @@ async function processTicker(
 }
 
 /**
- * Create an alert if cooldown has elapsed since the last alert for this ticker.
+ * Create an alert if cooldown has elapsed AND the score crossed the threshold
+ * from below (not just staying above it). This prevents repeated alerts for
+ * a stock that stays above the threshold with stale/unchanged data.
  */
 async function maybeCreateAlert(
   symbol: string,
@@ -315,6 +317,7 @@ async function maybeCreateAlert(
   explanation: string,
   snapshotId: number,
   cooldownMin: number,
+  scoreThreshold: number,
 ): Promise<void> {
   const cooldownDate = new Date(Date.now() - cooldownMin * 60 * 1000);
 
@@ -329,6 +332,30 @@ async function maybeCreateAlert(
   if (recentAlert) {
     console.log(`[Alert] Cooldown active for ${symbol}, skipping alert`);
     return;
+  }
+
+  // Check if the score dropped below threshold since the last alert.
+  // If there's a previous alert and the score never dipped below threshold,
+  // this is just the stock staying elevated — don't re-alert.
+  const lastAlert = await prisma.alert.findFirst({
+    where: { symbol, alertType: 'buy' },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (lastAlert) {
+    // Look for any snapshot where the score was below threshold since the last alert
+    const dippedBelow = await prisma.signalSnapshot.findFirst({
+      where: {
+        symbol,
+        timestamp: { gt: lastAlert.createdAt },
+        signalScore: { lt: scoreThreshold },
+      },
+    });
+
+    if (!dippedBelow) {
+      // Score has stayed above threshold continuously — don't re-alert
+      return;
+    }
   }
 
   await prisma.alert.create({
