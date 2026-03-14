@@ -40,3 +40,66 @@ export interface NormalizedNews {
   summary: string;
   publishedAt: Date;
 }
+
+// ---------------------------------------------------------------------------
+// Breakout pattern detection result types
+// ---------------------------------------------------------------------------
+
+export interface PatternBase {
+  /** Index into the candle array where the pattern starts */
+  startIndex: number;
+  /** Index where the pattern ends (breakout candle) */
+  endIndex: number;
+  /** Conviction score 0–1 (volume ratio × R² etc.) */
+  conviction: number;
+  /** Human-readable label */
+  label: string;
+}
+
+export interface VolumeBreakout extends PatternBase {
+  type: 'volume-breakout';
+  resistancePrice: number;
+  breakoutPrice: number;
+  volumeRatio: number;
+}
+
+export interface ConsolidationBreakout extends PatternBase {
+  type: 'consolidation-breakout';
+  rangeHigh: number;
+  rangeLow: number;
+  bandwidthContraction: number;
+}
+
+export interface BullFlag extends PatternBase {
+  type: 'bull-flag';
+  poleStartIndex: number;
+  poleEndIndex: number;
+  flagStartIndex: number;
+  flagEndIndex: number;
+  /** Slope of the flag channel (negative = declining) */
+  flagSlope: number;
+}
+
+export interface AscendingTriangle extends PatternBase {
+  type: 'ascending-triangle';
+  resistancePrice: number;
+  /** Indices of the rising swing lows */
+  swingLowIndices: number[];
+  trendlineSlope: number;
+  trendlineIntercept: number;
+}
+
+export interface ChannelBreakout extends PatternBase {
+  type: 'channel-breakout';
+  upperSlope: number;
+  upperIntercept: number;
+  lowerSlope: number;
+  lowerIntercept: number;
+}
+
+export type PatternResult =
+  | VolumeBreakout
+  | ConsolidationBreakout
+  | BullFlag
+  | AscendingTriangle
+  | ChannelBreakout;

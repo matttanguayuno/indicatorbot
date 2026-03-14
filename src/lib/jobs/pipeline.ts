@@ -49,6 +49,7 @@ import {
   calcBreakoutFlags,
   calcNewsScore,
   calcAverageVolume,
+  detectAllPatterns,
 } from '@/lib/signals';
 import { calculateScore, type SignalInputs } from '@/lib/scoring';
 import { generateExplanation } from '@/lib/explanations';
@@ -243,6 +244,9 @@ async function processTicker(
     // News scoring
     const newsScore = calcNewsScore(recentNewsCount, rules.weights.newsCatalyst.maxArticles);
 
+    // Pattern detection
+    const patterns = hasCandleData ? detectAllPatterns(candles!) : [];
+
     // 5) Score
     const signalInputs: SignalInputs = {
       pctChange5m,
@@ -306,6 +310,8 @@ async function processTicker(
         // News
         recentNewsCount,
         newsScore,
+        // Patterns
+        patterns: patterns.length > 0 ? JSON.stringify(patterns) : null,
         // Score
         signalScore: scoreBreakdown.finalScore,
         explanation,

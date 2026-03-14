@@ -103,6 +103,9 @@ model SignalSnapshot {
   signalScore   Float
   explanation   String
 
+  // Patterns
+  patterns      String?  // JSON string: PatternResult[]
+
   // Data source tracking
   dataSourceMeta String?  // JSON string: { field: "available"|"unavailable"|"partial" }
 

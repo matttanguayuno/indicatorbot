@@ -128,3 +128,88 @@ export function calcAverageVolume(candles: NormalizedCandle[]): number | null {
 export function calcCurrentDayVolume(candles: NormalizedCandle[]): number {
   return candles.reduce((sum, c) => sum + c.volume, 0);
 }
+
+// ---------------------------------------------------------------------------
+// EMA — Exponential Moving Average
+// ---------------------------------------------------------------------------
+export function calcEMA(candles: NormalizedCandle[], period: number): number[] {
+  if (candles.length === 0) return [];
+  const k = 2 / (period + 1);
+  const ema: number[] = [candles[0].close];
+  for (let i = 1; i < candles.length; i++) {
+    ema.push(candles[i].close * k + ema[i - 1] * (1 - k));
+  }
+  return ema;
+}
+
+// ---------------------------------------------------------------------------
+// ATR — Average True Range
+// ---------------------------------------------------------------------------
+export function calcATR(candles: NormalizedCandle[], period: number): number[] {
+  if (candles.length === 0) return [];
+  const tr: number[] = [candles[0].high - candles[0].low];
+  for (let i = 1; i < candles.length; i++) {
+    tr.push(Math.max(
+      candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - candles[i - 1].close),
+      Math.abs(candles[i].low - candles[i - 1].close),
+    ));
+  }
+  // Smoothed ATR using Wilder's method
+  const atr: number[] = [];
+  const firstATR = tr.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = 0; i < period - 1; i++) atr.push(0);
+  atr.push(firstATR);
+  for (let i = period; i < tr.length; i++) {
+    atr.push((atr[atr.length - 1] * (period - 1) + tr[i]) / period);
+  }
+  return atr;
+}
+
+// ---------------------------------------------------------------------------
+// Bollinger Bands — returns bandwidth (normalized), upper, middle, lower
+// ---------------------------------------------------------------------------
+export function calcBollingerBands(
+  candles: NormalizedCandle[],
+  period: number,
+  mult: number = 2,
+): { upper: number; middle: number; lower: number; width: number }[] {
+  const result: { upper: number; middle: number; lower: number; width: number }[] = [];
+  for (let i = 0; i < candles.length; i++) {
+    if (i < period - 1) {
+      result.push({ upper: 0, middle: 0, lower: 0, width: 0 });
+      continue;
+    }
+    const slice = candles.slice(i - period + 1, i + 1).map(c => c.close);
+    const mean = slice.reduce((a, b) => a + b, 0) / period;
+    const stddev = Math.sqrt(slice.reduce((s, v) => s + (v - mean) ** 2, 0) / period);
+    result.push({
+      upper: mean + mult * stddev,
+      middle: mean,
+      lower: mean - mult * stddev,
+      width: mean > 0 ? (mult * stddev * 2) / mean : 0,
+    });
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Linear Regression — slope, intercept, R² for a series of values
+// ---------------------------------------------------------------------------
+export function linearRegression(values: number[]): { slope: number; intercept: number; r2: number } {
+  const n = values.length;
+  if (n < 2) return { slope: 0, intercept: values[0] ?? 0, r2: 0 };
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i; sumY += values[i]; sumXY += i * values[i];
+    sumX2 += i * i; sumY2 += values[i] ** 2;
+  }
+  const denom = n * sumX2 - sumX ** 2;
+  if (denom === 0) return { slope: 0, intercept: sumY / n, r2: 0 };
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const ssTot = sumY2 - (sumY ** 2) / n;
+  const ssRes = values.reduce((s, v, i) => s + (v - (intercept + slope * i)) ** 2, 0);
+  const r2 = ssTot === 0 ? 0 : 1 - ssRes / ssTot;
+  return { slope, intercept, r2 };
+}

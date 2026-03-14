@@ -7,6 +7,7 @@ import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-
 import { RadarChart } from '@/components/radar-chart';
 import { Sparkline } from '@/components/sparkline';
 import { PriceChart } from '@/components/price-chart';
+import type { PatternResult } from '@/lib/types';
 import { MiniChart } from '@/components/mini-chart';
 
 interface ChartCandle {
@@ -43,6 +44,7 @@ interface SnapshotDetail {
   optionsFlowValue: number | null;
   explanation: string;
   dataSourceMeta: string | null;
+  patterns: string | null;
   timestamp: string;
 }
 
@@ -486,7 +488,15 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
           </div>
         ) : chartCandles.length >= 2 ? (
           <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
-            <PriceChart key={`${chartInterval}:${chartRange}`} candles={chartCandles} width={chartWidth} height={chartHeight} />
+            <PriceChart
+              key={`${chartInterval}:${chartRange}`}
+              candles={chartCandles}
+              patterns={chartInterval === '1min' && chartRange === '1D' && latest?.patterns
+                ? (JSON.parse(latest.patterns) as PatternResult[])
+                : undefined}
+              width={chartWidth}
+              height={chartHeight}
+            />
           </div>
         ) : history.length >= 2 ? (
           <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">

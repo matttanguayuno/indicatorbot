@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import type { PatternResult } from '@/lib/types';
 
 interface Candle {
   time: string;
@@ -13,6 +14,7 @@ interface Candle {
 
 interface PriceChartProps {
   candles: Candle[];
+  patterns?: PatternResult[];
   width?: number;
   height?: number;
   className?: string;
@@ -20,6 +22,7 @@ interface PriceChartProps {
 
 export function PriceChart({
   candles,
+  patterns,
   width: defaultW = 900,
   height: defaultH = 350,
   className = '',
@@ -291,6 +294,152 @@ export function PriceChart({
           fill={c.close >= c.open ? '#4ade8040' : '#f8717140'}
         />
       ))}
+
+      {/* Pattern overlays */}
+      {patterns?.map((p, pi) => {
+        // Map global candle indices to visible indices
+        const vStart = p.startIndex - zStart;
+        const vEnd = p.endIndex - zStart;
+        // Skip patterns outside visible range
+        if (vEnd < 0 || vStart >= visCandles.length) return null;
+        const clampedStart = Math.max(0, vStart);
+        const clampedEnd = Math.min(visCandles.length - 1, vEnd);
+
+        const patternColor = '#facc15'; // yellow-400
+        const patternFill = '#facc1518';
+
+        switch (p.type) {
+          case 'volume-breakout': {
+            const ry = yPrice(p.resistancePrice);
+            return (
+              <g key={pi}>
+                <line x1={x(clampedStart)} y1={ry} x2={x(clampedEnd)} y2={ry}
+                  stroke={patternColor} strokeWidth="1" strokeDasharray="4,3" />
+                <text x={x(clampedEnd) + 4} y={ry - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                  {p.label}
+                </text>
+                {/* Triangle marker at breakout */}
+                <polygon
+                  points={`${x(clampedEnd)},${ry - 8} ${x(clampedEnd) - 4},${ry} ${x(clampedEnd) + 4},${ry}`}
+                  fill={patternColor}
+                />
+              </g>
+            );
+          }
+          case 'consolidation-breakout': {
+            const y1 = yPrice(p.rangeHigh);
+            const y2 = yPrice(p.rangeLow);
+            return (
+              <g key={pi}>
+                <rect x={x(clampedStart)} y={y1} width={x(clampedEnd) - x(clampedStart)} height={y2 - y1}
+                  fill={patternFill} stroke={patternColor} strokeWidth="0.7" strokeDasharray="3,2" />
+                <text x={x(clampedStart) + 4} y={y1 - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'bull-flag': {
+            const poleS = Math.max(0, p.poleStartIndex - zStart);
+            const poleE = Math.max(0, p.poleEndIndex - zStart);
+            const flagS = Math.max(0, p.flagStartIndex - zStart);
+            const flagE = Math.min(visCandles.length - 1, p.flagEndIndex - zStart);
+            if (poleS >= visCandles.length || flagE < 0) return null;
+            // Pole highlight
+            const poleCandles = visCandles.slice(poleS, poleE + 1);
+            const poleLow = Math.min(...poleCandles.map(c => c.low));
+            const poleHigh = Math.max(...poleCandles.map(c => c.high));
+            // Flag channel
+            const flagCandles = visCandles.slice(flagS, flagE + 1);
+            const flagHigh = Math.max(...flagCandles.map(c => c.high));
+            const flagLow = Math.min(...flagCandles.map(c => c.low));
+            return (
+              <g key={pi}>
+                {/* Pole shading */}
+                <rect x={x(poleS)} y={yPrice(poleHigh)} width={x(poleE) - x(poleS)} height={yPrice(poleLow) - yPrice(poleHigh)}
+                  fill="#4ade8015" stroke="#4ade80" strokeWidth="0.5" />
+                {/* Flag channel */}
+                <rect x={x(flagS)} y={yPrice(flagHigh)} width={x(flagE) - x(flagS)} height={yPrice(flagLow) - yPrice(flagHigh)}
+                  fill={patternFill} stroke={patternColor} strokeWidth="0.7" strokeDasharray="3,2" />
+                <text x={x(flagS) + 4} y={yPrice(flagHigh) - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'ascending-triangle': {
+            const ry = yPrice(p.resistancePrice);
+            // Rising trendline from first to last swing low
+            const visSwingLows = p.swingLowIndices
+              .map(si => si - zStart)
+              .filter(si => si >= 0 && si < visCandles.length);
+            return (
+              <g key={pi}>
+                {/* Resistance line */}
+                <line x1={x(clampedStart)} y1={ry} x2={x(clampedEnd)} y2={ry}
+                  stroke={patternColor} strokeWidth="1" strokeDasharray="4,3" />
+                {/* Rising trendline through swing lows */}
+                {visSwingLows.length >= 2 && (
+                  <line
+                    x1={x(visSwingLows[0])} y1={yPrice(visCandles[visSwingLows[0]].low)}
+                    x2={x(visSwingLows[visSwingLows.length - 1])} y2={yPrice(visCandles[visSwingLows[visSwingLows.length - 1]].low)}
+                    stroke={patternColor} strokeWidth="1"
+                  />
+                )}
+                {/* Triangle fill */}
+                {visSwingLows.length >= 2 && (
+                  <polygon
+                    points={[
+                      `${x(visSwingLows[0])},${yPrice(visCandles[visSwingLows[0]].low)}`,
+                      `${x(visSwingLows[visSwingLows.length - 1])},${yPrice(visCandles[visSwingLows[visSwingLows.length - 1]].low)}`,
+                      `${x(clampedEnd)},${ry}`,
+                      `${x(clampedStart)},${ry}`,
+                    ].join(' ')}
+                    fill={patternFill}
+                  />
+                )}
+                <text x={x(clampedStart) + 4} y={ry - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'channel-breakout': {
+            // Draw upper and lower trendlines using slope/intercept
+            // Indices are relative to pattern window start
+            const startOffset = p.startIndex - zStart;
+            const upperY1 = yPrice(p.upperIntercept + p.upperSlope * Math.max(0, -startOffset));
+            const upperY2 = yPrice(p.upperIntercept + p.upperSlope * (clampedEnd - startOffset));
+            const lowerY1 = yPrice(p.lowerIntercept + p.lowerSlope * Math.max(0, -startOffset));
+            const lowerY2 = yPrice(p.lowerIntercept + p.lowerSlope * (clampedEnd - startOffset));
+            return (
+              <g key={pi}>
+                {/* Upper trendline */}
+                <line x1={x(clampedStart)} y1={upperY1} x2={x(clampedEnd)} y2={upperY2}
+                  stroke={patternColor} strokeWidth="1" />
+                {/* Lower trendline */}
+                <line x1={x(clampedStart)} y1={lowerY1} x2={x(clampedEnd)} y2={lowerY2}
+                  stroke={patternColor} strokeWidth="1" />
+                {/* Channel fill */}
+                <polygon
+                  points={[
+                    `${x(clampedStart)},${upperY1}`,
+                    `${x(clampedEnd)},${upperY2}`,
+                    `${x(clampedEnd)},${lowerY2}`,
+                    `${x(clampedStart)},${lowerY1}`,
+                  ].join(' ')}
+                  fill={patternFill}
+                />
+                <text x={x(clampedStart) + 4} y={Math.min(upperY1, upperY2) - 4} fill={patternColor} fontSize={10} fontWeight="600">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          default:
+            return null;
+        }
+      })}
 
       {/* Y-axis labels */}
       {yTicks.map((t, i) => (
