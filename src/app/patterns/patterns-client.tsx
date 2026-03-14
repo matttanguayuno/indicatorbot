@@ -151,15 +151,12 @@ export function PatternsClient() {
   const highlightedPattern = lockedPattern;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const searchRef = useRef<HTMLDivElement>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   function scrollToRef(type: string) {
     const el = document.getElementById(`ref-${type}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setHighlightedRef(type);
-      clearTimeout(highlightTimerRef.current);
-      highlightTimerRef.current = setTimeout(() => setHighlightedRef(null), 2000);
     }
   }
 
@@ -376,6 +373,7 @@ export function PatternsClient() {
                 } else {
                   setLockedPattern(i);
                   setPopupPos(pos ?? null);
+                  setHighlightedRef(null);
                 }
               }}
               width={900}
@@ -454,7 +452,7 @@ export function PatternsClient() {
               key={ref.type}
               id={`ref-${ref.type}`}
               className={`bg-zinc-900 rounded-lg p-4 space-y-3 transition-all duration-700 ${
-                highlightedRef === ref.type ? 'ring-2 ring-blue-500/60' : ''
+                highlightedRef === ref.type ? 'ring-2 ring-blue-500/60 bg-blue-950/40' : ''
               }`}
             >
               <div className="text-base font-semibold text-zinc-200">{ref.name}</div>
