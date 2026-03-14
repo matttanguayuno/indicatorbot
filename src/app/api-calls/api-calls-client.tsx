@@ -138,7 +138,7 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        <div>
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <colgroup>
               <col className="w-28" />
@@ -200,7 +200,8 @@ export function ApiCallsClient() {
 }
 
 function CreditChart({ entries }: { entries: LogEntry[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerW, setContainerW] = useState(600);
   const data = useMemo(() => {
     // Bucket credits by minute (HH:MM in MT)
     const buckets = new Map<string, number>();
@@ -220,57 +221,65 @@ function CreditChart({ entries }: { entries: LogEntry[] }) {
       .map(([minute, credits]) => ({ minute, credits }));
   }, [entries]);
 
+  // Track container width
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth > 0) setContainerW(el.clientWidth);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   if (data.length < 2) return null;
 
   const maxCredits = Math.max(...data.map((d) => d.credits), 1);
   const LIMIT = 55;
   const chartH = 140;
-  const barW = Math.max(6, Math.min(24, Math.floor(600 / data.length) - 2));
-  const gap = 2;
-  const chartW = data.length * (barW + gap);
-  const labelEvery = Math.max(1, Math.ceil(data.length / 12));
-
-  // Scroll to the latest data on load
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, [data.length]);
+  const padLeft = 4;
+  const padRight = 4;
+  const padBottom = 20;
+  const svgW = containerW;
+  const svgH = chartH + padBottom;
+  const usableW = svgW - padLeft - padRight;
+  const barW = Math.max(2, usableW / data.length - 1);
+  const gap = Math.max(0.5, (usableW - barW * data.length) / Math.max(data.length - 1, 1));
+  const labelEvery = Math.max(1, Math.ceil(data.length / Math.floor(svgW / 60)));
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4 overflow-hidden min-w-0 max-w-full">
+    <div ref={containerRef} className="bg-zinc-900 rounded-lg p-4">
       <h2 className="text-sm font-semibold text-zinc-400 mb-3">Credits Per Minute</h2>
-      <div ref={scrollRef} className="overflow-x-auto">
-        <svg width={chartW + 40} height={chartH + 28}>
-          {/* 55-credit limit line */}
-          {maxCredits >= LIMIT * 0.5 && (() => {
-            const y = chartH - (LIMIT / Math.max(maxCredits, LIMIT)) * chartH;
-            return (
-              <>
-                <line x1={0} y1={y} x2={chartW + 40} y2={y} stroke="#ef4444" strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
-                <text x={chartW + 38} y={y - 3} fill="#ef4444" fontSize={9} textAnchor="end" opacity={0.7}>55</text>
-              </>
-            );
-          })()}
-          {/* Bars */}
-          {data.map((d, i) => {
-            const h = (d.credits / Math.max(maxCredits, LIMIT)) * chartH;
-            const x = i * (barW + gap);
-            const y = chartH - h;
-            const color = d.credits >= LIMIT ? '#ef4444' : d.credits >= 40 ? '#f59e0b' : '#22c55e';
-            return (
-              <g key={i}>
-                <title>{d.minute}: {d.credits} credits</title>
-                <rect x={x} y={y} width={barW} height={h} rx={1} fill={color} opacity={0.85} />
-                {i % labelEvery === 0 && (
-                  <text x={x + barW / 2} y={chartH + 14} fill="#71717a" fontSize={9} textAnchor="middle">
-                    {d.minute}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      <svg width="100%" height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none">
+        {/* 55-credit limit line */}
+        {maxCredits >= LIMIT * 0.5 && (() => {
+          const y = chartH - (LIMIT / Math.max(maxCredits, LIMIT)) * chartH;
+          return (
+            <>
+              <line x1={0} y1={y} x2={svgW} y2={y} stroke="#ef4444" strokeWidth={1} strokeDasharray="4,3" opacity={0.5} />
+              <text x={svgW - 2} y={y - 3} fill="#ef4444" fontSize={9} textAnchor="end" opacity={0.7}>55</text>
+            </>
+          );
+        })()}
+        {/* Bars */}
+        {data.map((d, i) => {
+          const h = (d.credits / Math.max(maxCredits, LIMIT)) * chartH;
+          const bx = padLeft + i * (barW + gap);
+          const by = chartH - h;
+          const color = d.credits >= LIMIT ? '#ef4444' : d.credits >= 40 ? '#f59e0b' : '#22c55e';
+          return (
+            <g key={i}>
+              <title>{d.minute}: {d.credits} credits</title>
+              <rect x={bx} y={by} width={barW} height={h} rx={1} fill={color} opacity={0.85} />
+              {i % labelEvery === 0 && (
+                <text x={bx + barW / 2} y={chartH + 14} fill="#71717a" fontSize={9} textAnchor="middle">
+                  {d.minute}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
