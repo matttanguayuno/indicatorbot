@@ -186,27 +186,17 @@ export function PatternsClient() {
   const patternDetails = useMemo(() => {
     if (patterns.length === 0) return null;
     return patterns.map((p) => {
-      const common = {
-        type: p.type,
-        label: p.label,
-        conviction: `${Math.round(p.conviction * 100)}%`,
-        range: `candle ${p.startIndex}–${p.endIndex}`,
-        startTime: p.startTime,
-        endTime: p.endTime,
-      };
       switch (p.type) {
         case 'volume-breakout':
-          return { ...common, resistancePrice: p.resistancePrice.toFixed(2), breakoutPrice: p.breakoutPrice.toFixed(2), volumeRatio: `${p.volumeRatio.toFixed(1)}×` };
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Resistance $${p.resistancePrice.toFixed(2)} · Volume ${p.volumeRatio.toFixed(1)}×` };
         case 'consolidation-breakout':
-          return { ...common, rangeHigh: p.rangeHigh.toFixed(2), rangeLow: p.rangeLow.toFixed(2), bandwidthContraction: `${Math.round(p.bandwidthContraction * 100)}%` };
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Range $${p.rangeLow.toFixed(2)}–$${p.rangeHigh.toFixed(2)} · Squeeze ${Math.round(p.bandwidthContraction * 100)}%` };
         case 'bull-flag':
-          return { ...common, poleRange: `${p.poleStartIndex}–${p.poleEndIndex}`, flagRange: `${p.flagStartIndex}–${p.flagEndIndex}`, flagSlope: p.flagSlope.toFixed(4) };
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Pole ${p.poleStartIndex}–${p.poleEndIndex} · Flag slope ${p.flagSlope.toFixed(4)}` };
         case 'ascending-triangle':
-          return { ...common, resistancePrice: p.resistancePrice.toFixed(2), swingLows: p.swingLowIndices.length, trendlineSlope: p.trendlineSlope.toFixed(4) };
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Resistance $${p.resistancePrice.toFixed(2)} · ${p.swingLowIndices.length} swing lows` };
         case 'channel-breakout':
-          return { ...common, upperSlope: p.upperSlope.toFixed(4), lowerSlope: p.lowerSlope.toFixed(4) };
-        default:
-          return common;
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Upper slope ${p.upperSlope.toFixed(4)} · Lower ${p.lowerSlope.toFixed(4)}` };
       }
     });
   }, [patterns]);
@@ -296,135 +286,82 @@ export function PatternsClient() {
         <div className="text-xs text-zinc-500">{activeSymbol} — {chartSource}</div>
       )}
 
-      {/* Chart with pattern overlays */}
-      {candles.length >= 2 && (
-        <div className="bg-zinc-900 rounded-lg p-3 overflow-hidden">
-          <div className="w-full aspect-[900/400]">
-            <PriceChart
-              candles={candles}
-              patterns={patterns.length > 0 ? patterns : undefined}
-              highlightPatternIndex={highlightedPattern}
-              onPatternClick={(i) => setHighlightedPattern(highlightedPattern === i ? null : i)}
-              width={900}
-              height={400}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Detection results */}
-      {detecting && (
-        <div className="text-sm text-zinc-400">Running pattern detection…</div>
-      )}
-
-      {!loading && !detecting && activeSymbol && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-zinc-300">
-            Detection Results
-            <span className="ml-2 text-zinc-500 font-normal">
-              {patterns.length === 0 ? 'No patterns detected' : `${patterns.length} pattern(s) found`}
-            </span>
-          </h2>
-
-          {patterns.length === 0 && candles.length > 0 && (
-            <div className="bg-zinc-900 rounded-lg p-4 text-sm text-zinc-400 space-y-2">
-              <p>No breakout patterns detected in {candles.length} candles.</p>
-              <p className="text-zinc-500">The detectors look for:</p>
-              <ul className="list-disc list-inside text-xs text-zinc-500 space-y-1">
-                <li><span className="text-zinc-300">Volume Breakout</span> — price above resistance + volume ≥ 1.5× avg</li>
-                <li><span className="text-zinc-300">Consolidation Breakout</span> — Bollinger squeeze ≥ 40% then range break</li>
-                <li><span className="text-zinc-300">Bull Flag</span> — sharp pole (≥ 1.5%) + shallow pullback + break</li>
-                <li><span className="text-zinc-300">Ascending Triangle</span> — flat resistance (3+ touches) + rising lows</li>
-                <li><span className="text-zinc-300">Channel Breakout</span> — parallel trendlines + upper break</li>
-              </ul>
-              <p className="text-zinc-500">Try a different timeframe, or a stock with more price action.</p>
+      {/* Chart + Results side by side */}
+      {(candles.length >= 2 || (activeSymbol && !loading)) && (
+        <div className="flex gap-4 flex-col lg:flex-row">
+          {/* Chart */}
+          {candles.length >= 2 && (
+            <div className="bg-zinc-900 rounded-lg p-3 overflow-hidden flex-1 min-w-0">
+              <div className="w-full aspect-[900/400]">
+                <PriceChart
+                  candles={candles}
+                  patterns={patterns.length > 0 ? patterns : undefined}
+                  highlightPatternIndex={highlightedPattern}
+                  onPatternClick={(i) => setHighlightedPattern(highlightedPattern === i ? null : i)}
+                  width={900}
+                  height={400}
+                />
+              </div>
             </div>
           )}
 
-          {patternDetails && patternDetails.map((detail, i) => (
-            <div
-              key={i}
-              className={`bg-zinc-900 rounded-lg p-4 cursor-pointer transition-all border ${
-                highlightedPattern === i
-                  ? 'border-yellow-500/60 ring-1 ring-yellow-500/30'
-                  : 'border-transparent hover:border-yellow-700/40'
-              }`}
-              onMouseEnter={() => setHighlightedPattern(i)}
-              onMouseLeave={() => setHighlightedPattern(null)}
-              onClick={() => setHighlightedPattern(highlightedPattern === i ? null : i)}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-                  {detail.label}
-                </span>
-                <span className="text-xs text-zinc-500">Conviction: {detail.conviction}</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-xs">
-                {Object.entries(detail)
-                  .filter(([k]) => !['type', 'label', 'conviction'].includes(k))
-                  .map(([key, val]) => (
-                    <div key={key} className="flex justify-between gap-2">
-                      <span className="text-zinc-500">{key}</span>
-                      <span className="text-zinc-300 font-mono">{String(val)}</span>
-                    </div>
-                  ))}
-              </div>
+          {/* Results panel */}
+          {!loading && !detecting && activeSymbol && (
+            <div className="lg:w-72 shrink-0 space-y-2">
+              <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                {patterns.length === 0 ? 'No Patterns' : `${patterns.length} Pattern${patterns.length > 1 ? 's' : ''}`}
+              </h2>
+
+              {patterns.length === 0 && candles.length > 0 && (
+                <p className="text-xs text-zinc-500">No breakout patterns detected in {candles.length} candles. Try a different timeframe or stock.</p>
+              )}
+
+              {patternDetails && patternDetails.map((detail, i) => (
+                <div
+                  key={i}
+                  className={`rounded-lg p-3 cursor-pointer transition-all border text-xs ${
+                    highlightedPattern === i
+                      ? 'bg-yellow-900/20 border-yellow-500/60 ring-1 ring-yellow-500/30'
+                      : 'bg-zinc-900 border-transparent hover:border-yellow-700/40'
+                  }`}
+                  onMouseEnter={() => setHighlightedPattern(i)}
+                  onMouseLeave={() => setHighlightedPattern(null)}
+                  onClick={() => setHighlightedPattern(highlightedPattern === i ? null : i)}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-yellow-300">{detail.label}</span>
+                    <span className="text-zinc-500">{detail.conviction}%</span>
+                  </div>
+                  <div className="text-zinc-400">{detail.details}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
-      {/* Candle stats */}
-      {candles.length > 0 && !loading && (
-        <details className="text-xs text-zinc-500">
-          <summary className="cursor-pointer hover:text-zinc-400">Candle stats ({candles.length} candles)</summary>
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-zinc-900 rounded-lg p-3">
-            <div>
-              <div className="text-zinc-400">First</div>
-              <div className="text-zinc-300 font-mono">{new Date(candles[0].time).toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-zinc-400">Last</div>
-              <div className="text-zinc-300 font-mono">{new Date(candles[candles.length - 1].time).toLocaleString()}</div>
-            </div>
-            <div>
-              <div className="text-zinc-400">Price range</div>
-              <div className="text-zinc-300 font-mono">
-                ${Math.min(...candles.map(c => c.low)).toFixed(2)} – ${Math.max(...candles.map(c => c.high)).toFixed(2)}
-              </div>
-            </div>
-            <div>
-              <div className="text-zinc-400">Avg volume</div>
-              <div className="text-zinc-300 font-mono">
-                {Math.round(candles.reduce((s, c) => s + c.volume, 0) / candles.length).toLocaleString()}
-              </div>
-            </div>
-          </div>
-        </details>
+      {detecting && (
+        <div className="text-sm text-zinc-400">Running pattern detection…</div>
       )}
 
       {/* Pattern Reference */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-zinc-300">Pattern Reference</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {PATTERN_REFERENCE.map((ref) => (
-            <div key={ref.type} className="bg-zinc-900 rounded-lg p-4 space-y-2">
+            <div key={ref.type} className="bg-zinc-900 rounded-lg p-3 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-lg">{ref.icon}</span>
+                <PatternIcon type={ref.type} />
                 <span className="text-sm font-medium text-zinc-200">{ref.name}</span>
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed">{ref.description}</p>
-              <div className="space-y-1">
+              <p className="text-[11px] text-zinc-400 leading-relaxed">{ref.description}</p>
+              <div className="space-y-0.5">
                 {ref.criteria.map((c, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-xs">
+                  <div key={i} className="flex items-start gap-1.5 text-[11px]">
                     <span className="text-yellow-500 mt-0.5">•</span>
                     <span className="text-zinc-500">{c}</span>
                   </div>
                 ))}
-              </div>
-              <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
-                <span className="text-[10px] text-zinc-600">Lookback: {ref.lookback} candles</span>
               </div>
             </div>
           ))}
@@ -432,4 +369,66 @@ export function PatternsClient() {
       </div>
     </div>
   );
+}
+
+/** Abstract SVG icon showing the general shape of each pattern */
+function PatternIcon({ type }: { type: string }) {
+  const w = 36;
+  const h = 24;
+  const stroke = '#facc15';
+  const fill = '#facc1530';
+
+  switch (type) {
+    case 'volume-breakout':
+      // Flat resistance line, price pops above with tall volume bar
+      return (
+        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
+          <line x1="2" y1="10" x2="26" y2="10" stroke={stroke} strokeWidth="1" strokeDasharray="2,1" />
+          <polyline points="2,18 10,14 18,12 22,11 26,10 30,6 34,4" fill="none" stroke={stroke} strokeWidth="1.5" />
+          <rect x="28" y="16" width="4" height="8" fill={stroke} opacity="0.5" rx="0.5" />
+        </svg>
+      );
+    case 'consolidation-breakout':
+      // Narrowing bands then breakout
+      return (
+        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
+          <path d="M2,4 Q10,2 18,8 Q24,10 28,10" fill="none" stroke={stroke} strokeWidth="0.7" opacity="0.5" />
+          <path d="M2,20 Q10,22 18,16 Q24,14 28,14" fill="none" stroke={stroke} strokeWidth="0.7" opacity="0.5" />
+          <rect x="8" y="8" width="18" height="8" fill={fill} rx="1" />
+          <polyline points="2,14 10,13 18,12 24,12 28,12 32,5 34,3" fill="none" stroke={stroke} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'bull-flag':
+      // Sharp pole up, then shallow pullback flag
+      return (
+        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
+          <polyline points="2,20 6,18 10,6 12,4" fill="none" stroke="#4ade80" strokeWidth="1.5" />
+          <rect x="12" y="4" width="16" height="8" fill={fill} rx="1" />
+          <polyline points="12,4 16,6 20,7 24,8 28,9" fill="none" stroke={stroke} strokeWidth="1" strokeDasharray="2,1" />
+          <polyline points="28,9 32,5 34,3" fill="none" stroke={stroke} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'ascending-triangle':
+      // Flat top, rising lows forming triangle
+      return (
+        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
+          <line x1="4" y1="6" x2="30" y2="6" stroke={stroke} strokeWidth="1" strokeDasharray="2,1" />
+          <polyline points="4,20 12,16 20,12 28,8" fill="none" stroke={stroke} strokeWidth="1" />
+          <polygon points="4,6 4,20 28,6" fill={fill} />
+          <polyline points="28,8 32,4 34,2" fill="none" stroke={stroke} strokeWidth="1.5" />
+        </svg>
+      );
+    case 'channel-breakout':
+      // Two parallel lines, breakout above upper
+      return (
+        <svg width={w} height={h} viewBox="0 0 36 24" className="shrink-0">
+          <line x1="2" y1="6" x2="26" y2="10" stroke={stroke} strokeWidth="0.7" />
+          <line x1="2" y1="16" x2="26" y2="20" stroke={stroke} strokeWidth="0.7" />
+          <polygon points="2,6 26,10 26,20 2,16" fill={fill} />
+          <polyline points="8,14 14,12 20,13 26,10 30,5 34,3" fill="none" stroke={stroke} strokeWidth="1.5" />
+        </svg>
+      );
+    default:
+      return <span className="text-lg">📊</span>;
+  }
 }

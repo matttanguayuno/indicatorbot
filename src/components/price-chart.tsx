@@ -34,6 +34,7 @@ export function PriceChart({
   if (candles.length < 2) return null;
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [hoverInVolume, setHoverInVolume] = useState(false);
   const [zoom, setZoom] = useState<[number, number]>([0, 1]);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,10 +66,11 @@ export function PriceChart({
   const padRight = 8;
   const padTop = 10;
   const padBottom = 24;
-  const volHeight = 32;
+  const volHeight = 56;
 
   const chartW = width - padLeft - padRight;
   const priceH = height - padTop - padBottom - volHeight;
+  const volTop = padTop + priceH; // y where volume section starts
 
   const closes = visCandles.map((c) => c.close);
   const highs = visCandles.map((c) => c.high);
@@ -176,11 +178,15 @@ export function PriceChart({
 
       // Hover tooltip
       const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
       const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
       const idx = Math.round(fraction * (visCandles.length - 1));
       setHoverIndex(Math.max(0, Math.min(visCandles.length - 1, idx)));
+      // Detect if pointer is in the volume area
+      const svgY = (screenY / rect.height) * height;
+      setHoverInVolume(svgY >= volTop);
     },
-    [width, padLeft, padRight, chartW, visCandles.length, zoom],
+    [width, height, padLeft, padRight, chartW, visCandles.length, zoom, volTop],
   );
 
   const handlePointerUp = useCallback(
@@ -227,7 +233,7 @@ export function PriceChart({
   // Hover tooltip position
   const hIdx = Math.min(hoverIndex ?? 0, visCandles.length - 1);
   const hx = x(hIdx);
-  const hy = yPrice(closes[hIdx]);
+  const hy = hoverInVolume ? yVol(volumes[hIdx]) : yPrice(closes[hIdx]);
   const tipW = 110;
   const tipH = 34;
   let tipX = hx - tipW / 2;
@@ -235,6 +241,13 @@ export function PriceChart({
   if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
   let tipY = hy - tipH - 8;
   if (tipY < 2) tipY = hy + 8;
+
+  // Format volume for tooltip
+  function fmtVol(v: number) {
+    if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+    if (v >= 1000) return (v / 1000).toFixed(0) + 'K';
+    return v.toLocaleString();
+  }
 
   // Hover time label
   const hoverTime = hoverIndex != null ? (() => {
@@ -505,11 +518,11 @@ export function PriceChart({
       {hoverIndex != null && (
         <g>
           <line x1={hx} y1={padTop} x2={hx} y2={height - padBottom} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
-          <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />
-          <circle cx={hx} cy={hy} r="3.5" fill={lineColor} stroke="#111827" strokeWidth="1.5" />
+          {!hoverInVolume && <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />}
+          <circle cx={hx} cy={hy} r="3.5" fill={hoverInVolume ? '#60a5fa' : lineColor} stroke="#111827" strokeWidth="1.5" />
           <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="3" fill="#111827" stroke="#4b5563" strokeWidth="0.5" />
           <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fill="#e5e7eb" fontSize={14} fontWeight="600">
-            ${fmtPrice(closes[hIdx])}
+            {hoverInVolume ? `Vol: ${fmtVol(volumes[hIdx])}` : `$${fmtPrice(closes[hIdx])}`}
           </text>
           <text x={tipX + tipW / 2} y={tipY + 27} textAnchor="middle" fill="#9ca3af" fontSize={12}>
             {hoverTime}
