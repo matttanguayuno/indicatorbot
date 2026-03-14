@@ -787,7 +787,7 @@ function ScoreHistoryChart({ history, range }: { history: HistoryEntry[]; range:
   }
 
   return (
-    <div ref={containerRef} className="aspect-[600/260] sm:aspect-[600/180]">
+    <div ref={containerRef} className="aspect-[600/300] sm:aspect-[600/180]">
     <svg
       ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}

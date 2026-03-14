@@ -280,11 +280,9 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
 
     if (level === 0) continue;
 
-    // Only alert if level is higher than last alert, or cooldown has expired
-    const cooldownExpired = !entry.lastSellAlertAt ||
-      Date.now() - entry.lastSellAlertAt.getTime() > rules.cooldownMin * 60 * 1000;
-
-    if (level <= entry.lastSellAlertLevel && !cooldownExpired) continue;
+    // Only alert if level is strictly higher than the last alert sent.
+    // Same-level or lower-level alerts are never repeated.
+    if (level <= entry.lastSellAlertLevel) continue;
 
     // Send push notification
     const { emoji, label } = LEVEL_LABELS[level] ?? { emoji: '⚠️', label: 'Sell Alert' };
