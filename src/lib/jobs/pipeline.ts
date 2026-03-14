@@ -540,6 +540,23 @@ export async function runPollingCycle(source: string = 'unknown'): Promise<{
   }
 
   const results: ProcessResult[] = [];
+
+  // Only create snapshots and process tickers during market hours.
+  // Candle data is still fetched above to keep the cache warm.
+  if (!isMarketOpenET()) {
+    console.log('[Pipeline] Market closed — skipping snapshot creation');
+    return {
+      processed: tickers.length,
+      succeeded: 0,
+      failed: 0,
+      results,
+      dataSource,
+      candlesAvailable: candleMap.size,
+      candleError: 'Market closed — snapshots not created',
+      source,
+    };
+  }
+
   // Process sequentially to respect API rate limits
   for (const ticker of tickers) {
     const candles = candleMap.get(ticker.symbol) ?? null;
