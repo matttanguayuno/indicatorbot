@@ -247,6 +247,7 @@ export function PatternsClient() {
   const [lockedPattern, setLockedPattern] = useState<number | null>(null);
   const [highlightedRef, setHighlightedRef] = useState<string | null>(null);
   const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
+  const [chartMode, setChartMode] = useState<'line' | 'candle'>('candle');
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const highlightedPattern = lockedPattern;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -479,9 +480,38 @@ export function PatternsClient() {
       {/* Chart with pattern popup */}
       {candles.length >= 2 && (
         <div ref={chartContainerRef} className="relative bg-zinc-900 rounded-lg p-3 overflow-hidden">
+          {/* Line / Candle toggle */}
+          <div className="flex justify-end mb-2">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setChartMode('line')}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  chartMode === 'line'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+                title="Line chart"
+              >
+                Line
+              </button>
+              <button
+                onClick={() => setChartMode('candle')}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  chartMode === 'candle'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+                title="Candlestick chart"
+              >
+                Candle
+              </button>
+            </div>
+          </div>
           <div className="w-full aspect-[900/400]">
             <PriceChart
+              key={`${interval}:${range}:${chartMode}`}
               candles={candles}
+              chartMode={chartMode}
               patterns={patterns.length > 0 ? patterns : undefined}
               highlightPatternIndex={highlightedPattern}
               onPatternClick={(i, pos) => {
