@@ -577,7 +577,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         ) : chartCandles.length >= 2 ? (
           <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
             <PriceChart
-              key={`${chartInterval}:${chartRange}`}
+              key={`${chartInterval}:${chartRange}:${chartMode}`}
               candles={chartCandles}
               chartMode={chartMode}
               patterns={chartInterval === '1min' && chartRange === '1D' && latest?.patterns
