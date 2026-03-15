@@ -18,6 +18,7 @@ interface PriceChartProps {
   highlightPatternIndex?: number | null;
   onPatternClick?: (index: number, clickPos?: { x: number; y: number }) => void;
   onBackgroundClick?: () => void;
+  chartMode?: 'line' | 'candle';
   width?: number;
   height?: number;
   className?: string;
@@ -29,6 +30,7 @@ export function PriceChart({
   highlightPatternIndex,
   onPatternClick,
   onBackgroundClick,
+  chartMode = 'line',
   width: defaultW = 900,
   height: defaultH = 350,
   className = '',
@@ -303,8 +305,8 @@ export function PriceChart({
   const hIdx = Math.min(hoverIndex ?? 0, visCandles.length - 1);
   const hx = x(hIdx);
   const hy = hoverInVolume ? yVol(volumes[hIdx]) : yPrice(closes[hIdx]);
-  const tipW = 110;
-  const tipH = 34;
+  const tipW = chartMode === 'candle' ? 140 : 110;
+  const tipH = chartMode === 'candle' ? 58 : 34;
   let tipX = hx - tipW / 2;
   if (tipX < padLeft) tipX = padLeft;
   if (tipX + tipW > width - padRight) tipX = width - padRight - tipW;
@@ -358,17 +360,45 @@ export function PriceChart({
       ))}
 
       {/* Area fill */}
-      <path d={areaPath} fill={fillColor} />
+      {chartMode === 'line' && <path d={areaPath} fill={fillColor} />}
 
       {/* Price line */}
-      <polyline
-        points={linePoints}
-        fill="none"
-        stroke={lineColor}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
+      {chartMode === 'line' && (
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke={lineColor}
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
+
+      {/* Candlesticks */}
+      {chartMode === 'candle' && visCandles.map((c, i) => {
+        const isUp = c.close >= c.open;
+        const bodyTop = yPrice(isUp ? c.close : c.open);
+        const bodyBot = yPrice(isUp ? c.open : c.close);
+        const bodyH = Math.max(1, bodyBot - bodyTop);
+        const candleW = Math.max(1, Math.min(barW * 0.8, chartW / visCandles.length * 0.7));
+        return (
+          <g key={`candle-${i}`}>
+            {/* Wick */}
+            <line
+              x1={x(i)} y1={yPrice(c.high)} x2={x(i)} y2={yPrice(c.low)}
+              stroke={isUp ? '#22c55e' : '#ef4444'} strokeWidth={1}
+            />
+            {/* Body */}
+            <rect
+              x={x(i) - candleW / 2} y={bodyTop}
+              width={candleW} height={bodyH}
+              fill={isUp ? '#22c55e' : '#ef4444'}
+              stroke={isUp ? '#16a34a' : '#dc2626'}
+              strokeWidth={0.5}
+            />
+          </g>
+        );
+      })}
 
       {/* Volume bars */}
       {visCandles.map((c, i) => (
@@ -660,7 +690,7 @@ export function PriceChart({
         cx={x(visCandles.length - 1)}
         cy={yPrice(closes[closes.length - 1])}
         r="3"
-        fill={lineColor}
+        fill={chartMode === 'candle' ? (isPositive ? '#22c55e' : '#ef4444') : lineColor}
       />
 
       {/* Current price label */}
@@ -681,12 +711,31 @@ export function PriceChart({
           {!hoverInVolume && <line x1={padLeft} y1={hy} x2={width - padRight} y2={hy} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="2,2" />}
           <circle cx={hx} cy={hy} r="3.5" fill={hoverInVolume ? '#60a5fa' : lineColor} stroke="#111827" strokeWidth="1.5" />
           <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="3" fill="#111827" stroke="#4b5563" strokeWidth="0.5" />
-          <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fill="#e5e7eb" fontSize={14} fontWeight="600">
-            {hoverInVolume ? `Vol: ${fmtVol(volumes[hIdx])}` : `$${fmtPrice(closes[hIdx])}`}
-          </text>
-          <text x={tipX + tipW / 2} y={tipY + 27} textAnchor="middle" fill="#9ca3af" fontSize={12}>
-            {hoverTime}
-          </text>
+          {chartMode === 'candle' && !hoverInVolume ? (
+            <>
+              <text x={tipX + tipW / 2} y={tipY + 13} textAnchor="middle" fill="#9ca3af" fontSize={11}>
+                {hoverTime}
+              </text>
+              <text x={tipX + 6} y={tipY + 27} fill="#e5e7eb" fontSize={11}>
+                O {fmtPrice(visCandles[hIdx].open)}  H {fmtPrice(visCandles[hIdx].high)}
+              </text>
+              <text x={tipX + 6} y={tipY + 41} fill="#e5e7eb" fontSize={11}>
+                L {fmtPrice(visCandles[hIdx].low)}  C {fmtPrice(visCandles[hIdx].close)}
+              </text>
+              <text x={tipX + 6} y={tipY + 53} fill="#9ca3af" fontSize={10}>
+                Vol: {fmtVol(volumes[hIdx])}
+              </text>
+            </>
+          ) : (
+            <>
+              <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fill="#e5e7eb" fontSize={14} fontWeight="600">
+                {hoverInVolume ? `Vol: ${fmtVol(volumes[hIdx])}` : `$${fmtPrice(closes[hIdx])}`}
+              </text>
+              <text x={tipX + tipW / 2} y={tipY + 27} textAnchor="middle" fill="#9ca3af" fontSize={12}>
+                {hoverTime}
+              </text>
+            </>
+          )}
         </g>
       )}
 

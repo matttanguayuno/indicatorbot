@@ -106,6 +106,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [chartDebug, setChartDebug] = useState<string>('');
   const [chartInterval, setChartInterval] = useState<string>('1min');
   const [chartRange, setChartRange] = useState<string>('1D');
+  const [chartMode, setChartMode] = useState<'line' | 'candle'>('candle');
   const [loading, setLoading] = useState(true);
   const chartContainerRef = useRef<HTMLDivElement>(null); // kept for layout
   const [tickerList, setTickerList] = useState<string[]>([]);
@@ -542,6 +543,32 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               </button>
             ))}
           </div>
+
+          {/* Line / Candle toggle */}
+          <div className="ml-auto flex gap-1">
+            <button
+              onClick={() => setChartMode('line')}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                chartMode === 'line'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+              title="Line chart"
+            >
+              Line
+            </button>
+            <button
+              onClick={() => setChartMode('candle')}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                chartMode === 'candle'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+              title="Candlestick chart"
+            >
+              Candle
+            </button>
+          </div>
         </div>
         {chartLoading ? (
           <div className="h-[280px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
@@ -552,6 +579,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             <PriceChart
               key={`${chartInterval}:${chartRange}`}
               candles={chartCandles}
+              chartMode={chartMode}
               patterns={chartInterval === '1min' && chartRange === '1D' && latest?.patterns
                 ? remapPatterns(JSON.parse(latest.patterns) as PatternResult[])
                 : undefined}
