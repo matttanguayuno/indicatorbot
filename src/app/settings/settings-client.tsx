@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import Link from 'next/link';
 import { TickerSearch } from '@/components/ticker-search';
 import { RulesClient } from '@/app/rules/rules-client';
 import { SellRulesClient } from '@/app/rules/sell-rules-client';
@@ -554,22 +553,6 @@ export function SettingsClient() {
       <RulesClient />
 
       <SellRulesClient />
-
-      {/* Feedback History link */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-400">Feedback History</h2>
-            <p className="text-xs text-gray-500 mt-1">View all feedback left on alerts to identify patterns and improve scoring.</p>
-          </div>
-          <Link
-            href="/feedback"
-            className="text-sm bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded transition-colors"
-          >
-            View Feedback →
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }
