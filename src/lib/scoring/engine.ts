@@ -24,6 +24,7 @@ function staticRules(): ScoringRules {
       newsCatalyst: { ...SCORING_WEIGHTS.newsCatalyst },
       shortInterest: { ...SCORING_WEIGHTS.shortInterest },
       optionsFlow: { ...SCORING_WEIGHTS.optionsFlow },
+      patterns: { weight: SCORING_WEIGHTS.patterns.weight, cap: SCORING_WEIGHTS.patterns.cap, baseBoosts: { ...SCORING_WEIGHTS.patterns.baseBoosts } },
     },
     penalties: { ...SCORING_PENALTIES },
     momentum: { maxPctForFullScore: 5 },
@@ -63,6 +64,9 @@ export interface SignalInputs {
 
   // Mode flag
   hasCandleData: boolean;
+
+  // Pattern detection results
+  patternSignals: { type: string; conviction: number }[] | null;
 }
 
 export interface ScoreBreakdown {
@@ -76,6 +80,7 @@ export interface ScoreBreakdown {
   newsBoost: number;
   shortInterestBoost: number;
   optionsFlowBoost: number;
+  patternBoost: number;
   missingPenalty: number;
   rawTotal: number;
   maxAchievable: number;
@@ -198,6 +203,18 @@ function scoreOptionsFlow(flow: number | null, r: ScoringRules): number {
   return 0;
 }
 
+// --- Pattern boost: sum of (baseBoost × conviction) per detected pattern, capped ---
+function scorePatterns(signals: { type: string; conviction: number }[] | null, r: ScoringRules): number {
+  if (!signals || signals.length === 0) return 0;
+  const pw = r.weights.patterns;
+  let total = 0;
+  for (const s of signals) {
+    const base = pw.baseBoosts[s.type] ?? 0;
+    total += base * clamp(s.conviction, 0, 1);
+  }
+  return Math.min(total, pw.cap);
+}
+
 // --- Missing data penalty (only for fields that COULD be available) ---
 function calcMissingPenalty(inputs: SignalInputs, r: ScoringRules): number {
   const fields: (keyof SignalInputs)[] = ['float', 'shortInterest', 'optionsFlowValue'];
@@ -210,11 +227,12 @@ function calcMissingPenalty(inputs: SignalInputs, r: ScoringRules): number {
 
 // --- Max achievable: lower when candle-only categories can't score ---
 function calcMaxAchievable(inputs: SignalInputs, r: ScoringRules): number {
-  let max = 100;
+  let max = 100 + r.weights.patterns.cap;
   if (!inputs.hasCandleData) {
     max -= r.weights.rvol.weight;
     max -= r.weights.volumeSpike.weight;
     max -= r.weights.vwap.weight;
+    max -= r.weights.patterns.cap; // patterns require candles
   }
   return max;
 }
@@ -232,12 +250,13 @@ export function calculateScore(inputs: SignalInputs, rules?: ScoringRules): Scor
   const newsBoost = scoreNewsCatalyst(inputs.newsScore, r);
   const shortInterestBoost = scoreShortInterest(inputs.shortInterest, r);
   const optionsFlowBoost = scoreOptionsFlow(inputs.optionsFlowValue, r);
+  const patternBoost = scorePatterns(inputs.patternSignals, r);
   const missingPenalty = calcMissingPenalty(inputs, r);
 
   const rawTotal =
     momentumScore + rvolBoost + volumeSpikeBoost + intradayRangeBoost +
     breakoutBoost + vwapBoost + floatBoost + newsBoost +
-    shortInterestBoost + optionsFlowBoost - missingPenalty;
+    shortInterestBoost + optionsFlowBoost + patternBoost - missingPenalty;
 
   const maxAchievable = calcMaxAchievable(inputs, r);
   const normalised = (rawTotal / maxAchievable) * 100;
@@ -254,6 +273,7 @@ export function calculateScore(inputs: SignalInputs, rules?: ScoringRules): Scor
     newsBoost: round1(newsBoost),
     shortInterestBoost: round1(shortInterestBoost),
     optionsFlowBoost: round1(optionsFlowBoost),
+    patternBoost: round1(patternBoost),
     missingPenalty: round1(missingPenalty),
     rawTotal: round1(rawTotal),
     maxAchievable,

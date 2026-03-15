@@ -14,6 +14,7 @@ interface ScoringRules {
     newsCatalyst: { weight: number; recentWindowMinutes: number; maxArticles: number };
     shortInterest: { weight: number; highThreshold: number; moderateThreshold: number };
     optionsFlow: { weight: number; bullishThreshold: number };
+    patterns: { weight: number; cap: number; baseBoosts: Record<string, number> };
   };
   penalties: { missingDataPerField: number; maxMissingPenalty: number };
   momentum: { maxPctForFullScore: number };
@@ -129,6 +130,30 @@ const SECTIONS: Section[] = [
     fields: [
       { label: 'Weight (pts)', path: ['weights', 'optionsFlow', 'weight'], unit: 'pts', step: 1, min: 0, max: 100 },
       { label: 'Bullish Threshold', path: ['weights', 'optionsFlow', 'bullishThreshold'], unit: '%', step: 5, min: 1, description: 'Bullish % for full points' },
+    ],
+  },
+  {
+    title: 'Pattern Scoring',
+    icon: '📈',
+    fields: [
+      { label: 'Max Boost Cap', path: ['weights', 'patterns', 'cap'], unit: 'pts', step: 1, min: 0, max: 30, description: 'Max combined pattern points' },
+      { label: 'Volume Breakout', path: ['weights', 'patterns', 'baseBoosts', 'volume-breakout'], unit: 'pts', step: 1, min: 0, max: 15, description: 'Base boost × conviction %' },
+      { label: 'Consolidation Breakout', path: ['weights', 'patterns', 'baseBoosts', 'consolidation-breakout'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Bull Flag', path: ['weights', 'patterns', 'baseBoosts', 'bull-flag'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Ascending Triangle', path: ['weights', 'patterns', 'baseBoosts', 'ascending-triangle'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Channel Breakout', path: ['weights', 'patterns', 'baseBoosts', 'channel-breakout'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Double Bottom', path: ['weights', 'patterns', 'baseBoosts', 'double-bottom'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Inside Bar Breakout', path: ['weights', 'patterns', 'baseBoosts', 'inside-bar-breakout'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'VWAP Reclaim', path: ['weights', 'patterns', 'baseBoosts', 'vwap-reclaim'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Symmetrical Triangle', path: ['weights', 'patterns', 'baseBoosts', 'symmetrical-triangle'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Bullish Engulfing', path: ['weights', 'patterns', 'baseBoosts', 'bullish-engulfing'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Morning Star', path: ['weights', 'patterns', 'baseBoosts', 'morning-star'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Hammer / Inv. Hammer', path: ['weights', 'patterns', 'baseBoosts', 'hammer'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'EMA Crossover', path: ['weights', 'patterns', 'baseBoosts', 'ema-crossover'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'BB Squeeze Breakout', path: ['weights', 'patterns', 'baseBoosts', 'bollinger-squeeze'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Gap & Go', path: ['weights', 'patterns', 'baseBoosts', 'gap-and-go'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Cup & Handle', path: ['weights', 'patterns', 'baseBoosts', 'cup-and-handle'], unit: 'pts', step: 1, min: 0, max: 15 },
+      { label: 'Falling Wedge', path: ['weights', 'patterns', 'baseBoosts', 'falling-wedge'], unit: 'pts', step: 1, min: 0, max: 15 },
     ],
   },
   {

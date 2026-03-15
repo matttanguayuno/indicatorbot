@@ -77,6 +77,12 @@ export function generateExplanation(inputs: SignalInputs, breakdown: ScoreBreakd
     parts.push('Bullish options flow detected');
   }
 
+  // Pattern boost
+  if (breakdown.patternBoost > 0 && inputs.patternSignals && inputs.patternSignals.length > 0) {
+    const names = inputs.patternSignals.map(p => p.type.replace(/-/g, ' ')).slice(0, 3);
+    parts.push(`Pattern${inputs.patternSignals.length > 1 ? 's' : ''} detected: ${names.join(', ')}`);
+  }
+
   // Caveats
   if (!inputs.hasCandleData) {
     caveats.push('intraday candle data unavailable (quote-only mode)');

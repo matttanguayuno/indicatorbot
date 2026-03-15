@@ -69,6 +69,30 @@ export const SCORING_WEIGHTS = {
     weight: 5,
     bullishThreshold: 0.6,
   },
+
+  patterns: {
+    weight: 15,
+    cap: 15,
+    baseBoosts: {
+      'volume-breakout': 5,
+      'consolidation-breakout': 5,
+      'bull-flag': 7,
+      'ascending-triangle': 7,
+      'channel-breakout': 6,
+      'double-bottom': 7,
+      'inside-bar-breakout': 4,
+      'vwap-reclaim': 4,
+      'symmetrical-triangle': 6,
+      'bullish-engulfing': 5,
+      'morning-star': 6,
+      'hammer': 4,
+      'ema-crossover': 3,
+      'bollinger-squeeze': 6,
+      'gap-and-go': 5,
+      'cup-and-handle': 8,
+      'falling-wedge': 6,
+    } as Record<string, number>,
+  },
 } as const;
 
 export const SCORING_PENALTIES = {

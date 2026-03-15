@@ -108,6 +108,7 @@ export async function GET(
     shortInterest: latest.shortInterest ?? null,
     optionsFlowValue: latest.optionsFlowValue ?? null,
     hasCandleData,
+    patternSignals: latest.patterns ? (JSON.parse(latest.patterns) as { type: string; conviction: number }[]).map(p => ({ type: p.type, conviction: p.conviction })) : null,
   };
   const breakdown = calculateScore(signalInputs);
 

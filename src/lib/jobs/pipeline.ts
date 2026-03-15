@@ -271,6 +271,7 @@ async function processTicker(
       shortInterest: null,
       optionsFlowValue: null,
       hasCandleData,
+      patternSignals: patterns.length > 0 ? patterns.map(p => ({ type: p.type, conviction: p.conviction })) : null,
     };
 
     const scoreBreakdown = calculateScore(signalInputs, rules);

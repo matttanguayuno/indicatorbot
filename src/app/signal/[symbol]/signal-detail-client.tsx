@@ -59,6 +59,7 @@ interface ScoreBreakdown {
   newsBoost: number;
   shortInterestBoost: number;
   optionsFlowBoost: number;
+  patternBoost: number;
   missingPenalty: number;
   rawTotal: number;
   maxAchievable: number;
@@ -94,6 +95,7 @@ const SCORE_CATEGORIES = [
   { key: 'newsBoost', label: 'News', max: 10 },
   { key: 'shortInterestBoost', label: 'Short Int', max: 5 },
   { key: 'optionsFlowBoost', label: 'Options', max: 5 },
+  { key: 'patternBoost', label: 'Patterns', max: 15 },
 ] as const;
 
 export function SignalDetailClient({ symbol }: { symbol: string }) {

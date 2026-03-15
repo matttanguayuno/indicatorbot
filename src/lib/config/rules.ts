@@ -18,6 +18,7 @@ export interface ScoringRules {
     newsCatalyst: { weight: number; recentWindowMinutes: number; maxArticles: number };
     shortInterest: { weight: number; highThreshold: number; moderateThreshold: number };
     optionsFlow: { weight: number; bullishThreshold: number };
+    patterns: { weight: number; cap: number; baseBoosts: Record<string, number> };
   };
   penalties: { missingDataPerField: number; maxMissingPenalty: number };
   momentum: { maxPctForFullScore: number };
@@ -45,6 +46,7 @@ export function getDefaultRules(): ScoringRules {
       newsCatalyst: { ...SCORING_WEIGHTS.newsCatalyst },
       shortInterest: { ...SCORING_WEIGHTS.shortInterest },
       optionsFlow: { ...SCORING_WEIGHTS.optionsFlow },
+      patterns: { weight: SCORING_WEIGHTS.patterns.weight, cap: SCORING_WEIGHTS.patterns.cap, baseBoosts: { ...SCORING_WEIGHTS.patterns.baseBoosts } },
     },
     penalties: { ...SCORING_PENALTIES },
     momentum: { maxPctForFullScore: 5 },
