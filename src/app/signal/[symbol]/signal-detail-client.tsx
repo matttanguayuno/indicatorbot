@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ScoreBadge, PctChange, DataStatus, TimeAgo } from '@/components/signal-badges';
 import { RadarChart } from '@/components/radar-chart';
 import { Sparkline } from '@/components/sparkline';
 import { PriceChart } from '@/components/price-chart';
+import { PATTERN_REFERENCE, convictionClasses, getPatternDetail, PatternIcon } from '@/components/pattern-shared';
 import type { PatternResult } from '@/lib/types';
 import { MiniChart } from '@/components/mini-chart';
 
@@ -109,6 +110,12 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const [chartInterval, setChartInterval] = useState<string>('1min');
   const [chartRange, setChartRange] = useState<string>('1D');
   const [chartMode, setChartMode] = useState<'line' | 'candle'>('candle');
+  const [showPatterns, setShowPatterns] = useState(true);
+  const [chartPatterns, setChartPatterns] = useState<PatternResult[]>([]);
+  const [detectingPatterns, setDetectingPatterns] = useState(false);
+  const [lockedPattern, setLockedPattern] = useState<number | null>(null);
+  const [popupPos, setPopupPos] = useState<{ x: number; y: number } | null>(null);
+  const [refPopup, setRefPopup] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const chartContainerRef = useRef<HTMLDivElement>(null); // kept for layout
   const [tickerList, setTickerList] = useState<string[]>([]);
@@ -255,49 +262,44 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
     return () => { cancelled = true; };
   }, [symbol, chartInterval, chartRange]);
 
+  // Detect patterns client-side when chart candles change
+  useEffect(() => {
+    if (chartCandles.length < 10) {
+      setChartPatterns([]);
+      return;
+    }
+    let cancelled = false;
+    async function detect() {
+      setDetectingPatterns(true);
+      setLockedPattern(null);
+      setPopupPos(null);
+      try {
+        const res = await fetch('/api/patterns/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candles: chartCandles }),
+        });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setChartPatterns(data.patterns ?? []);
+        }
+      } catch (err) {
+        console.error('Pattern detection failed:', err);
+      } finally {
+        if (!cancelled) setDetectingPatterns(false);
+      }
+    }
+    detect();
+    return () => { cancelled = true; };
+  }, [chartCandles]);
+
+  const patternDetails = useMemo(() => chartPatterns.map(getPatternDetail), [chartPatterns]);
+
   if (loading) return <div className="text-center text-gray-500 py-12">Loading...</div>;
   if (!latest) return <div className="text-center text-gray-500 py-12">No data for {symbol}</div>;
 
   const meta: Record<string, string> = latest.dataSourceMeta ? JSON.parse(latest.dataSourceMeta) : {};
 
-  /** Remap pattern indices from pipeline candle array to chart candle array
-   *  by matching timestamps. Returns patterns with indices adjusted for the
-   *  current chartCandles array, or empty if timestamps don't overlap. */
-  function remapPatterns(raw: PatternResult[]): PatternResult[] {
-    if (chartCandles.length === 0) return [];
-    // Build a map from ISO-minute-key to chart index for fast lookup
-    const timeToIdx = new Map<string, number>();
-    for (let i = 0; i < chartCandles.length; i++) {
-      // Key by minute (ISO string truncated to minute)
-      timeToIdx.set(chartCandles[i].time.slice(0, 16), i);
-    }
-    const findIdx = (iso: string): number | null => {
-      const key = iso.slice(0, 16);
-      return timeToIdx.get(key) ?? null;
-    };
-
-    return raw.flatMap((p) => {
-      const si = findIdx(p.startTime);
-      const ei = findIdx(p.endTime);
-      if (si == null || ei == null) return [];
-
-      const base = { ...p, startIndex: si, endIndex: ei };
-      if (p.type === 'bull-flag') {
-        const psi = findIdx(p.poleStartTime) ?? si;
-        const pei = findIdx(p.poleEndTime) ?? ei;
-        const fsi = findIdx(p.flagStartTime) ?? pei;
-        const fei = findIdx(p.flagEndTime) ?? ei;
-        return [{ ...base, poleStartIndex: psi, poleEndIndex: pei, flagStartIndex: fsi, flagEndIndex: fei } as PatternResult];
-      }
-      if (p.type === 'ascending-triangle') {
-        const swingLowIndices = p.swingLowTimes
-          .map(t => findIdx(t))
-          .filter((i): i is number => i != null);
-        return [{ ...base, swingLowIndices } as PatternResult];
-      }
-      return [base as PatternResult];
-    });
-  }
   const hasCandleData = latest.pctChange5m != null && latest.pctChangeIntraday != null;
   const rangePct = latest.intradayRangePct != null ? latest.intradayRangePct * 100
     : latest.pctChange15m != null ? latest.pctChange15m * 100
@@ -546,8 +548,8 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             ))}
           </div>
 
-          {/* Line / Candle toggle */}
-          <div className="ml-auto flex gap-1">
+          {/* Line / Candle toggle + Patterns toggle */}
+          <div className="ml-auto flex gap-1 items-center">
             <button
               onClick={() => setChartMode('line')}
               className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
@@ -570,6 +572,24 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             >
               Candle
             </button>
+            <span className="w-px h-4 bg-gray-700 mx-1" />
+            <button
+              onClick={() => { setShowPatterns(!showPatterns); if (showPatterns) { setLockedPattern(null); setPopupPos(null); } }}
+              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+                showPatterns
+                  ? 'bg-yellow-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+              title={showPatterns ? 'Hide pattern overlays' : 'Show pattern overlays'}
+            >
+              Patterns
+              {chartPatterns.length > 0 && (
+                <span className={`text-[10px] font-bold px-1 rounded-full ${showPatterns ? 'bg-yellow-800 text-yellow-200' : 'bg-gray-700 text-gray-500'}`}>
+                  {chartPatterns.length}
+                </span>
+              )}
+              {detectingPatterns && <span className="animate-spin text-[10px]">⏳</span>}
+            </button>
           </div>
         </div>
         {chartLoading ? (
@@ -577,17 +597,73 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
+          <div ref={chartContainerRef} className="relative w-full aspect-[900/900] sm:aspect-[900/450]">
             <PriceChart
               key={`${chartInterval}:${chartRange}:${chartMode}`}
               candles={chartCandles}
               chartMode={chartMode}
-              patterns={chartInterval === '1min' && chartRange === '1D' && latest?.patterns
-                ? remapPatterns(JSON.parse(latest.patterns) as PatternResult[])
-                : undefined}
+              patterns={showPatterns && chartPatterns.length > 0 ? chartPatterns : undefined}
+              highlightPatternIndex={lockedPattern}
+              onPatternClick={(i, pos) => {
+                if (lockedPattern === i) {
+                  setLockedPattern(null);
+                  setPopupPos(null);
+                } else {
+                  setLockedPattern(i);
+                  setPopupPos(pos ?? null);
+                }
+              }}
+              onBackgroundClick={() => {
+                setLockedPattern(null);
+                setPopupPos(null);
+              }}
               width={chartWidth}
               height={chartHeight}
             />
+            {/* Pattern click tooltip */}
+            {lockedPattern != null && patternDetails[lockedPattern] && popupPos && (() => {
+              const detail = patternDetails[lockedPattern];
+              const cc = convictionClasses(detail.conviction);
+              const container = chartContainerRef.current;
+              const cw = container?.clientWidth ?? 900;
+              const popupW = 260;
+              const popupH = 80;
+              let px = popupPos.x + 12;
+              let py = popupPos.y - popupH - 8;
+              if (px + popupW > cw - 12) px = popupPos.x - popupW - 12;
+              if (py < 8) py = popupPos.y + 16;
+              if (px < 8) px = 8;
+              return (
+                <div
+                  className={`absolute z-30 rounded-lg p-3 border shadow-xl text-sm backdrop-blur-sm ${cc.bg} ${cc.border}`}
+                  style={{ left: px, top: py, width: popupW }}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`font-semibold ${cc.accent}`}>{detail.label}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        title="View Pattern Reference"
+                        className="text-gray-400 hover:text-gray-200 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRefPopup(detail.type);
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      </button>
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cc.badge}`}>{detail.conviction}%</span>
+                      <button
+                        className="text-gray-500 hover:text-gray-300 ml-1"
+                        onClick={() => { setLockedPattern(null); setPopupPos(null); }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-gray-400 text-xs">{detail.details}</div>
+                </div>
+              );
+            })()}
           </div>
         ) : history.length >= 2 ? (
           <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
@@ -837,6 +913,42 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
       <div className="text-sm text-gray-600 text-center pb-4">
         Auto-refreshes every 60s · Last updated: <TimeAgo date={latest.timestamp} />
       </div>
+
+      {/* Pattern Reference Modal */}
+      {refPopup && (() => {
+        const ref = PATTERN_REFERENCE.find(r => r.type === refPopup);
+        if (!ref) return null;
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setRefPopup(null)}
+          >
+            <div
+              className="bg-gray-900 border border-gray-700 rounded-xl p-5 max-w-md w-full mx-4 shadow-2xl space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-100">{ref.name}</h3>
+                <button onClick={() => setRefPopup(null)} className="text-gray-500 hover:text-gray-300 text-lg">✕</button>
+              </div>
+              <div className="flex justify-center">
+                <PatternIcon type={ref.type} />
+              </div>
+              <p className="text-sm text-gray-400 leading-relaxed">{ref.description}</p>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold text-gray-500 uppercase">Detection Criteria</div>
+                {ref.criteria.map((c, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-sm">
+                    <span className="text-yellow-500 mt-0.5">•</span>
+                    <span className="text-gray-400">{c}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-gray-600">Lookback: {ref.lookback} candles</div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
