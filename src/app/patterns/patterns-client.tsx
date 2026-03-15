@@ -706,6 +706,179 @@ function PatternIcon({ type }: { type: string }) {
           <polyline points="85,38 100,18 112,10" fill="none" stroke={accent} strokeWidth="2.5" />
         </svg>
       );
+    case 'bullish-engulfing':
+      // Red candle followed by larger green candle that engulfs it
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Context candles - prior downtrend */}
+          <line x1="15" y1="18" x2="15" y2="58" stroke="#666" strokeWidth="1" />
+          <rect x="11" y="22" width="8" height="30" fill="#ef4444" rx="1" opacity="0.4" />
+          <line x1="32" y1="24" x2="32" y2="64" stroke="#666" strokeWidth="1" />
+          <rect x="28" y="28" width="8" height="30" fill="#ef4444" rx="1" opacity="0.4" />
+          {/* Prior bearish candle (red) */}
+          <line x1="52" y1="28" x2="52" y2="68" stroke="#ef4444" strokeWidth="1.5" />
+          <rect x="46" y="34" width="12" height="24" fill="#ef4444" rx="1" />
+          {/* Engulfing bullish candle (green, larger) */}
+          <line x1="74" y1="20" x2="74" y2="72" stroke={accent} strokeWidth="1.5" />
+          <rect x="66" y="26" width="16" height="38" fill={accent} rx="1.5" opacity="0.8" />
+          {/* Arrow showing reversal */}
+          <polyline points="92,50 100,36 108,22" fill="none" stroke={stroke} strokeWidth="2" strokeDasharray="4,2" />
+          <polygon points="108,18 104,26 112,26" fill={stroke} opacity="0.7" />
+        </svg>
+      );
+    case 'morning-star':
+      // Three candles: big red, small doji, big green
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Prior bearish candle (tall red) */}
+          <line x1="22" y1="10" x2="22" y2="60" stroke="#ef4444" strokeWidth="1.5" />
+          <rect x="16" y="14" width="12" height="38" fill="#ef4444" rx="1" />
+          {/* Small doji / star (tiny body, long wicks) */}
+          <line x1="48" y1="42" x2="48" y2="72" stroke={stroke} strokeWidth="1.5" />
+          <rect x="44" y="54" width="8" height="5" fill={stroke} rx="1" />
+          {/* Star marker */}
+          <text x="48" y="40" fill="#fbbf24" fontSize="12" textAnchor="middle">★</text>
+          {/* Bullish recovery candle (tall green) */}
+          <line x1="74" y1="16" x2="74" y2="62" stroke={accent} strokeWidth="1.5" />
+          <rect x="68" y="20" width="12" height="34" fill={accent} rx="1" opacity="0.8" />
+          {/* Midpoint reference line */}
+          <line x1="12" y1="33" x2="84" y2="33" stroke={stroke} strokeWidth="1" strokeDasharray="3,3" opacity="0.4" />
+          <text x="90" y="36" fill={stroke} fontSize="7" opacity="0.5">mid</text>
+          {/* Recovery arrow */}
+          <polyline points="90,46 100,34 110,20" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="4,2" />
+        </svg>
+      );
+    case 'hammer':
+      // Candle with small body at top and long lower wick (hammer), plus inverted variant
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Prior downtrend */}
+          <polyline points="8,20 20,30 32,38 44,48" fill="none" stroke="#ef4444" strokeWidth="1.5" opacity="0.5" />
+          {/* Hammer candle — small body at top, long lower wick */}
+          <line x1="58" y1="30" x2="58" y2="74" stroke={accent} strokeWidth="2" />
+          <rect x="52" y="30" width="12" height="10" fill={accent} rx="1.5" opacity="0.9" />
+          <text x="58" y="26" fill={stroke} fontSize="7" textAnchor="middle" opacity="0.6">body</text>
+          {/* Wick label */}
+          <line x1="66" y1="55" x2="72" y2="55" stroke={stroke} strokeWidth="0.5" opacity="0.4" />
+          <text x="76" y="58" fill={stroke} fontSize="7" opacity="0.5">wick ≥2×</text>
+          {/* Inverted hammer (smaller, to the right) */}
+          <line x1="96" y1="14" x2="96" y2="56" stroke={accent} strokeWidth="1.5" />
+          <rect x="91" y="46" width="10" height="10" fill={accent} rx="1" opacity="0.6" />
+          <text x="96" y="66" fill={stroke} fontSize="7" textAnchor="middle" opacity="0.5">inv.</text>
+          {/* Recovery arrow */}
+          <polyline points="108,42 112,30 114,22" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2" />
+        </svg>
+      );
+    case 'ema-crossover':
+      // Two EMA lines crossing — short crosses above long
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Long EMA (21) — smoother, wider curve */}
+          <path d="M8,28 Q30,38 55,42 Q80,46 112,44" fill="none" stroke="#f59e0b" strokeWidth="2" opacity="0.7" />
+          {/* Short EMA (9) — crosses from below to above */}
+          <path d="M8,44 Q30,48 50,46 Q65,42 75,38 Q90,30 112,22" fill="none" stroke={accent} strokeWidth="2.5" />
+          {/* Crossover point marker */}
+          <circle cx="62" cy="42" r="5" fill="none" stroke={stroke} strokeWidth="1.5" />
+          <line x1="57" y1="37" x2="67" y2="47" stroke={stroke} strokeWidth="1.5" />
+          <line x1="67" y1="37" x2="57" y2="47" stroke={stroke} strokeWidth="1.5" />
+          {/* Labels */}
+          <text x="112" y="20" fill={accent} fontSize="8" opacity="0.7">EMA 9</text>
+          <text x="112" y="52" fill="#f59e0b" fontSize="8" opacity="0.7">EMA 21</text>
+          {/* Price line underneath */}
+          <polyline points="8,46 20,50 35,48 50,46 62,42 75,36 88,30 100,26 112,20" fill="none" stroke={stroke} strokeWidth="1" opacity="0.3" />
+        </svg>
+      );
+    case 'bollinger-squeeze':
+      // Bollinger Bands squeeze then expand with breakout
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Upper band — wide, narrows, then expands */}
+          <path d="M8,12 Q20,14 35,22 Q50,30 60,34 Q70,30 85,20 Q100,8 112,4" fill="none" stroke={stroke} strokeWidth="1.5" opacity="0.6" />
+          {/* Lower band — mirror */}
+          <path d="M8,68 Q20,66 35,58 Q50,50 60,46 Q70,50 85,58 Q100,62 112,56" fill="none" stroke={stroke} strokeWidth="1.5" opacity="0.6" />
+          {/* Fill between bands */}
+          <path d="M8,12 Q20,14 35,22 Q50,30 60,34 Q70,30 85,20 Q100,8 112,4 L112,56 Q100,62 85,58 Q70,50 60,46 Q50,50 35,58 Q20,66 8,68 Z" fill={fill} opacity="0.3" />
+          {/* Middle band */}
+          <path d="M8,40 Q30,40 60,40 Q90,40 112,30" fill="none" stroke={stroke} strokeWidth="1" strokeDasharray="3,2" opacity="0.4" />
+          {/* Squeeze zone label */}
+          <rect x="46" y="32" width="28" height="16" fill="none" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3,2" rx="2" opacity="0.5" />
+          <text x="60" y="56" fill="#f59e0b" fontSize="7" textAnchor="middle" opacity="0.6">squeeze</text>
+          {/* Price breakout above upper band */}
+          <polyline points="50,42 60,40 70,36 82,24 95,12 108,6" fill="none" stroke={accent} strokeWidth="2.5" />
+          {/* Breakout arrow */}
+          <polygon points="108,2 104,10 112,10" fill={accent} opacity="0.7" />
+        </svg>
+      );
+    case 'gap-and-go':
+      // Price gaps up leaving a visible gap zone, then continues higher
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Prior candles */}
+          <line x1="15" y1="40" x2="15" y2="70" stroke="#666" strokeWidth="1" />
+          <rect x="11" y="46" width="8" height="18" fill={stroke} rx="1" opacity="0.3" />
+          <line x1="32" y1="38" x2="32" y2="68" stroke="#666" strokeWidth="1" />
+          <rect x="28" y="42" width="8" height="20" fill={stroke} rx="1" opacity="0.3" />
+          {/* Last pre-gap candle */}
+          <line x1="50" y1="36" x2="50" y2="65" stroke="#666" strokeWidth="1.5" />
+          <rect x="45" y="40" width="10" height="18" fill={stroke} rx="1" opacity="0.5" />
+          {/* Gap zone */}
+          <rect x="57" y="24" width="32" height="16" fill="#fbbf2420" stroke="#fbbf24" strokeWidth="1" strokeDasharray="3,2" rx="2" />
+          <text x="73" y="35" fill="#fbbf24" fontSize="8" textAnchor="middle" opacity="0.6">GAP</text>
+          {/* Gap-up candle (bullish) */}
+          <line x1="72" y1="8" x2="72" y2="24" stroke={accent} strokeWidth="1.5" />
+          <rect x="67" y="10" width="10" height="14" fill={accent} rx="1" opacity="0.8" />
+          {/* Continuation candles */}
+          <line x1="88" y1="4" x2="88" y2="20" stroke={accent} strokeWidth="1" />
+          <rect x="84" y="6" width="8" height="12" fill={accent} rx="1" opacity="0.6" />
+          <line x1="102" y1="2" x2="102" y2="16" stroke={accent} strokeWidth="1" />
+          <rect x="98" y="4" width="8" height="10" fill={accent} rx="1" opacity="0.6" />
+        </svg>
+      );
+    case 'cup-and-handle':
+      // U-shaped cup with matching rims, small dip handle, then breakout
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Rim line */}
+          <line x1="8" y1="22" x2="100" y2="22" stroke={stroke} strokeWidth="1" strokeDasharray="4,2" opacity="0.4" />
+          <text x="104" y="25" fill={stroke} fontSize="7" opacity="0.5">rim</text>
+          {/* Cup — U shape */}
+          <path d="M10,22 Q10,70 55,70 Q100,70 100,22" fill="none" stroke={stroke} strokeWidth="2.5" />
+          {/* Cup fill */}
+          <path d="M10,22 Q10,70 55,70 Q100,70 100,22 Z" fill={fill} opacity="0.3" />
+          {/* Rim dots */}
+          <circle cx="10" cy="22" r="3" fill={stroke} opacity="0.5" />
+          <circle cx="100" cy="22" r="3" fill={stroke} opacity="0.5" />
+          {/* Handle — small dip */}
+          <path d="M100,22 Q100,36 106,36 Q112,36 112,26" fill="none" stroke={stroke} strokeWidth="2" />
+          {/* Breakout above rim */}
+          <polyline points="112,26 114,18 116,10" fill="none" stroke={accent} strokeWidth="2.5" />
+          <polygon points="116,6 113,14 119,14" fill={accent} opacity="0.7" />
+        </svg>
+      );
+    case 'falling-wedge':
+      // Both trendlines slope down & converge, breakout above upper
+      return (
+        <svg width={w} height={h} viewBox="0 0 120 80" className="shrink-0">
+          {/* Upper trendline (steeper decline) */}
+          <line x1="8" y1="10" x2="82" y2="42" stroke={stroke} strokeWidth="1.5" />
+          {/* Lower trendline (shallower decline) */}
+          <line x1="8" y1="20" x2="82" y2="48" stroke={stroke} strokeWidth="1.5" />
+          {/* Wedge fill */}
+          <polygon points="8,10 82,42 82,48 8,20" fill={fill} opacity="0.3" />
+          {/* Price zigzag inside wedge */}
+          <polyline points="10,18 22,12 32,22 44,18 54,30 64,26 72,38 80,36 82,44" fill="none" stroke={stroke} strokeWidth="2" />
+          {/* Swing point dots */}
+          <circle cx="22" cy="12" r="2.5" fill={stroke} opacity="0.5" />
+          <circle cx="44" cy="18" r="2.5" fill={stroke} opacity="0.5" />
+          <circle cx="64" cy="26" r="2.5" fill={stroke} opacity="0.5" />
+          <circle cx="32" cy="22" r="2.5" fill={stroke} opacity="0.5" />
+          <circle cx="54" cy="30" r="2.5" fill={stroke} opacity="0.5" />
+          <circle cx="72" cy="38" r="2.5" fill={stroke} opacity="0.5" />
+          {/* Breakout above upper trendline */}
+          <polyline points="82,44 92,32 104,20 112,12" fill="none" stroke={accent} strokeWidth="2.5" />
+          <polygon points="112,8 108,16 116,16" fill={accent} opacity="0.7" />
+        </svg>
+      );
     default:
       return <span className="text-lg">📊</span>;
   }
