@@ -12,7 +12,7 @@
 
 export const SCORING_WEIGHTS = {
   momentum: {
-    weight: 30,
+    weight: 25,
     timeframes: {
       '5m': 0.20,
       '15m': 0.20,
@@ -23,7 +23,7 @@ export const SCORING_WEIGHTS = {
   },
 
   rvol: {
-    weight: 10,
+    weight: 8,
     highThreshold: 3,
     moderateThreshold: 1.5,
   },
@@ -34,7 +34,7 @@ export const SCORING_WEIGHTS = {
   },
 
   float: {
-    weight: 10,
+    weight: 8,
     lowFloatThreshold: 20_000_000,
     microFloatThreshold: 5_000_000,
   },
@@ -44,17 +44,17 @@ export const SCORING_WEIGHTS = {
   },
 
   intradayRange: {
-    weight: 10,
+    weight: 8,
   },
 
   breakout: {
-    weight: 10,
+    weight: 8,
     nearHighPct: 0.02,
     gapUpPct: 0.02,
   },
 
   newsCatalyst: {
-    weight: 10,
+    weight: 8,
     recentWindowMinutes: 2880,   // 48 hours
     maxArticles: 5,
   },

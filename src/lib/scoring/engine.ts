@@ -227,7 +227,7 @@ function calcMissingPenalty(inputs: SignalInputs, r: ScoringRules): number {
 
 // --- Max achievable: lower when candle-only categories can't score ---
 function calcMaxAchievable(inputs: SignalInputs, r: ScoringRules): number {
-  let max = 100 + r.weights.patterns.cap;
+  let max = 100;
   if (!inputs.hasCandleData) {
     max -= r.weights.rvol.weight;
     max -= r.weights.volumeSpike.weight;

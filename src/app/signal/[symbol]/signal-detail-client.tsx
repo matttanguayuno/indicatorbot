@@ -85,14 +85,14 @@ interface NewsEntry {
 }
 
 const SCORE_CATEGORIES = [
-  { key: 'momentumScore', label: 'Momentum', max: 30 },
-  { key: 'rvolBoost', label: 'RVOL', max: 10 },
+  { key: 'momentumScore', label: 'Momentum', max: 25 },
+  { key: 'rvolBoost', label: 'RVOL', max: 8 },
   { key: 'volumeSpikeBoost', label: 'Vol Spike', max: 5 },
-  { key: 'intradayRangeBoost', label: 'Range', max: 10 },
-  { key: 'breakoutBoost', label: 'Breakout', max: 10 },
+  { key: 'intradayRangeBoost', label: 'Range', max: 8 },
+  { key: 'breakoutBoost', label: 'Breakout', max: 8 },
   { key: 'vwapBoost', label: 'VWAP', max: 5 },
-  { key: 'floatBoost', label: 'Float', max: 10 },
-  { key: 'newsBoost', label: 'News', max: 10 },
+  { key: 'floatBoost', label: 'Float', max: 8 },
+  { key: 'newsBoost', label: 'News', max: 8 },
   { key: 'shortInterestBoost', label: 'Short Int', max: 5 },
   { key: 'optionsFlowBoost', label: 'Options', max: 5 },
   { key: 'patternBoost', label: 'Patterns', max: 15 },
