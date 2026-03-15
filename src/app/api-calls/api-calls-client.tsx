@@ -138,7 +138,7 @@ export function ApiCallsClient() {
       ) : (
         <>
         <CreditChart entries={entries} />
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[60vh] rounded-lg">
           <table className="w-full text-sm">
             <colgroup>
               <col className="w-28" />
@@ -160,14 +160,13 @@ export function ApiCallsClient() {
             </thead>
             <tbody>
               {(() => {
-                const reversed = [...entries].reverse();
                 // Count calls per minute (HH:MM key)
                 const minuteCounts = new Map<string, number>();
-                for (const e of reversed) {
+                for (const e of entries) {
                   const key = formatTime(e.timestamp).slice(0, 5); // "HH:MM"
                   minuteCounts.set(key, (minuteCounts.get(key) || 0) + 1);
                 }
-                return reversed.map((e, i) => {
+                return entries.map((e, i) => {
                   const minuteKey = formatTime(e.timestamp).slice(0, 5);
                   const count = minuteCounts.get(minuteKey) || 0;
                   const isBusy = count >= 2;
