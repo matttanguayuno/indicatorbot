@@ -129,6 +129,106 @@ const PATTERN_REFERENCE = [
     ],
     lookback: 50,
   },
+  {
+    type: 'bullish-engulfing',
+    name: 'Bullish Engulfing',
+    icon: '🟩',
+    description: 'A large green candle fully engulfs the prior red candle\'s body, signaling a reversal.',
+    criteria: [
+      'Prior candle is bearish',
+      'Current candle opens below prior close',
+      'Current candle closes above prior open',
+      'Volume ≥ 1.2× average',
+    ],
+    lookback: 2,
+  },
+  {
+    type: 'morning-star',
+    name: 'Morning Star',
+    icon: '⭐',
+    description: 'Three-candle reversal: bearish candle → small doji/star → bullish candle closing above midpoint.',
+    criteria: [
+      'First candle is bearish with decent body',
+      'Second candle has small body (≤ 30% of first)',
+      'Third candle is bullish, closes above first candle midpoint',
+      'Volume ≥ 1.2× average on third candle',
+    ],
+    lookback: 3,
+  },
+  {
+    type: 'hammer',
+    name: 'Hammer / Inv. Hammer',
+    icon: '🔨',
+    description: 'Single-candle reversal with a small body and long wick after a downtrend.',
+    criteria: [
+      'Body ≤ 30% of candle range',
+      'Lower wick (hammer) or upper wick (inverted) ≥ 2× body',
+      'Preceded by a 5-bar downtrend',
+    ],
+    lookback: 6,
+  },
+  {
+    type: 'ema-crossover',
+    name: 'EMA Crossover',
+    icon: '✂️',
+    description: 'Short-period EMA crosses above long-period EMA (golden cross), signaling trend reversal.',
+    criteria: [
+      'Short EMA (9) was below long EMA (21)',
+      'Short EMA crosses above long EMA',
+    ],
+    lookback: 21,
+  },
+  {
+    type: 'bollinger-squeeze',
+    name: 'BB Squeeze Breakout',
+    icon: '💥',
+    description: 'Bollinger Bands contract to a squeeze, then price breaks above the upper band with volume.',
+    criteria: [
+      'Bandwidth in bottom 20th percentile (squeeze)',
+      'Price closes above upper Bollinger Band',
+      'Volume ≥ 1.3× average',
+    ],
+    lookback: 40,
+  },
+  {
+    type: 'gap-and-go',
+    name: 'Gap & Go',
+    icon: '🚀',
+    description: 'Price gaps up significantly on volume and continues higher without filling the gap.',
+    criteria: [
+      'Gap up ≥ 2% from prior close',
+      'Gap holds for 3+ bars (no fill)',
+      'Price continues higher after gap',
+      'Volume ≥ 1.5× average',
+    ],
+    lookback: 5,
+  },
+  {
+    type: 'cup-and-handle',
+    name: 'Cup & Handle',
+    icon: '☕',
+    description: 'U-shaped base (cup) with matching rims, followed by a small pullback (handle) and breakout.',
+    criteria: [
+      'Cup ≥ 15 bars wide with left & right rims within 3%',
+      'Cup depth 3–35% from rim',
+      'Handle retraces ≤ 50% of cup depth',
+      'Breakout close above rim price',
+    ],
+    lookback: 80,
+  },
+  {
+    type: 'falling-wedge',
+    name: 'Falling Wedge',
+    icon: '🔻',
+    description: 'Both trendlines slope downward and converge, then price breaks above the upper trendline.',
+    criteria: [
+      'Upper and lower trendlines both slope down',
+      'Upper slopes more steeply (converging)',
+      'Both R² ≥ 0.5 with ≥ 3 swing points',
+      'Close above upper trendline + volume ≥ 1.2×',
+    ],
+    lookback: 50,
+  },
 ];
 
 export function PatternsClient() {
@@ -269,6 +369,24 @@ export function PatternsClient() {
           return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `VWAP $${p.vwapPrice.toFixed(2)} · Dip ${p.dipPercent.toFixed(1)}% · Vol ${p.volumeRatio.toFixed(1)}×` };
         case 'symmetrical-triangle':
           return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `${p.swingPointCount} swing points · Converging trendlines` };
+        case 'bullish-engulfing':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Engulf $${p.engulfOpen.toFixed(2)}→$${p.engulfClose.toFixed(2)} · Vol ${p.volumeRatio.toFixed(1)}×` };
+        case 'morning-star':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Doji $${p.dojiClose.toFixed(2)} · Recovery $${p.thirdClose.toFixed(2)} · Vol ${p.volumeRatio.toFixed(1)}×` };
+        case 'hammer':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `${p.hammerType === 'hammer' ? 'Hammer' : 'Inverted'} · Body ${p.bodyPct.toFixed(0)}% · Wick ${p.wickRatio.toFixed(1)}×` };
+        case 'ema-crossover':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `EMA${p.shortPeriod} ${p.shortEMA.toFixed(2)} > EMA${p.longPeriod} ${p.longEMA.toFixed(2)}` };
+        case 'bollinger-squeeze':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `BB $${p.upperBand.toFixed(2)} · Breakout $${p.breakoutPrice.toFixed(2)} · Vol ${p.volumeRatio.toFixed(1)}×` };
+        case 'gap-and-go':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Gap +${p.gapPct.toFixed(1)}% · $${p.previousClose.toFixed(2)}→$${p.openPrice.toFixed(2)} · Vol ${p.volumeRatio.toFixed(1)}×` };
+        case 'cup-and-handle':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Rim $${p.rimPrice.toFixed(2)} · Cup depth ${p.cupDepthPct.toFixed(1)}% · Handle $${p.handleLowPrice.toFixed(2)}` };
+        case 'falling-wedge':
+          return { type: p.type, label: p.label, conviction: Math.round(p.conviction * 100), details: `Upper slope ${p.upperSlope.toFixed(4)} · Lower ${p.lowerSlope.toFixed(4)} · Vol ${p.volumeRatio.toFixed(1)}×` };
+        default:
+          return { type: (p as PatternResult).type, label: (p as PatternResult).label, conviction: Math.round((p as PatternResult).conviction * 100), details: '' };
       }
     });
   }, [patterns]);

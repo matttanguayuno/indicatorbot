@@ -652,6 +652,166 @@ export function PriceChart({
               </g>
             );
           }
+          case 'bullish-engulfing': {
+            const i0 = Math.max(0, (p.startIndex) - zStart);
+            const i1 = Math.max(0, (p.endIndex) - zStart);
+            if (i0 >= visCandles.length || i1 >= visCandles.length) return null;
+            const candleW = Math.max(2, chartW / visCandles.length * 0.7);
+            return (
+              <g key={pi} {...gProps}>
+                {/* Highlight the engulfing candle */}
+                <rect x={x(i1) - candleW / 2 - 3} y={yPrice(Math.max(p.engulfOpen, p.engulfClose)) - 3}
+                  width={candleW + 6} height={Math.abs(yPrice(p.engulfOpen) - yPrice(p.engulfClose)) + 6}
+                  fill="none" stroke={patternColor} strokeWidth={strokeW} rx={3} />
+                <text x={x(i1)} y={yPrice(Math.max(p.engulfOpen, p.engulfClose)) - 10} fill={patternColor} fontSize={13} fontWeight="700" textAnchor="middle">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'morning-star': {
+            const i0 = Math.max(0, p.startIndex - zStart);
+            const i2 = Math.min(visCandles.length - 1, p.endIndex - zStart);
+            if (i2 < 0 || i0 >= visCandles.length) return null;
+            return (
+              <g key={pi} {...gProps}>
+                <rect x={x(i0) - 4} y={yPrice(Math.max(p.firstClose, p.thirdClose)) - 4}
+                  width={x(i2) - x(i0) + 8} height={Math.abs(yPrice(p.firstClose) - yPrice(p.thirdClose)) + 8}
+                  fill={patternFill} stroke={patternColor} strokeWidth={strokeW} rx={3} strokeDasharray="3,2" />
+                {/* Star marker on doji */}
+                <circle cx={x(Math.max(0, Math.min(visCandles.length - 1, (p.startIndex + 1) - zStart)))} cy={yPrice(p.dojiClose)} r={4} fill={patternColor} />
+                <text x={x(i0) + 4} y={yPrice(Math.max(p.firstClose, p.thirdClose)) - 8} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'hammer': {
+            const idx = Math.max(0, p.startIndex - zStart);
+            if (idx >= visCandles.length) return null;
+            const c = visCandles[idx];
+            const isInverted = p.hammerType === 'inverted-hammer';
+            return (
+              <g key={pi} {...gProps}>
+                {/* Arrow pointing at hammer */}
+                <polygon
+                  points={isInverted
+                    ? `${x(idx)},${yPrice(c.high) - 12} ${x(idx) - 5},${yPrice(c.high) - 4} ${x(idx) + 5},${yPrice(c.high) - 4}`
+                    : `${x(idx)},${yPrice(c.low) + 12} ${x(idx) - 5},${yPrice(c.low) + 4} ${x(idx) + 5},${yPrice(c.low) + 4}`}
+                  fill={patternColor} />
+                <text x={x(idx)} y={isInverted ? yPrice(c.high) - 16 : yPrice(c.low) + 24} fill={patternColor} fontSize={13} fontWeight="700" textAnchor="middle">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'ema-crossover': {
+            // Draw a crossover marker at the crossover point
+            const ci = Math.max(0, Math.min(visCandles.length - 1, p.endIndex - zStart));
+            if (ci < 0) return null;
+            const cy = yPrice(p.crossoverPrice);
+            return (
+              <g key={pi} {...gProps}>
+                <circle cx={x(ci)} cy={cy} r={6} fill="none" stroke={patternColor} strokeWidth={strokeW} />
+                <line x1={x(ci) - 4} y1={cy - 4} x2={x(ci) + 4} y2={cy + 4} stroke={patternColor} strokeWidth={strokeW} />
+                <line x1={x(ci) - 4} y1={cy + 4} x2={x(ci) + 4} y2={cy - 4} stroke={patternColor} strokeWidth={strokeW} />
+                <text x={x(ci) + 10} y={cy - 4} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'bollinger-squeeze': {
+            const uy = yPrice(p.upperBand);
+            return (
+              <g key={pi} {...gProps}>
+                <line x1={x(clampedStart)} y1={uy} x2={x(clampedEnd)} y2={uy}
+                  stroke={patternColor} strokeWidth={strokeW} strokeDasharray="4,3" />
+                <rect x={x(clampedStart)} y={uy - 2}
+                  width={x(clampedEnd) - x(clampedStart)} height={4}
+                  fill={patternFill} />
+                <polygon
+                  points={`${x(clampedEnd)},${uy - 10} ${x(clampedEnd) - 5},${uy - 2} ${x(clampedEnd) + 5},${uy - 2}`}
+                  fill={patternColor} />
+                <text x={x(clampedStart) + 4} y={uy - 10} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'gap-and-go': {
+            const gapY = yPrice(p.openPrice);
+            const prevY = yPrice(p.previousClose);
+            return (
+              <g key={pi} {...gProps}>
+                {/* Gap zone */}
+                <rect x={x(clampedStart)} y={Math.min(gapY, prevY)}
+                  width={x(clampedEnd) - x(clampedStart)} height={Math.abs(gapY - prevY)}
+                  fill={patternFill} stroke={patternColor} strokeWidth={strokeW} strokeDasharray="3,2" />
+                <text x={x(clampedStart) + 4} y={Math.min(gapY, prevY) - 6} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label} +{p.gapPct.toFixed(1)}%
+                </text>
+              </g>
+            );
+          }
+          case 'cup-and-handle': {
+            // Draw cup outline as a curve + handle
+            const rimY = yPrice(p.rimPrice);
+            const bottomY = yPrice(p.cupBottomPrice);
+            const handleY = yPrice(p.handleLowPrice);
+            const mid = (clampedStart + clampedEnd) / 2;
+            return (
+              <g key={pi} {...gProps}>
+                {/* Cup arc (quadratic bezier) */}
+                <path
+                  d={`M ${x(clampedStart)},${rimY} Q ${x(Math.round(mid))},${bottomY} ${x(Math.round(clampedEnd * 0.8))},${rimY}`}
+                  fill="none" stroke={patternColor} strokeWidth={strokeW} strokeDasharray="4,3" />
+                {/* Handle dip */}
+                <line x1={x(Math.round(clampedEnd * 0.8))} y1={rimY}
+                  x2={x(Math.round(clampedEnd * 0.9))} y2={handleY}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                <line x1={x(Math.round(clampedEnd * 0.9))} y1={handleY}
+                  x2={x(clampedEnd)} y2={rimY}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                {/* Rim line */}
+                <line x1={x(clampedStart)} y1={rimY} x2={x(clampedEnd)} y2={rimY}
+                  stroke={patternColor} strokeWidth={1} strokeDasharray="2,3" opacity={0.5} />
+                <text x={x(clampedStart) + 4} y={rimY - 8} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
+          case 'falling-wedge': {
+            const startOffset = p.startIndex - zStart;
+            const upperY1 = yPrice(p.upperIntercept + p.upperSlope * Math.max(0, -startOffset));
+            const upperY2 = yPrice(p.upperIntercept + p.upperSlope * (clampedEnd - startOffset));
+            const lowerY1 = yPrice(p.lowerIntercept + p.lowerSlope * Math.max(0, -startOffset));
+            const lowerY2 = yPrice(p.lowerIntercept + p.lowerSlope * (clampedEnd - startOffset));
+            return (
+              <g key={pi} {...gProps}>
+                <line x1={x(clampedStart)} y1={upperY1} x2={x(clampedEnd)} y2={upperY2}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                <line x1={x(clampedStart)} y1={lowerY1} x2={x(clampedEnd)} y2={lowerY2}
+                  stroke={patternColor} strokeWidth={strokeW} />
+                <polygon
+                  points={[
+                    `${x(clampedStart)},${upperY1}`,
+                    `${x(clampedEnd)},${upperY2}`,
+                    `${x(clampedEnd)},${lowerY2}`,
+                    `${x(clampedStart)},${lowerY1}`,
+                  ].join(' ')}
+                  fill={patternFill} />
+                {/* Breakout arrow */}
+                <polygon
+                  points={`${x(clampedEnd)},${upperY2 - 12} ${x(clampedEnd) - 5},${upperY2 - 4} ${x(clampedEnd) + 5},${upperY2 - 4}`}
+                  fill={patternColor} />
+                <text x={x(clampedStart) + 4} y={Math.min(upperY1, upperY2) - 6} fill={patternColor} fontSize={13} fontWeight="700">
+                  {p.label}
+                </text>
+              </g>
+            );
+          }
           default:
             return null;
         }

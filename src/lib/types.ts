@@ -162,4 +162,86 @@ export type PatternResult =
   | DoubleBottom
   | InsideBarBreakout
   | VWAPReclaim
-  | SymmetricalTriangle;
+  | SymmetricalTriangle
+  | BullishEngulfing
+  | MorningStar
+  | HammerPattern
+  | EMACrossover
+  | BollingerSqueeze
+  | GapAndGo
+  | CupAndHandle
+  | FallingWedge;
+
+// ---------------------------------------------------------------------------
+// New pattern types
+// ---------------------------------------------------------------------------
+
+export interface BullishEngulfing extends PatternBase {
+  type: 'bullish-engulfing';
+  priorClose: number;
+  priorOpen: number;
+  engulfOpen: number;
+  engulfClose: number;
+  volumeRatio: number;
+}
+
+export interface MorningStar extends PatternBase {
+  type: 'morning-star';
+  firstClose: number;
+  dojiClose: number;
+  thirdClose: number;
+  volumeRatio: number;
+}
+
+export interface HammerPattern extends PatternBase {
+  type: 'hammer';
+  hammerType: 'hammer' | 'inverted-hammer';
+  bodyPct: number;
+  wickRatio: number;
+  volumeRatio: number;
+}
+
+export interface EMACrossover extends PatternBase {
+  type: 'ema-crossover';
+  shortPeriod: number;
+  longPeriod: number;
+  shortEMA: number;
+  longEMA: number;
+  crossoverPrice: number;
+}
+
+export interface BollingerSqueeze extends PatternBase {
+  type: 'bollinger-squeeze';
+  bandwidthAtSqueeze: number;
+  breakoutPrice: number;
+  upperBand: number;
+  volumeRatio: number;
+}
+
+export interface GapAndGo extends PatternBase {
+  type: 'gap-and-go';
+  gapPct: number;
+  previousClose: number;
+  openPrice: number;
+  volumeRatio: number;
+}
+
+export interface CupAndHandle extends PatternBase {
+  type: 'cup-and-handle';
+  cupStartPrice: number;
+  cupBottomPrice: number;
+  cupEndPrice: number;
+  handleLowPrice: number;
+  rimPrice: number;
+  cupDepthPct: number;
+}
+
+export interface FallingWedge extends PatternBase {
+  type: 'falling-wedge';
+  upperSlope: number;
+  upperIntercept: number;
+  lowerSlope: number;
+  lowerIntercept: number;
+  breakoutPrice: number;
+  volumeRatio: number;
+}

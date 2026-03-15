@@ -10,8 +10,16 @@ import type {
   InsideBarBreakout,
   VWAPReclaim,
   SymmetricalTriangle,
+  BullishEngulfing,
+  MorningStar,
+  HammerPattern,
+  EMACrossover,
+  BollingerSqueeze,
+  GapAndGo,
+  CupAndHandle,
+  FallingWedge,
 } from '../types';
-import { calcBollingerBands, linearRegression } from './indicators';
+import { calcBollingerBands, linearRegression, calcEMA } from './indicators';
 import type { PatternConfig } from '../config/patterns';
 import { DEFAULT_PATTERN_CONFIG } from '../config/patterns';
 
@@ -632,6 +640,397 @@ export function detectSymmetricalTriangle(candles: NormalizedCandle[], cfg = DEF
 }
 
 // ---------------------------------------------------------------------------
+// 10. Bullish Engulfing
+// ---------------------------------------------------------------------------
+export function detectBullishEngulfing(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.bullishEngulfing): BullishEngulfing | null {
+  if (candles.length < SKIP_OPEN + 3) return null;
+  const avg = avgVolume(candles.slice(SKIP_OPEN, -1));
+  // Scan from the end backwards for the most recent engulfing
+  for (let i = candles.length - 1; i >= SKIP_OPEN + 1; i--) {
+    const prev = candles[i - 1];
+    const cur = candles[i];
+    // Prior candle must be bearish
+    if (prev.close >= prev.open) continue;
+    // Current candle must be bullish and engulf prior body
+    if (cur.close <= cur.open) continue;
+    if (cur.open >= prev.close) continue; // open must be at or below prior close
+    if (cur.close <= prev.open) continue; // close must be above prior open
+    const volRatio = avg > 0 ? cur.volume / avg : 1;
+    if (volRatio < cfg.volumeRatio) continue;
+    const bodySize = Math.abs(cur.close - cur.open);
+    const priorBodySize = Math.abs(prev.open - prev.close);
+    const conviction = Math.min((bodySize / (priorBodySize || 1)) * 0.4 + volRatio * 0.2, 1);
+    return {
+      type: 'bullish-engulfing',
+      startIndex: i - 1,
+      endIndex: i,
+      startTime: prev.timestamp.toISOString(),
+      endTime: cur.timestamp.toISOString(),
+      conviction,
+      label: 'Bullish Engulfing',
+      priorClose: prev.close,
+      priorOpen: prev.open,
+      engulfOpen: cur.open,
+      engulfClose: cur.close,
+      volumeRatio: volRatio,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 11. Morning Star (3-candle reversal)
+// ---------------------------------------------------------------------------
+export function detectMorningStar(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.morningStar): MorningStar | null {
+  if (candles.length < SKIP_OPEN + 4) return null;
+  const avg = avgVolume(candles.slice(SKIP_OPEN, -1));
+  for (let i = candles.length - 1; i >= SKIP_OPEN + 2; i--) {
+    const c1 = candles[i - 2]; // bearish candle
+    const c2 = candles[i - 1]; // small body (doji/star)
+    const c3 = candles[i];     // bullish candle
+    // c1 must be bearish with decent body
+    if (c1.close >= c1.open) continue;
+    const c1Body = Math.abs(c1.open - c1.close);
+    // c2 must have a small body (≤ 30% of c1 body)
+    const c2Body = Math.abs(c2.open - c2.close);
+    if (c2Body > c1Body * 0.3) continue;
+    // c2 should gap down or be near c1's close
+    if (c2.close > c1.close && c2.open > c1.close) continue;
+    // c3 must be bullish and close above c1 midpoint
+    if (c3.close <= c3.open) continue;
+    const c1Mid = (c1.open + c1.close) / 2;
+    if (c3.close < c1Mid) continue;
+    const volRatio = avg > 0 ? c3.volume / avg : 1;
+    if (volRatio < cfg.volumeRatio) continue;
+    const conviction = Math.min(((c3.close - c3.open) / (c1Body || 1)) * 0.5 + volRatio * 0.2, 1);
+    return {
+      type: 'morning-star',
+      startIndex: i - 2,
+      endIndex: i,
+      startTime: c1.timestamp.toISOString(),
+      endTime: c3.timestamp.toISOString(),
+      conviction,
+      label: 'Morning Star',
+      firstClose: c1.close,
+      dojiClose: c2.close,
+      thirdClose: c3.close,
+      volumeRatio: volRatio,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 12. Hammer / Inverted Hammer
+// ---------------------------------------------------------------------------
+export function detectHammer(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.hammer): HammerPattern | null {
+  if (candles.length < SKIP_OPEN + 4) return null;
+  const avg = avgVolume(candles.slice(SKIP_OPEN, -1));
+  // Need a preceding downtrend (close declining over last 5+ candles)
+  for (let i = candles.length - 1; i >= SKIP_OPEN + 5; i--) {
+    const c = candles[i];
+    const range = c.high - c.low;
+    if (range <= 0) continue;
+    const body = Math.abs(c.close - c.open);
+    const bodyPct = (body / range) * 100;
+    if (bodyPct > cfg.maxBodyPct) continue;
+    // Check preceding downtrend (close 5 bars ago > current area)
+    if (candles[i - 5].close <= c.low) continue;
+    const bodyTop = Math.max(c.open, c.close);
+    const bodyBot = Math.min(c.open, c.close);
+    const lowerWick = bodyBot - c.low;
+    const upperWick = c.high - bodyTop;
+    const volRatio = avg > 0 ? c.volume / avg : 1;
+    if (volRatio < cfg.volumeRatio) continue;
+    // Hammer: long lower wick
+    if (lowerWick >= body * cfg.minWickRatio && lowerWick > upperWick * 2) {
+      return {
+        type: 'hammer',
+        startIndex: i,
+        endIndex: i,
+        startTime: c.timestamp.toISOString(),
+        endTime: c.timestamp.toISOString(),
+        conviction: Math.min((lowerWick / range) * 0.7 + volRatio * 0.15, 1),
+        label: 'Hammer',
+        hammerType: 'hammer',
+        bodyPct,
+        wickRatio: lowerWick / (body || 1),
+        volumeRatio: volRatio,
+      };
+    }
+    // Inverted hammer: long upper wick
+    if (upperWick >= body * cfg.minWickRatio && upperWick > lowerWick * 2) {
+      return {
+        type: 'hammer',
+        startIndex: i,
+        endIndex: i,
+        startTime: c.timestamp.toISOString(),
+        endTime: c.timestamp.toISOString(),
+        conviction: Math.min((upperWick / range) * 0.6 + volRatio * 0.15, 1),
+        label: 'Inverted Hammer',
+        hammerType: 'inverted-hammer',
+        bodyPct,
+        wickRatio: upperWick / (body || 1),
+        volumeRatio: volRatio,
+      };
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 13. EMA Crossover (golden cross: short EMA crosses above long EMA)
+// ---------------------------------------------------------------------------
+export function detectEMACrossover(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.emaCrossover): EMACrossover | null {
+  if (candles.length < cfg.longPeriod + 5) return null;
+  const shortEMAs = calcEMA(candles, cfg.shortPeriod);
+  const longEMAs = calcEMA(candles, cfg.longPeriod);
+  // Scan from end for most recent bullish crossover
+  for (let i = candles.length - 1; i >= cfg.longPeriod + 1; i--) {
+    const prevShort = shortEMAs[i - 1];
+    const prevLong = longEMAs[i - 1];
+    const curShort = shortEMAs[i];
+    const curLong = longEMAs[i];
+    // Cross: previously short < long, now short >= long
+    if (prevShort >= prevLong) continue;
+    if (curShort < curLong) continue;
+    const conviction = Math.min(((curShort - curLong) / (candles[i].close || 1)) * 200 + 0.4, 1);
+    return {
+      type: 'ema-crossover',
+      startIndex: Math.max(0, i - cfg.longPeriod),
+      endIndex: i,
+      startTime: candles[Math.max(0, i - cfg.longPeriod)].timestamp.toISOString(),
+      endTime: candles[i].timestamp.toISOString(),
+      conviction,
+      label: `EMA ${cfg.shortPeriod}/${cfg.longPeriod} Cross`,
+      shortPeriod: cfg.shortPeriod,
+      longPeriod: cfg.longPeriod,
+      shortEMA: curShort,
+      longEMA: curLong,
+      crossoverPrice: candles[i].close,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 14. Bollinger Squeeze Breakout
+// ---------------------------------------------------------------------------
+export function detectBollingerSqueeze(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.bollingerSqueeze): BollingerSqueeze | null {
+  if (candles.length < cfg.lookback + cfg.bbPeriod) return null;
+  const bands = calcBollingerBands(candles, cfg.bbPeriod);
+  if (bands.length === 0) return null;
+  // Compute bandwidths over lookback window
+  const windowStart = candles.length - cfg.lookback;
+  const bandwidths: number[] = [];
+  for (let i = windowStart; i < candles.length; i++) {
+    const b = bands[i];
+    if (!b || b.middle === 0) continue;
+    bandwidths.push((b.upper - b.lower) / b.middle);
+  }
+  if (bandwidths.length < 10) return null;
+  // Find the squeeze threshold (bottom percentile)
+  const sorted = [...bandwidths].sort((a, b) => a - b);
+  const squeezeThreshold = sorted[Math.floor(sorted.length * cfg.squeezePercentile / 100)];
+  // Check if current close is above upper band (breakout)
+  const lastBand = bands[candles.length - 1];
+  const lastClose = candles[candles.length - 1].close;
+  if (lastClose <= lastBand.upper) return null;
+  // Check if recent bandwidth was in squeeze territory
+  const recentBW = bandwidths[bandwidths.length - 2]; // bar before breakout
+  if (recentBW > squeezeThreshold) return null;
+  const avg = avgVolume(candles.slice(Math.max(SKIP_OPEN, candles.length - 20), -1));
+  const volRatio = avg > 0 ? candles[candles.length - 1].volume / avg : 1;
+  if (volRatio < cfg.volumeRatio) return null;
+  // Find where squeeze started
+  let squeezeStart = candles.length - 2;
+  for (let i = bandwidths.length - 2; i >= 0; i--) {
+    if (bandwidths[i] > squeezeThreshold) {
+      squeezeStart = windowStart + i + 1;
+      break;
+    }
+  }
+  return {
+    type: 'bollinger-squeeze',
+    startIndex: squeezeStart,
+    endIndex: candles.length - 1,
+    startTime: candles[squeezeStart].timestamp.toISOString(),
+    endTime: candles[candles.length - 1].timestamp.toISOString(),
+    conviction: Math.min((1 - recentBW / (squeezeThreshold * 2)) * 0.6 + volRatio * 0.2, 1),
+    label: 'BB Squeeze Breakout',
+    bandwidthAtSqueeze: recentBW,
+    breakoutPrice: lastClose,
+    upperBand: lastBand.upper,
+    volumeRatio: volRatio,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 15. Gap & Go
+// ---------------------------------------------------------------------------
+export function detectGapAndGo(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.gapAndGo): GapAndGo | null {
+  if (candles.length < SKIP_OPEN + cfg.holdBars + 2) return null;
+  const avg = avgVolume(candles.slice(SKIP_OPEN, -1));
+  // Find gap-up at market open: compare prev day's last candle to today's open
+  // We detect by finding a candle whose open is significantly above prior candle's close
+  for (let i = candles.length - 1; i >= SKIP_OPEN + cfg.holdBars; i--) {
+    const prev = candles[i - 1];
+    const cur = candles[i];
+    const gapPct = ((cur.open - prev.close) / prev.close) * 100;
+    if (gapPct < cfg.minGapPct) continue;
+    // Check that the gap holds for the next holdBars candles (doesn't fill)
+    let gapHeld = true;
+    const endIdx = Math.min(i + cfg.holdBars, candles.length - 1);
+    for (let j = i; j <= endIdx; j++) {
+      if (candles[j].low < prev.close) { gapHeld = false; break; }
+    }
+    if (!gapHeld) continue;
+    // Volume on the gap candle
+    const volRatio = avg > 0 ? cur.volume / avg : 1;
+    if (volRatio < cfg.volumeRatio) continue;
+    // Confirm price moves higher after gap
+    if (candles[endIdx].close <= cur.open) continue;
+    return {
+      type: 'gap-and-go',
+      startIndex: i - 1,
+      endIndex: endIdx,
+      startTime: prev.timestamp.toISOString(),
+      endTime: candles[endIdx].timestamp.toISOString(),
+      conviction: Math.min(gapPct / 10 + volRatio * 0.2, 1),
+      label: 'Gap & Go',
+      gapPct,
+      previousClose: prev.close,
+      openPrice: cur.open,
+      volumeRatio: volRatio,
+    };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// 16. Cup & Handle
+// ---------------------------------------------------------------------------
+export function detectCupAndHandle(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.cupAndHandle): CupAndHandle | null {
+  if (candles.length < cfg.minCupBars + 10) return null;
+  const end = candles.length - 1;
+  const windowStart = Math.max(SKIP_OPEN, end - cfg.lookback);
+  // Find the highest price in the window as the "rim"
+  let rimIdx = windowStart;
+  for (let i = windowStart; i <= end; i++) {
+    if (candles[i].high > candles[rimIdx].high) rimIdx = i;
+  }
+  // Rim should not be at the very end
+  if (rimIdx > end - 5) return null;
+  // Find lowest point between windowStart and rimIdx (or after rim) to form cup bottom
+  // First, find left rim and right rim near same price
+  // Left rim: high before the cup bottom
+  // Find lowest low between windowStart and end
+  let cupBottomIdx = windowStart;
+  for (let i = windowStart; i <= end - 3; i++) {
+    if (candles[i].low < candles[cupBottomIdx].low) cupBottomIdx = i;
+  }
+  // Cup bottom should be between some candles
+  if (cupBottomIdx <= windowStart + 3 || cupBottomIdx >= end - 5) return null;
+  // Left rim: highest high before cup bottom
+  let leftRimIdx = windowStart;
+  for (let i = windowStart; i < cupBottomIdx; i++) {
+    if (candles[i].high > candles[leftRimIdx].high) leftRimIdx = i;
+  }
+  // Right rim: highest high after cup bottom
+  let rightRimIdx = cupBottomIdx + 1;
+  for (let i = cupBottomIdx + 1; i <= end; i++) {
+    if (candles[i].high > candles[rightRimIdx].high) rightRimIdx = i;
+  }
+  const leftRim = candles[leftRimIdx].high;
+  const rightRim = candles[rightRimIdx].high;
+  const rimPrice = Math.min(leftRim, rightRim);
+  const cupBottom = candles[cupBottomIdx].low;
+  // Cup must be at least minCupBars wide
+  if (rightRimIdx - leftRimIdx < cfg.minCupBars) return null;
+  // Cup depth check
+  const cupDepthPct = ((rimPrice - cupBottom) / rimPrice) * 100;
+  if (cupDepthPct > cfg.maxCupDepthPct || cupDepthPct < 3) return null;
+  // Rims should be roughly equal (within 3%)
+  if (Math.abs(leftRim - rightRim) / rimPrice > 0.03) return null;
+  // Handle: small pullback after right rim
+  if (rightRimIdx >= end - 1) return null;
+  let handleLowIdx = rightRimIdx + 1;
+  for (let i = rightRimIdx + 1; i <= end; i++) {
+    if (candles[i].low < candles[handleLowIdx].low) handleLowIdx = i;
+  }
+  const handleLow = candles[handleLowIdx].low;
+  const handleRetrace = ((rightRim - handleLow) / (rightRim - cupBottom)) * 100;
+  if (handleRetrace > cfg.maxHandleRetracePct) return null;
+  // Breakout: last candle should close above rim price
+  if (candles[end].close < rimPrice) return null;
+  const conviction = Math.min((1 - cupDepthPct / 50) * 0.5 + (1 - handleRetrace / 100) * 0.3, 1);
+  return {
+    type: 'cup-and-handle',
+    startIndex: leftRimIdx,
+    endIndex: end,
+    startTime: candles[leftRimIdx].timestamp.toISOString(),
+    endTime: candles[end].timestamp.toISOString(),
+    conviction,
+    label: 'Cup & Handle',
+    cupStartPrice: leftRim,
+    cupBottomPrice: cupBottom,
+    cupEndPrice: rightRim,
+    handleLowPrice: handleLow,
+    rimPrice,
+    cupDepthPct,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 17. Falling Wedge (bullish reversal)
+// ---------------------------------------------------------------------------
+export function detectFallingWedge(candles: NormalizedCandle[], cfg = DEFAULT_PATTERN_CONFIG.fallingWedge): FallingWedge | null {
+  if (candles.length < cfg.lookback) return null;
+  const end = candles.length - 1;
+  const windowStart = Math.max(SKIP_OPEN, end - cfg.lookback);
+  const window = candles.slice(windowStart, end); // exclude last candle (breakout)
+  const swingHighs = findSwingHighs(window);
+  const swingLows = findSwingLows(window);
+  if (swingHighs.length < cfg.minSwingPoints || swingLows.length < cfg.minSwingPoints) return null;
+  const hVals = swingHighs.map(i => window[i].high);
+  const hIdxs = swingHighs;
+  const lVals = swingLows.map(i => window[i].low);
+  const lIdxs = swingLows;
+  const hReg = linearRegression(hVals);
+  const lReg = linearRegression(lVals);
+  if (hReg.r2 < cfg.minR2 || lReg.r2 < cfg.minR2) return null;
+  // Both trendlines must slope downward
+  if (hReg.slope >= 0 || lReg.slope >= 0) return null;
+  // Upper trendline should slope more steeply than lower (converging)
+  if (hReg.slope >= lReg.slope) return null;
+  // Breakout: last candle closes above upper trendline
+  const upperAtEnd = hReg.intercept + hReg.slope * (hIdxs.length); // extrapolate
+  if (candles[end].close <= upperAtEnd) {
+    // Try against the last swing high value
+    const lastHighVal = hVals[hVals.length - 1];
+    if (candles[end].close <= lastHighVal) return null;
+  }
+  const avg = avgVolume(candles.slice(Math.max(SKIP_OPEN, end - 20), end));
+  const volRatio = avg > 0 ? candles[end].volume / avg : 1;
+  if (volRatio < cfg.volumeRatio) return null;
+  return {
+    type: 'falling-wedge',
+    startIndex: windowStart,
+    endIndex: end,
+    startTime: candles[windowStart].timestamp.toISOString(),
+    endTime: candles[end].timestamp.toISOString(),
+    conviction: Math.min(((hReg.r2 + lReg.r2) / 2) * (volRatio / 2.5), 1),
+    label: 'Falling Wedge',
+    upperSlope: hReg.slope,
+    upperIntercept: hReg.intercept,
+    lowerSlope: lReg.slope,
+    lowerIntercept: lReg.intercept,
+    breakoutPrice: candles[end].close,
+    volumeRatio: volRatio,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Master detector — runs all patterns and returns all found
 // ---------------------------------------------------------------------------
 export function detectAllPatterns(candles: NormalizedCandle[], config: PatternConfig = DEFAULT_PATTERN_CONFIG): PatternResult[] {
@@ -671,6 +1070,38 @@ export function detectAllPatterns(candles: NormalizedCandle[], config: PatternCo
   if (config.symmetricalTriangle.enabled) {
     const st = detectSymmetricalTriangle(candles, config.symmetricalTriangle);
     if (st) results.push(st);
+  }
+  if (config.bullishEngulfing.enabled) {
+    const be = detectBullishEngulfing(candles, config.bullishEngulfing);
+    if (be) results.push(be);
+  }
+  if (config.morningStar.enabled) {
+    const ms = detectMorningStar(candles, config.morningStar);
+    if (ms) results.push(ms);
+  }
+  if (config.hammer.enabled) {
+    const hm = detectHammer(candles, config.hammer);
+    if (hm) results.push(hm);
+  }
+  if (config.emaCrossover.enabled) {
+    const ec = detectEMACrossover(candles, config.emaCrossover);
+    if (ec) results.push(ec);
+  }
+  if (config.bollingerSqueeze.enabled) {
+    const bs = detectBollingerSqueeze(candles, config.bollingerSqueeze);
+    if (bs) results.push(bs);
+  }
+  if (config.gapAndGo.enabled) {
+    const gg = detectGapAndGo(candles, config.gapAndGo);
+    if (gg) results.push(gg);
+  }
+  if (config.cupAndHandle.enabled) {
+    const ch2 = detectCupAndHandle(candles, config.cupAndHandle);
+    if (ch2) results.push(ch2);
+  }
+  if (config.fallingWedge.enabled) {
+    const fw = detectFallingWedge(candles, config.fallingWedge);
+    if (fw) results.push(fw);
   }
   return results;
 }

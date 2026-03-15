@@ -588,6 +588,14 @@ const PATTERN_LABELS: Record<keyof PatternConfig, string> = {
   insideBarBreakout: 'Inside Bar Breakout',
   vwapReclaim: 'VWAP Reclaim',
   symmetricalTriangle: 'Symmetrical Triangle',
+  bullishEngulfing: 'Bullish Engulfing',
+  morningStar: 'Morning Star',
+  hammer: 'Hammer / Inv. Hammer',
+  emaCrossover: 'EMA Crossover',
+  bollingerSqueeze: 'BB Squeeze Breakout',
+  gapAndGo: 'Gap & Go',
+  cupAndHandle: 'Cup & Handle',
+  fallingWedge: 'Falling Wedge',
 };
 
 type PatternKey = keyof PatternConfig;
@@ -652,6 +660,44 @@ const PATTERN_FIELDS: Record<PatternKey, PatternFieldDef[]> = {
     { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
   ],
   symmetricalTriangle: [
+    { key: 'lookback', label: 'Lookback', min: 20, max: 150, step: 1, suffix: 'bars' },
+    { key: 'minR2', label: 'Min R²', min: 0.1, max: 1, step: 0.05 },
+    { key: 'minSwingPoints', label: 'Min Swing Pts', min: 2, max: 10, step: 1 },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  bullishEngulfing: [
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  morningStar: [
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  hammer: [
+    { key: 'maxBodyPct', label: 'Max Body', min: 10, max: 50, step: 5, suffix: '%' },
+    { key: 'minWickRatio', label: 'Min Wick Ratio', min: 1, max: 5, step: 0.5, suffix: '×' },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 0.5, max: 5, step: 0.1, suffix: '×' },
+  ],
+  emaCrossover: [
+    { key: 'shortPeriod', label: 'Short EMA', min: 3, max: 50, step: 1 },
+    { key: 'longPeriod', label: 'Long EMA', min: 10, max: 200, step: 1 },
+  ],
+  bollingerSqueeze: [
+    { key: 'lookback', label: 'Lookback', min: 15, max: 100, step: 1, suffix: 'bars' },
+    { key: 'bbPeriod', label: 'BB Period', min: 5, max: 50, step: 1 },
+    { key: 'squeezePercentile', label: 'Squeeze Pctile', min: 5, max: 50, step: 5, suffix: '%' },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  gapAndGo: [
+    { key: 'minGapPct', label: 'Min Gap', min: 0.5, max: 10, step: 0.5, suffix: '%' },
+    { key: 'holdBars', label: 'Hold Bars', min: 1, max: 10, step: 1 },
+    { key: 'volumeRatio', label: 'Volume Ratio', min: 1, max: 5, step: 0.1, suffix: '×' },
+  ],
+  cupAndHandle: [
+    { key: 'lookback', label: 'Lookback', min: 30, max: 200, step: 5, suffix: 'bars' },
+    { key: 'minCupBars', label: 'Min Cup Width', min: 10, max: 50, step: 1, suffix: 'bars' },
+    { key: 'maxCupDepthPct', label: 'Max Cup Depth', min: 5, max: 50, step: 5, suffix: '%' },
+    { key: 'maxHandleRetracePct', label: 'Max Handle Retrace', min: 10, max: 80, step: 5, suffix: '%' },
+  ],
+  fallingWedge: [
     { key: 'lookback', label: 'Lookback', min: 20, max: 150, step: 1, suffix: 'bars' },
     { key: 'minR2', label: 'Min R²', min: 0.1, max: 1, step: 0.05 },
     { key: 'minSwingPoints', label: 'Min Swing Pts', min: 2, max: 10, step: 1 },
