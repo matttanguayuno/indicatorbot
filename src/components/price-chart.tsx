@@ -45,6 +45,9 @@ export function PriceChart({
   const dragRef = useRef<{ startX: number; startZoom: [number, number]; hasDragged: boolean } | null>(null);
   const patternClickedRef = useRef(false);
   const dragOccurredRef = useRef(false);
+  // Track whether a touch interaction is active so pointer events can skip tooltip on quick swipes
+  const touchActiveRef = useRef<'idle' | 'pending' | 'tooltip' | 'pan' | 'pinch'>('idle');
+  const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [vSize, setVSize] = useState<[number, number]>([defaultW, defaultH]);
 
   // ResizeObserver: viewBox = CSS pixels so font sizes are real screen pixels
@@ -214,6 +217,8 @@ export function PriceChart({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
+      // On touch, don't use pointer events for drag-pan (touch handler does it)
+      if (e.pointerType === 'touch') return;
       if (!isZoomed) return;
       dragRef.current = { startX: e.clientX, startZoom: [...zoom] as [number, number], hasDragged: false };
       setHoverIndex(null);
@@ -223,13 +228,14 @@ export function PriceChart({
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
+      // On touch, only show tooltip if touch mode is 'tooltip' (tap-and-hold activated)
+      if (e.pointerType === 'touch' && touchActiveRef.current !== 'tooltip') return;
       if (!svgRef.current) return;
       const rect = svgRef.current.getBoundingClientRect();
 
-      // Drag-to-pan when zoomed
+      // Drag-to-pan when zoomed (desktop mouse only)
       if (dragRef.current) {
         const dx = e.clientX - dragRef.current.startX;
-        // Only start dragging after a threshold to allow clicks
         if (!dragRef.current.hasDragged && Math.abs(dx) < 5) return;
         if (!dragRef.current.hasDragged) {
           dragRef.current.hasDragged = true;
@@ -252,7 +258,6 @@ export function PriceChart({
       const fraction = (screenX / rect.width - padLeft / width) / (chartW / width);
       const idx = Math.round(fraction * (visCandles.length - 1));
       setHoverIndex(Math.max(0, Math.min(visCandles.length - 1, idx)));
-      // Detect if pointer is in the volume area
       const svgY = (screenY / rect.height) * height;
       setHoverInVolume(svgY >= volTop);
     },
@@ -261,6 +266,12 @@ export function PriceChart({
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
+      if (e.pointerType === 'touch') {
+        // Clear tooltip on finger lift
+        touchActiveRef.current = 'idle';
+        if (touchTimerRef.current) { clearTimeout(touchTimerRef.current); touchTimerRef.current = null; }
+        setHoverIndex(null);
+      }
       if (dragRef.current) {
         dragOccurredRef.current = dragRef.current.hasDragged;
         if (dragRef.current.hasDragged) svgRef.current?.releasePointerCapture(e.pointerId);
@@ -301,11 +312,14 @@ export function PriceChart({
     return () => el.removeEventListener('wheel', onWheel);
   }, [width, candles.length]);
 
-  // Touch pinch-zoom and one-finger pan for mobile
-  const touchRef = useRef<{ startZoom: [number, number]; startDist: number; startMid: number; mode: 'pinch' | 'pan'; startX: number } | null>(null);
+  // Touch pinch-zoom and one-finger pan/tooltip for mobile
+  // Quick swipe = pan; tap-and-hold ~200ms then drag = tooltip inspection
+  const touchRef = useRef<{ startZoom: [number, number]; startDist: number; startMid: number; mode: 'pinch' | 'pan' | 'pending'; startX: number; startY: number; startTime: number } | null>(null);
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
+    const HOLD_MS = 200; // hold threshold to enter tooltip mode
+    const MOVE_THRESHOLD = 8; // px movement to decide pan vs wait
 
     function getDist(t1: Touch, t2: Touch) {
       return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
@@ -315,16 +329,28 @@ export function PriceChart({
     }
 
     const onTouchStart = (e: TouchEvent) => {
+      if (touchTimerRef.current) { clearTimeout(touchTimerRef.current); touchTimerRef.current = null; }
+
       if (e.touches.length === 2) {
         e.preventDefault();
         const dist = getDist(e.touches[0], e.touches[1]);
         const midX = getMidX(e.touches[0], e.touches[1]);
-        touchRef.current = { startZoom: [...zoom] as [number, number], startDist: dist, startMid: midX, mode: 'pinch', startX: midX };
+        touchRef.current = { startZoom: [...zoom] as [number, number], startDist: dist, startMid: midX, mode: 'pinch', startX: midX, startY: 0, startTime: Date.now() };
+        touchActiveRef.current = 'pinch';
         setHoverIndex(null);
-      } else if (e.touches.length === 1 && (zoom[0] > 0 || zoom[1] < 1)) {
-        // One-finger pan when already zoomed
-        touchRef.current = { startZoom: [...zoom] as [number, number], startDist: 0, startMid: 0, mode: 'pan', startX: e.touches[0].clientX };
-        setHoverIndex(null);
+      } else if (e.touches.length === 1) {
+        const tx = e.touches[0].clientX;
+        const ty = e.touches[0].clientY;
+        touchRef.current = { startZoom: [...zoom] as [number, number], startDist: 0, startMid: 0, mode: 'pending', startX: tx, startY: ty, startTime: Date.now() };
+        touchActiveRef.current = 'pending';
+        // After hold duration, switch to tooltip mode if finger hasn't moved much
+        touchTimerRef.current = setTimeout(() => {
+          touchTimerRef.current = null;
+          if (touchRef.current && touchRef.current.mode === 'pending') {
+            touchRef.current.mode = 'pending'; // keep pending, will become tooltip on next move
+            touchActiveRef.current = 'tooltip';
+          }
+        }, HOLD_MS);
       }
     };
 
@@ -337,7 +363,7 @@ export function PriceChart({
         const rect = el.getBoundingClientRect();
         const dist = getDist(e.touches[0], e.touches[1]);
         const midX = getMidX(e.touches[0], e.touches[1]);
-        const scale = t.startDist / dist; // >1 = zoom out, <1 = zoom in
+        const scale = t.startDist / dist;
         const frac = Math.max(0, Math.min(1,
           ((midX - rect.left) / rect.width * width - padLeft) / (width - padLeft - 8)
         ));
@@ -345,7 +371,6 @@ export function PriceChart({
         const minRange = Math.max(0.05, 3 / (candles.length || 1));
         const newRange = Math.min(1, Math.max(minRange, origRange * scale));
         const center = t.startZoom[0] + frac * origRange;
-        // Also apply pan from midpoint movement
         const panPx = midX - t.startMid;
         const pxRange = rect.width * (1 - padLeft / width - padRight / width);
         const panShift = -(panPx / pxRange) * origRange;
@@ -355,7 +380,37 @@ export function PriceChart({
         if (ns < 0) { ne -= ns; ns = 0; }
         if (ne > 1) { ns -= (ne - 1); ne = 1; }
         setZoom([Math.max(0, ns), Math.min(1, ne)]);
-      } else if (t.mode === 'pan' && e.touches.length === 1) {
+      } else if (t.mode === 'pending' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - t.startX;
+        const dy = e.touches[0].clientY - t.startY;
+        const dist = Math.hypot(dx, dy);
+
+        if (touchActiveRef.current === 'tooltip') {
+          // Hold timer already fired → tooltip mode: let pointer events handle it
+          // (the pointerMove handler will show tooltip since touchActiveRef === 'tooltip')
+          e.preventDefault();
+          return;
+        }
+
+        // Finger moved before hold timer → pan mode
+        if (dist > MOVE_THRESHOLD) {
+          if (touchTimerRef.current) { clearTimeout(touchTimerRef.current); touchTimerRef.current = null; }
+          if (zoom[0] > 0 || zoom[1] < 1) {
+            // Zoomed in → pan
+            t.mode = 'pan' as typeof t.mode;
+            touchActiveRef.current = 'pan';
+            setHoverIndex(null);
+          } else {
+            // Not zoomed → let page scroll naturally, don't prevent default
+            touchRef.current = null;
+            touchActiveRef.current = 'idle';
+            return;
+          }
+        }
+      }
+
+      // Separate check for pan mode (could have just transitioned above)
+      if (touchRef.current?.mode === 'pan' && e.touches.length === 1) {
         e.preventDefault();
         const rect = el.getBoundingClientRect();
         const dx = e.touches[0].clientX - t.startX;
@@ -371,7 +426,10 @@ export function PriceChart({
     };
 
     const onTouchEnd = () => {
+      if (touchTimerRef.current) { clearTimeout(touchTimerRef.current); touchTimerRef.current = null; }
       touchRef.current = null;
+      touchActiveRef.current = 'idle';
+      setHoverIndex(null);
     };
 
     el.addEventListener('touchstart', onTouchStart, { passive: false });
