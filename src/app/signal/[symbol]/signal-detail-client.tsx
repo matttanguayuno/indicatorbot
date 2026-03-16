@@ -463,17 +463,11 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         )}
       </div>
 
-      {/* Explanation */}
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-        <h2 className="text-base font-semibold text-gray-400 mb-1">Signal Summary</h2>
-        <p className="text-sm">{latest.explanation}</p>
-      </div>
-
       {/* Price Chart */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
         <h2 className="text-base font-semibold text-gray-400 mb-2">Chart</h2>
 
-        {/* Time Range — dropdown on mobile, buttons on sm+ */}
+        {/* Row 1: Range + Interval (mobile: both dropdowns on one line; desktop: buttons) */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-xs text-gray-500">Range</span>
           {/* Mobile dropdown */}
@@ -502,12 +496,9 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Interval — dropdown on mobile, buttons on sm+ */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-gray-500">Interval</span>
-          {/* Mobile dropdown */}
+          {/* Interval — on same line as Range on mobile */}
+          <span className="text-xs text-gray-500 sm:hidden ml-2">Int</span>
           <select
             value={chartInterval}
             onChange={(e) => setChartInterval(e.target.value as typeof chartInterval)}
@@ -524,8 +515,12 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               <option key={val} value={val}>{label}</option>
             ))}
           </select>
-          {/* Desktop buttons */}
-          <div className="hidden sm:flex flex-wrap gap-1.5">
+        </div>
+
+        {/* Desktop-only Interval row */}
+        <div className="hidden sm:flex items-center gap-2 mb-3">
+          <span className="text-xs text-gray-500">Interval</span>
+          <div className="flex flex-wrap gap-1.5">
             {([
               ['1min', '1m'],
               ['5min', '5m'],
@@ -548,7 +543,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             ))}
           </div>
 
-          {/* Line / Candle toggle + Patterns toggle */}
+          {/* Desktop Line / Candle toggle + Patterns toggle */}
           <div className="ml-auto flex gap-1 items-center">
             <button
               onClick={() => setChartMode('line')}
@@ -592,12 +587,56 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             </button>
           </div>
         </div>
+
+        {/* Mobile-only Line/Candle + Patterns row */}
+        <div className="sm:hidden flex items-center gap-1 mb-3">
+          <button
+            onClick={() => setChartMode('line')}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              chartMode === 'line'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+            title="Line chart"
+          >
+            Line
+          </button>
+          <button
+            onClick={() => setChartMode('candle')}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              chartMode === 'candle'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+            title="Candlestick chart"
+          >
+            Candle
+          </button>
+          <span className="w-px h-5 bg-gray-700 mx-1" />
+          <button
+            onClick={() => { setShowPatterns(!showPatterns); if (showPatterns) { setLockedPattern(null); setPopupPos(null); } }}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
+              showPatterns
+                ? 'bg-yellow-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+            title={showPatterns ? 'Hide pattern overlays' : 'Show pattern overlays'}
+          >
+            Patterns
+            {chartPatterns.length > 0 && (
+              <span className={`text-[10px] font-bold px-1 rounded-full ${showPatterns ? 'bg-yellow-800 text-yellow-200' : 'bg-gray-700 text-gray-500'}`}>
+                {chartPatterns.length}
+              </span>
+            )}
+            {detectingPatterns && <span className="animate-spin text-[10px]">⏳</span>}
+          </button>
+        </div>
         {chartLoading ? (
           <div className="h-[280px] lg:h-[280px] bg-gray-800/30 rounded animate-pulse flex items-center justify-center text-gray-600 text-sm">
             Loading chart…
           </div>
         ) : chartCandles.length >= 2 ? (
-          <div ref={chartContainerRef} className="relative w-full aspect-[900/900] sm:aspect-[900/450]">
+          <div ref={chartContainerRef} className="relative w-full aspect-[900/1170] sm:aspect-[900/450]">
             <PriceChart
               key={`${chartInterval}:${chartRange}:${chartMode}`}
               candles={chartCandles}
@@ -666,7 +705,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             })()}
           </div>
         ) : history.length >= 2 ? (
-          <div ref={chartContainerRef} className="w-full aspect-[900/900] sm:aspect-[900/450]">
+          <div ref={chartContainerRef} className="w-full aspect-[900/1170] sm:aspect-[900/450]">
             <MiniChart
               data={[...history].reverse().map(h => h.currentPrice)}
               timestamps={[...history].reverse().map(h => h.timestamp)}
@@ -684,6 +723,12 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             {chartDebug}
           </div>
         )}
+      </div>
+
+      {/* Explanation */}
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+        <h2 className="text-base font-semibold text-gray-400 mb-1">Signal Summary</h2>
+        <p className="text-sm">{latest.explanation}</p>
       </div>
 
       {/* Two-column layout on desktop */}

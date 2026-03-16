@@ -301,6 +301,89 @@ export function PriceChart({
     return () => el.removeEventListener('wheel', onWheel);
   }, [width, candles.length]);
 
+  // Touch pinch-zoom and one-finger pan for mobile
+  const touchRef = useRef<{ startZoom: [number, number]; startDist: number; startMid: number; mode: 'pinch' | 'pan'; startX: number } | null>(null);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+
+    function getDist(t1: Touch, t2: Touch) {
+      return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+    }
+    function getMidX(t1: Touch, t2: Touch) {
+      return (t1.clientX + t2.clientX) / 2;
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dist = getDist(e.touches[0], e.touches[1]);
+        const midX = getMidX(e.touches[0], e.touches[1]);
+        touchRef.current = { startZoom: [...zoom] as [number, number], startDist: dist, startMid: midX, mode: 'pinch', startX: midX };
+        setHoverIndex(null);
+      } else if (e.touches.length === 1 && (zoom[0] > 0 || zoom[1] < 1)) {
+        // One-finger pan when already zoomed
+        touchRef.current = { startZoom: [...zoom] as [number, number], startDist: 0, startMid: 0, mode: 'pan', startX: e.touches[0].clientX };
+        setHoverIndex(null);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const t = touchRef.current;
+      if (!t) return;
+
+      if (t.mode === 'pinch' && e.touches.length === 2) {
+        e.preventDefault();
+        const rect = el.getBoundingClientRect();
+        const dist = getDist(e.touches[0], e.touches[1]);
+        const midX = getMidX(e.touches[0], e.touches[1]);
+        const scale = t.startDist / dist; // >1 = zoom out, <1 = zoom in
+        const frac = Math.max(0, Math.min(1,
+          ((midX - rect.left) / rect.width * width - padLeft) / (width - padLeft - 8)
+        ));
+        const origRange = t.startZoom[1] - t.startZoom[0];
+        const minRange = Math.max(0.05, 3 / (candles.length || 1));
+        const newRange = Math.min(1, Math.max(minRange, origRange * scale));
+        const center = t.startZoom[0] + frac * origRange;
+        // Also apply pan from midpoint movement
+        const panPx = midX - t.startMid;
+        const pxRange = rect.width * (1 - padLeft / width - padRight / width);
+        const panShift = -(panPx / pxRange) * origRange;
+
+        let ns = center - frac * newRange + panShift;
+        let ne = center + (1 - frac) * newRange + panShift;
+        if (ns < 0) { ne -= ns; ns = 0; }
+        if (ne > 1) { ns -= (ne - 1); ne = 1; }
+        setZoom([Math.max(0, ns), Math.min(1, ne)]);
+      } else if (t.mode === 'pan' && e.touches.length === 1) {
+        e.preventDefault();
+        const rect = el.getBoundingClientRect();
+        const dx = e.touches[0].clientX - t.startX;
+        const pxRange = rect.width * (1 - padLeft / width - padRight / width);
+        const zoomRange = t.startZoom[1] - t.startZoom[0];
+        const shift = -(dx / pxRange) * zoomRange;
+        let ns = t.startZoom[0] + shift;
+        let ne = t.startZoom[1] + shift;
+        if (ns < 0) { ne -= ns; ns = 0; }
+        if (ne > 1) { ns -= (ne - 1); ne = 1; }
+        setZoom([Math.max(0, ns), Math.min(1, ne)]);
+      }
+    };
+
+    const onTouchEnd = () => {
+      touchRef.current = null;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [width, candles.length, zoom, padLeft, padRight]);
+
   // Hover tooltip position
   const hIdx = Math.min(hoverIndex ?? 0, visCandles.length - 1);
   const hx = x(hIdx);
