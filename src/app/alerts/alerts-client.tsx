@@ -21,6 +21,16 @@ const SELL_LEVEL_BADGES: Record<number, { emoji: string; label: string; cls: str
   3: { emoji: '🔴', label: 'Lv3', cls: 'bg-red-900/60 text-red-300' },
 };
 
+/** Infer sell alert level from the explanation text when sellAlertLevel is 0 (pre-migration alerts). */
+function inferSellLevel(alert: AlertData): number {
+  if (alert.sellAlertLevel > 0) return alert.sellAlertLevel;
+  if (alert.alertType !== 'sell') return 0;
+  if (alert.explanation.startsWith('Structure Failed')) return 3;
+  if (alert.explanation.startsWith('Trend Weakening')) return 2;
+  if (alert.explanation.startsWith('Momentum Cooling')) return 1;
+  return 0;
+}
+
 const RATINGS = [
   { value: 'GOOD', label: '👍 Good', color: 'bg-green-700' },
   { value: 'BAD', label: '👎 Bad', color: 'bg-red-700' },
@@ -202,11 +212,14 @@ export function AlertsClient() {
                   }`}>
                     {a.alertType === 'sell' ? 'SELL' : 'BUY'}
                   </span>
-                  {a.alertType === 'sell' && a.sellAlertLevel > 0 && SELL_LEVEL_BADGES[a.sellAlertLevel] && (
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${SELL_LEVEL_BADGES[a.sellAlertLevel].cls}`}>
-                      {SELL_LEVEL_BADGES[a.sellAlertLevel].emoji} {SELL_LEVEL_BADGES[a.sellAlertLevel].label}
-                    </span>
-                  )}
+                  {(() => {
+                    const lvl = inferSellLevel(a);
+                    return lvl > 0 && SELL_LEVEL_BADGES[lvl] ? (
+                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${SELL_LEVEL_BADGES[lvl].cls}`}>
+                        {SELL_LEVEL_BADGES[lvl].emoji} {SELL_LEVEL_BADGES[lvl].label}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <ScoreBadge score={a.scoreAtAlert} />
