@@ -307,7 +307,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
   const gapUpPct = latest.gapUpPct ?? latest.pctChange1h;
 
   return (
-    <div className="pt-4 space-y-4">
+    <div className="pt-4 space-y-4 overflow-hidden">
       {/* Navigation: Back + Prev/Next */}
       <div className="flex items-center justify-between">
         <Link href={from === 'watchlist' ? '/watchlist' : '/'} className="text-blue-400 text-sm hover:underline">← {from === 'watchlist' ? 'Watchlist' : 'Back'}</Link>
@@ -370,7 +370,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
             <div
               key={a.id}
               onClick={() => setExpandedAlert(expandedAlert === a.id ? null : a.id)}
-              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm border cursor-pointer ${
+              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm border cursor-pointer min-w-0 ${
               a.alertType === 'sell'
                 ? 'bg-red-900/30 border-red-800/50'
                 : 'bg-green-900/30 border-green-800/50'
@@ -380,7 +380,7 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               }`}>
                 {a.alertType === 'sell' ? 'SELL' : 'BUY'}
               </span>
-              <span className={`text-gray-300 flex-1 ${expandedAlert === a.id ? '' : 'truncate'}`}>{a.explanation}</span>
+              <span className={`text-gray-300 flex-1 min-w-0 ${expandedAlert === a.id ? 'break-words' : 'truncate'}`}>{a.explanation}</span>
               <TimeAgo date={a.createdAt} />
             </div>
           ))}

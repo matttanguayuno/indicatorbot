@@ -303,6 +303,7 @@ export async function checkSellAlerts(): Promise<SellAlertResult[]> {
         tickerId: entry.tickerId,
         symbol: entry.symbol,
         alertType: 'sell',
+        sellAlertLevel: level,
         scoreAtAlert: latestSnap.signalScore,
         explanation: sellExplanation,
       },

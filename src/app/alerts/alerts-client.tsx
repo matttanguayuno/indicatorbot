@@ -8,11 +8,18 @@ interface AlertData {
   id: number;
   symbol: string;
   alertType: string;
+  sellAlertLevel: number;
   scoreAtAlert: number;
   explanation: string;
   createdAt: string;
   feedback: { rating: string; note: string | null } | null;
 }
+
+const SELL_LEVEL_BADGES: Record<number, { emoji: string; label: string; cls: string }> = {
+  1: { emoji: '⚠️', label: 'Lv1', cls: 'bg-yellow-900/60 text-yellow-300' },
+  2: { emoji: '🟠', label: 'Lv2', cls: 'bg-orange-900/60 text-orange-300' },
+  3: { emoji: '🔴', label: 'Lv3', cls: 'bg-red-900/60 text-red-300' },
+};
 
 const RATINGS = [
   { value: 'GOOD', label: '👍 Good', color: 'bg-green-700' },
@@ -195,6 +202,11 @@ export function AlertsClient() {
                   }`}>
                     {a.alertType === 'sell' ? 'SELL' : 'BUY'}
                   </span>
+                  {a.alertType === 'sell' && a.sellAlertLevel > 0 && SELL_LEVEL_BADGES[a.sellAlertLevel] && (
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${SELL_LEVEL_BADGES[a.sellAlertLevel].cls}`}>
+                      {SELL_LEVEL_BADGES[a.sellAlertLevel].emoji} {SELL_LEVEL_BADGES[a.sellAlertLevel].label}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <ScoreBadge score={a.scoreAtAlert} />

@@ -147,10 +147,11 @@ model Alert {
   ticker    Ticker   @relation(fields: [tickerId], references: [id], onDelete: Cascade)
   symbol    String
 
-  alertType     String   @default("buy")  // "buy" or "sell"
-  scoreAtAlert  Float
-  explanation   String
-  snapshotId    Int?
+  alertType       String   @default("buy")  // "buy" or "sell"
+  sellAlertLevel  Int      @default(0)      // 0=n/a, 1=Momentum Cooling, 2=Trend Weakening, 3=Structure Failed
+  scoreAtAlert    Float
+  explanation     String
+  snapshotId      Int?
 
   acknowledged  Boolean  @default(false)
   createdAt     DateTime @default(now())
