@@ -432,13 +432,19 @@ export function PriceChart({
       setHoverIndex(null);
     };
 
+    const onSelectStart = (e: Event) => {
+      if (touchActiveRef.current !== 'idle') e.preventDefault();
+    };
+
     el.addEventListener('touchstart', onTouchStart, { passive: false });
     el.addEventListener('touchmove', onTouchMove, { passive: false });
     el.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('selectstart', onSelectStart);
     return () => {
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('selectstart', onSelectStart);
     };
   }, [width, candles.length, zoom, padLeft, padRight]);
 
@@ -474,7 +480,7 @@ export function PriceChart({
   })() : '';
 
   return (
-    <div ref={containerRef} className={className} style={{ width: '100%', height: '100%' }}>
+    <div ref={containerRef} className={className} style={{ width: '100%', height: '100%', WebkitUserSelect: 'none', userSelect: 'none' }}>
     <svg
       ref={svgRef}
       viewBox={`0 0 ${width} ${height}`}
@@ -485,7 +491,7 @@ export function PriceChart({
       onPointerLeave={(e) => { handlePointerUp(e); handlePointerLeave(); }}
       onClick={() => { if (!patternClickedRef.current && !dragOccurredRef.current && onBackgroundClick) onBackgroundClick(); patternClickedRef.current = false; dragOccurredRef.current = false; }}
       onDoubleClick={() => setZoom([0, 1])}
-      style={{ touchAction: 'none', userSelect: 'none', width: '100%', height: '100%', cursor: isZoomed ? 'grab' : 'crosshair' }}
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', width: '100%', height: '100%', cursor: isZoomed ? 'grab' : 'crosshair' }}
     >
       {/* Grid lines */}
       {yTicks.map((t, i) => (

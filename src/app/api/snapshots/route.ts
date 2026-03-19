@@ -135,13 +135,8 @@ export async function GET(req: NextRequest) {
   const results = snapshots
     .filter((s): s is NonNullable<typeof s> => s !== null)
     .filter((s) => s.signalScore >= watchlistThreshold)
-    // When market is closed, hide snapshots that haven't been refreshed recently.
-    // The pipeline skips stale tickers, so a stale timestamp means no fresh data.
-    .filter((s) => {
-      if (isMarketOpenET()) return true;
-      const ageMs = Date.now() - new Date(s.timestamp).getTime();
-      return ageMs < 10 * 60 * 1000; // 10 minutes
-    })
+    // Keep all snapshots — when market is closed we still want
+    // to show the most recent data from the last trading session.
     .sort((a, b) => b.signalScore - a.signalScore)
     .slice(0, limit);
 

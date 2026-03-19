@@ -65,15 +65,38 @@ function ensureMarketOpenStart(candles: ChartCandle[]): ChartCandle[] {
   return [synthetic, ...candles];
 }
 
-/** Build candles from stored SignalSnapshot prices. */
+/** Build candles from stored SignalSnapshot prices.
+ *  Falls back to the most recent trading session if today has no data. */
 async function snapshotFallback(symbol: string): Promise<ChartCandle[]> {
   const todayStart = getTodayStartET();
-  const snapshots = await prisma.signalSnapshot.findMany({
+  let snapshots = await prisma.signalSnapshot.findMany({
     where: { symbol, timestamp: { gte: todayStart } },
     orderBy: { timestamp: 'asc' },
     select: { currentPrice: true, timestamp: true },
     take: 5000,
   });
+
+  // No data today — fall back to the last trading session
+  if (snapshots.length === 0) {
+    const latest = await prisma.signalSnapshot.findFirst({
+      where: { symbol },
+      orderBy: { timestamp: 'desc' },
+      select: { timestamp: true },
+    });
+    if (latest) {
+      // Find midnight ET of the latest snapshot's day
+      const latestET = new Date(latest.timestamp.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      latestET.setHours(0, 0, 0, 0);
+      const offsetMs = latest.timestamp.getTime() - new Date(latest.timestamp.toLocaleString('en-US', { timeZone: 'America/New_York' })).getTime();
+      const dayStart = new Date(latestET.getTime() + offsetMs);
+      snapshots = await prisma.signalSnapshot.findMany({
+        where: { symbol, timestamp: { gte: dayStart } },
+        orderBy: { timestamp: 'asc' },
+        select: { currentPrice: true, timestamp: true },
+        take: 5000,
+      });
+    }
+  }
 
   return snapshots.map((s) => ({
     time: s.timestamp.toISOString(),
@@ -111,7 +134,13 @@ export async function POST(req: NextRequest) {
           close: c.close,
           volume: c.volume,
         }));
-      result[sym] = { candles: ensureMarketOpenStart(todayCandles), source: 'pipeline-cache' };
+      if (todayCandles.length > 0) {
+        result[sym] = { candles: ensureMarketOpenStart(todayCandles), source: 'pipeline-cache' };
+      } else {
+        // Cache exists but nothing from today — fall back to DB for last session
+        const candles = await snapshotFallback(sym);
+        result[sym] = { candles: ensureMarketOpenStart(candles), source: 'snapshot-prev' };
+      }
     } else {
       // Pipeline hasn't cached this symbol yet — fall back to DB snapshots
       const candles = await snapshotFallback(sym);
