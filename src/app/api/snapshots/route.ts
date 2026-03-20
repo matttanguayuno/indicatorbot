@@ -132,11 +132,15 @@ export async function GET(req: NextRequest) {
     ? parseInt(thresholdParam, 10)
     : (settings?.watchlistThreshold ?? 0);
 
+  // During market hours, hide stocks whose latest snapshot is older than the stale threshold
+  const staleMinutes = settings?.staleDataMinutes ?? 5;
+  const marketOpen = isMarketOpenET();
+  const staleCutoff = new Date(Date.now() - staleMinutes * 60 * 1000);
+
   const results = snapshots
     .filter((s): s is NonNullable<typeof s> => s !== null)
     .filter((s) => s.signalScore >= watchlistThreshold)
-    // Keep all snapshots — when market is closed we still want
-    // to show the most recent data from the last trading session.
+    .filter((s) => !marketOpen || new Date(s.timestamp) >= staleCutoff)
     .sort((a, b) => b.signalScore - a.signalScore)
     .slice(0, limit);
 

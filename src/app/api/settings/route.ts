@@ -40,7 +40,7 @@ const VALID_DATA_SOURCES = ['finnhub', 'twelvedata', 'polygon'] as const;
 
 export async function PUT(req: NextRequest) {
   const body = await req.json();
-  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes, sentimentMethod, patternConfig } = body;
+  const { scoreThreshold, watchlistThreshold, alertCooldownMin, pollingIntervalSec, staleDataMinutes, dataSource, screenerSource, screenerTopN, screenerSyncTimes, newsSummaryTimes, sentimentMethod, patternConfig } = body;
 
   const settings = await getOrCreateSettings();
 
@@ -91,6 +91,7 @@ export async function PUT(req: NextRequest) {
       ...(watchlistThreshold != null && { watchlistThreshold }),
       ...(alertCooldownMin != null && { alertCooldownMin }),
       ...(pollingIntervalSec != null && { pollingIntervalSec }),
+      ...(staleDataMinutes != null && typeof staleDataMinutes === 'number' && staleDataMinutes >= 1 && staleDataMinutes <= 60 && { staleDataMinutes }),
       ...(validSource != null && { dataSource: validSource }),
       ...(validScreenerSource != null && { screenerSource: validScreenerSource }),
       ...(validTopN != null && { screenerTopN: validTopN }),

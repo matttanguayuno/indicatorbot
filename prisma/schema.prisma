@@ -22,6 +22,7 @@ model AppSettings {
   newsSummaryTimes    String   @default("07:30,10:00")
   sentimentMethod     String   @default("keyword")
   apiLoggingEnabled   Boolean  @default(true)
+  staleDataMinutes    Int      @default(5)
   rulesJson           String?
   sellRulesJson       String?
   patternConfigJson   String?

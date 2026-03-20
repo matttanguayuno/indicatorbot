@@ -14,6 +14,7 @@ interface Settings {
   watchlistThreshold: number;
   alertCooldownMin: number;
   pollingIntervalSec: number;
+  staleDataMinutes: number;
   dataSource: string;
   screenerSource: string;
   screenerTopN: number;
@@ -87,6 +88,7 @@ export function SettingsClient() {
           watchlistThreshold: settings.watchlistThreshold,
           alertCooldownMin: settings.alertCooldownMin,
           pollingIntervalSec: settings.pollingIntervalSec,
+          staleDataMinutes: settings.staleDataMinutes,
           dataSource: settings.dataSource,
           screenerSource: settings.screenerSource,
           screenerTopN: settings.screenerTopN,
@@ -254,6 +256,16 @@ export function SettingsClient() {
             min={10}
             max={3600}
           />
+          <SettingInput
+            label="Stale Data Threshold (min)"
+            value={settings.staleDataMinutes}
+            onChange={(v) => setSettings({ ...settings, staleDataMinutes: v })}
+            min={1}
+            max={60}
+          />
+          <p className="text-xs text-gray-500 -mt-2">
+            Hide stocks from Opportunities if no data received in this many minutes during market hours.
+          </p>
           {settings.screenerSource !== 'webull' && (
             <>
               <SettingInput
