@@ -79,6 +79,7 @@ async function processTicker(
   dataSource: string,
   rules: ScoringRules,
   patternConfig: PatternConfig,
+  options?: { skipStaleCheck?: boolean },
 ): Promise<ProcessResult> {
   try {
     // 1) Fetch quote — source-dependent
@@ -111,7 +112,8 @@ async function processTicker(
 
     // Outside market hours, only process tickers that are actively trading.
     // If the latest candle is more than 5 minutes old, the stock is stale.
-    if (!isMarketOpenET() && hasCandleData) {
+    // Skip this check for on-demand requests (user explicitly asked for data).
+    if (!options?.skipStaleCheck && !isMarketOpenET() && hasCandleData) {
       const latestCandleTime = candles![candles!.length - 1].timestamp.getTime();
       const ageMs = Date.now() - latestCandleTime;
       const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
@@ -445,6 +447,88 @@ export function getCachedCandles(): Map<string, NormalizedCandle[]> {
 // ── Profile cache: /profile + /statistics cost 2 credits per symbol ──
 const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const profileCache = new Map<string, { profile: NormalizedProfile; fetchedAt: number }>();
+
+/**
+ * On-demand processing for a single ticker.
+ * Used when a user views a signal page for a stock that has no snapshot yet.
+ * Ensures the ticker exists (creates it if needed), fetches fresh data, and
+ * stores a snapshot. Skips the stale-candle check so it works outside market hours.
+ */
+export async function processTickerOnDemand(symbol: string): Promise<ProcessResult> {
+  const upper = symbol.toUpperCase().trim();
+  console.log(`[Pipeline] On-demand processing for ${upper}`);
+
+  // Ensure ticker exists in DB
+  const ticker = await prisma.ticker.upsert({
+    where: { symbol: upper },
+    update: { active: true },
+    create: { symbol: upper },
+  });
+
+  // Load settings & rules
+  const settings = await prisma.appSettings.findFirst();
+  const scoreThreshold = settings?.scoreThreshold ?? ALERT_CONFIG.defaultScoreThreshold;
+  const cooldownMin = settings?.alertCooldownMin ?? ALERT_CONFIG.cooldownMinutes;
+  const dataSource = settings?.dataSource ?? 'twelvedata';
+  const rules = await getScoringRules();
+  const patternConfig = getPatternConfig(settings?.patternConfigJson);
+
+  // Fetch candles for this single symbol.
+  // Outside market hours: try today first (catches pre/after-market trading).
+  // If no candles returned, fall back to yesterday's full session.
+  let candles: NormalizedCandle[] | null = null;
+  let series: TwelveDataTimeSeries | null = null;
+
+  if (dataSource === 'twelvedata' && process.env.TWELVEDATA_API_KEY) {
+    try {
+      if (!isMarketOpenET()) {
+        // Today's date in ET (exchange timezone)
+        const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const todayStr = `${nowET.getFullYear()}-${String(nowET.getMonth() + 1).padStart(2, '0')}-${String(nowET.getDate()).padStart(2, '0')}`;
+
+        // Try today first — stock may trade pre/after-market
+        const todayResult = await getTimeSeries([upper], '1min', 390, 'on-demand', { startDate: `${todayStr} 00:00:00` });
+        const todaySeries = todayResult.get(upper);
+        if (todaySeries && todaySeries.values?.length > 0) {
+          series = todaySeries;
+          candles = mapTwelveDataCandles(todaySeries);
+          console.log(`[Pipeline] On-demand ${upper}: got ${candles.length} candles from today (pre/after-market)`);
+        }
+
+        // No data today — fall back to yesterday's session
+        if (!candles || candles.length === 0) {
+          const yesterday = new Date(nowET);
+          yesterday.setDate(yesterday.getDate() - 1);
+          // Skip weekends: if yesterday is Sunday go back to Friday, if Saturday go back to Friday
+          if (yesterday.getDay() === 0) yesterday.setDate(yesterday.getDate() - 2);
+          if (yesterday.getDay() === 6) yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+          console.log(`[Pipeline] On-demand ${upper}: no data today, trying ${yesterdayStr}`);
+          const ydayResult = await getTimeSeries([upper], '1min', 390, 'on-demand', { startDate: `${yesterdayStr} 00:00:00`, endDate: `${yesterdayStr} 23:59:59` });
+          const ydaySeries = ydayResult.get(upper);
+          if (ydaySeries && ydaySeries.values?.length > 0) {
+            series = ydaySeries;
+            candles = mapTwelveDataCandles(ydaySeries);
+            console.log(`[Pipeline] On-demand ${upper}: got ${candles.length} candles from ${yesterdayStr}`);
+          }
+        }
+      } else {
+        // Market is open — fetch normally
+        const result = await getTimeSeries([upper], '1min', 390, 'on-demand');
+        const s = result.get(upper);
+        if (s) {
+          series = s;
+          candles = mapTwelveDataCandles(s);
+        }
+      }
+    } catch (err) {
+      console.error(`[Pipeline] On-demand candle fetch failed for ${upper}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return processTicker(upper, ticker.id, scoreThreshold, cooldownMin, candles, series, dataSource, rules, patternConfig, { skipStaleCheck: true });
+}
 
 /**
  * Main polling entry point: processes all active tickers.

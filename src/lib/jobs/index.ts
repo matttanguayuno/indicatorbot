@@ -1,1 +1,1 @@
-export { runPollingCycle, getCachedCandles, refreshNews } from './pipeline';
+export { runPollingCycle, getCachedCandles, refreshNews, processTickerOnDemand } from './pipeline';

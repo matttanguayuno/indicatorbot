@@ -146,6 +146,7 @@ export async function getTimeSeries(
   interval: string = '1min',
   outputsize: number = 90,
   caller: string = '',
+  options?: { startDate?: string; endDate?: string },
 ): Promise<Map<string, TwelveDataTimeSeries>> {
   if (symbols.length === 0) return new Map();
   const tag = caller ? ` [${caller}]` : '';
@@ -166,6 +167,8 @@ export async function getTimeSeries(
   url.searchParams.set('outputsize', outputsize.toString());
   url.searchParams.set('format', 'JSON');
   url.searchParams.set('previous_close', 'true');
+  if (options?.startDate) url.searchParams.set('start_date', options.startDate);
+  if (options?.endDate) url.searchParams.set('end_date', options.endDate);
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {

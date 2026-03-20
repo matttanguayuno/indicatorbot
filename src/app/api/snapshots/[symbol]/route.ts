@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { calculateScore, type SignalInputs } from '@/lib/scoring';
+import { processTickerOnDemand } from '@/lib/jobs';
 
 function parseSince(value: string): Date | null {
   if (value === 'today') {
@@ -49,7 +50,7 @@ export async function GET(
   const sinceParam = _req.nextUrl.searchParams.get('since');
   const sinceDate = sinceParam ? parseSince(sinceParam) : null;
 
-  const [latest, history, news] = await Promise.all([
+  let [latest, history, news] = await Promise.all([
     prisma.signalSnapshot.findFirst({
       where: { symbol: upperSymbol },
       orderBy: { timestamp: 'desc' },
@@ -76,8 +77,37 @@ export async function GET(
     }),
   ]);
 
+  // If no snapshot exists, try to fetch data on-demand
   if (!latest) {
-    return NextResponse.json({ error: 'No data found' }, { status: 404 });
+    const result = await processTickerOnDemand(upperSymbol);
+    if (!result.success) {
+      return NextResponse.json({ error: result.error ?? 'Failed to fetch data' }, { status: 404 });
+    }
+    // Re-query after on-demand processing created the snapshot
+    [latest, history] = await Promise.all([
+      prisma.signalSnapshot.findFirst({
+        where: { symbol: upperSymbol },
+        orderBy: { timestamp: 'desc' },
+      }),
+      prisma.signalSnapshot.findMany({
+        where: {
+          symbol: upperSymbol,
+          ...(sinceDate ? { timestamp: { gte: sinceDate } } : {}),
+        },
+        orderBy: { timestamp: 'desc' },
+        take: sinceDate ? 10_000 : 500,
+        select: {
+          id: true,
+          signalScore: true,
+          currentPrice: true,
+          timestamp: true,
+          explanation: true,
+        },
+      }),
+    ]);
+    if (!latest) {
+      return NextResponse.json({ error: 'No data found' }, { status: 404 });
+    }
   }
 
   // Keep only the last snapshot per minute to smooth rapid-poll oscillation
