@@ -346,23 +346,6 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
         <ScoreBadge score={latest.signalScore} />
       </div>
 
-      {/* Pattern badges */}
-      {latest.patterns && (() => {
-        const pats: PatternResult[] = JSON.parse(latest.patterns);
-        if (pats.length === 0) return null;
-        return (
-          <div className="flex flex-wrap gap-1.5">
-            {pats.map((p, i) => (
-              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
-                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-                {p.label}
-                <span className="text-yellow-500/70">{Math.round(p.conviction * 100)}%</span>
-              </span>
-            ))}
-          </div>
-        );
-      })()}
-
       {/* Alerts for this stock */}
       {stockAlerts.length > 0 && (
         <div className="space-y-1.5 overflow-hidden">
