@@ -365,12 +365,12 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
 
       {/* Alerts for this stock */}
       {stockAlerts.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 overflow-hidden">
           {stockAlerts.map((a) => (
             <div
               key={a.id}
               onClick={() => setExpandedAlert(expandedAlert === a.id ? null : a.id)}
-              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm border cursor-pointer min-w-0 ${
+              className={`flex items-start gap-2 px-3 py-2 rounded-lg text-sm border cursor-pointer overflow-hidden ${
               a.alertType === 'sell'
                 ? 'bg-red-900/30 border-red-800/50'
                 : 'bg-green-900/30 border-green-800/50'
@@ -380,8 +380,11 @@ export function SignalDetailClient({ symbol }: { symbol: string }) {
               }`}>
                 {a.alertType === 'sell' ? 'SELL' : 'BUY'}
               </span>
-              <span className={`text-gray-300 flex-1 min-w-0 ${expandedAlert === a.id ? 'break-words' : 'truncate'}`}>{a.explanation}</span>
-              <TimeAgo date={a.createdAt} />
+              <span className={`text-gray-300 flex-1 min-w-0 ${expandedAlert === a.id ? 'break-words whitespace-normal' : 'truncate'}`}>{a.explanation}</span>
+              <span className="shrink-0 text-gray-500 flex items-center gap-1.5">
+                <TimeAgo date={a.createdAt} />
+                <span className={`text-[10px] transition-transform ${expandedAlert === a.id ? 'rotate-180' : ''}`}>▼</span>
+              </span>
             </div>
           ))}
         </div>

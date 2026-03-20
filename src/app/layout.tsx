@@ -47,7 +47,7 @@ export default function RootLayout({
       >
         <div className="flex min-h-screen">
           <AppNav />
-          <main className="flex-1 pb-24 lg:pb-4 px-4 lg:px-8 xl:px-12 w-full" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
+          <main className="flex-1 min-w-0 pb-24 lg:pb-4 px-4 lg:px-8 xl:px-12 w-full" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
             {children}
           </main>
         </div>
